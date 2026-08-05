@@ -500,6 +500,236 @@ def test_coordination_baseline_sha_nullable() -> None:
     assert _errors_for("coordination-message", doc) == []
 
 
+# ── Coordination protocol contract coherence ───────────────────────────────
+
+_CANDIDATE_SHA = "a40132d2663520e3ce85347f6f9fe0ba2e49f22b13b85337fb96bf8fcaaf7128"
+_HQ_COMMIT = "0123456789abcdef0123456789abcdef01234567"
+_RUN = "run-20260805-widget-service-sorting"
+
+
+def _coordination_doc(kind: str = "assignment", **overrides) -> dict:
+    """Build a coordination-message document from the example for a message kind."""
+    doc = _load(EXAMPLE_FILES["coordination-message"])
+    if kind == "submission":
+        doc.update(
+            sender_role="scout",
+            recipient_role="operator",
+            message_type="artifact_submission",
+            in_reply_to="msg-20260805-0001",
+            supersedes=None,
+            state_before="scouting",
+            state_after="scouting",
+            prompt_used="scout@0.1.0",
+            artifact_ref={
+                "kind": "repair_candidate",
+                "path": f"run-output/{_RUN}/repair-candidate.yaml",
+                "hq_commit_sha": None,
+                "sha256": _CANDIDATE_SHA,
+            },
+        )
+    elif kind == "acceptance":
+        doc.update(
+            sender_role="operator",
+            recipient_role="scout",
+            message_type="artifact_acceptance",
+            in_reply_to="msg-20260805-0002",
+            supersedes=None,
+            state_before="scouting",
+            state_after="candidate_selected",
+            artifact_ref={
+                "kind": "repair_candidate",
+                "path": f"runs/{_RUN}/repair-candidate.yaml",
+                "hq_commit_sha": _HQ_COMMIT,
+                "sha256": _CANDIDATE_SHA,
+            },
+        )
+    doc.update(overrides)
+    return doc
+
+
+def _coordination_errors(doc: dict) -> list[str]:
+    errors: list[str] = []
+    validate_artifacts.validate_value(doc, _schema("coordination-message"), "msg", errors)
+    validate_artifacts.check_coordination_message(doc, "msg", errors)
+    return errors
+
+
+def test_submission_accepts_null_hq_commit_sha() -> None:
+    assert _coordination_errors(_coordination_doc("submission")) == []
+
+
+def test_submission_rejects_non_null_hq_commit_sha() -> None:
+    errors = _coordination_errors(
+        _coordination_doc("submission", artifact_ref={
+            "kind": "repair_candidate",
+            "path": f"run-output/{_RUN}/repair-candidate.yaml",
+            "hq_commit_sha": _HQ_COMMIT,
+            "sha256": _CANDIDATE_SHA,
+        })
+    )
+    assert any("hq_commit_sha must be null" in e for e in errors)
+
+
+def test_acceptance_requires_non_null_hq_commit_sha() -> None:
+    errors = _coordination_errors(
+        _coordination_doc("acceptance", artifact_ref={
+            "kind": "repair_candidate",
+            "path": f"runs/{_RUN}/repair-candidate.yaml",
+            "hq_commit_sha": None,
+            "sha256": _CANDIDATE_SHA,
+        })
+    )
+    assert any("non-null 40-hex hq_commit_sha" in e for e in errors)
+    errors = _coordination_errors(
+        _coordination_doc("acceptance", artifact_ref={
+            "kind": "repair_candidate",
+            "path": f"runs/{_RUN}/repair-candidate.yaml",
+            "hq_commit_sha": "xyz",
+            "sha256": _CANDIDATE_SHA,
+        })
+    )
+    assert any("hq_commit_sha" in e for e in errors)
+
+
+def test_submission_and_acceptance_preserve_same_sha256() -> None:
+    submission = _coordination_doc("submission")
+    acceptance = _coordination_doc("acceptance")
+    assert submission["artifact_ref"]["sha256"] == acceptance["artifact_ref"]["sha256"]
+    assert _coordination_errors(submission) == []
+    assert _coordination_errors(acceptance) == []
+
+
+def test_worker_submission_does_not_advance_state() -> None:
+    errors = _coordination_errors(
+        _coordination_doc("submission", state_after="candidate_selected")
+    )
+    assert any("must not advance pipeline state" in e for e in errors)
+
+
+def test_acceptance_and_next_assignment_are_separate_transitions() -> None:
+    # The acceptance itself must not perform the next role's dispatch transition.
+    errors = _coordination_errors(
+        _coordination_doc("acceptance", recipient_role="repair",
+                          state_before="candidate_selected", state_after="repair_in_progress")
+    )
+    assert any("invalid acceptance transition" in e for e in errors)
+    # A separate Repair assignment performs that transition.
+    repair_assignment = _coordination_doc(
+        "assignment", recipient_role="repair",
+        state_before="candidate_selected", state_after="repair_in_progress",
+    )
+    assert _coordination_errors(repair_assignment) == []
+
+
+def test_only_operator_emits_control_message_types() -> None:
+    errors = _coordination_errors(_coordination_doc("assignment", sender_role="scout"))
+    assert any("may only be emitted by operator" in e for e in errors)
+
+
+def test_operator_cannot_emit_artifact_submission() -> None:
+    errors = _coordination_errors(
+        _coordination_doc("submission", sender_role="operator", recipient_role="scout")
+    )
+    assert any("may only be emitted by scout, repair or review" in e for e in errors)
+
+
+def test_worker_cannot_emit_run_closed() -> None:
+    errors = _coordination_errors(
+        _coordination_doc("acceptance", message_type="run_closed", sender_role="review",
+                          recipient_role="operator", state_before="approved",
+                          state_after="approved")
+    )
+    assert any("may only be emitted by operator" in e for e in errors)
+
+
+def test_recipient_all_fails() -> None:
+    errors = _coordination_errors(_coordination_doc("assignment", recipient_role="all"))
+    assert any("not in enum" in e for e in errors)
+
+
+def test_unsupported_protocol_version_fails() -> None:
+    errors = _coordination_errors(_coordination_doc("submission", protocol_version="0.2.0"))
+    assert any("expected const" in e for e in errors)
+
+
+def test_prompt_used_required_for_submission() -> None:
+    errors = _coordination_errors(_coordination_doc("submission", prompt_used=None))
+    assert any("requires prompt_used" in e for e in errors)
+
+
+def test_prompt_used_must_match_sender_role() -> None:
+    errors = _coordination_errors(_coordination_doc("submission", prompt_used="repair@0.1.0"))
+    assert any("must match <sender_role>@<version>" in e for e in errors)
+
+
+def test_worker_message_must_be_addressed_to_operator() -> None:
+    errors = _coordination_errors(_coordination_doc("submission", recipient_role="repair"))
+    assert any("must be addressed to operator" in e for e in errors)
+
+
+def test_assignment_must_target_one_worker() -> None:
+    errors = _coordination_errors(_coordination_doc("assignment", recipient_role="operator"))
+    assert any("addressed to one worker role" in e for e in errors)
+
+
+def test_acceptance_requires_canonical_path() -> None:
+    errors = _coordination_errors(
+        _coordination_doc("acceptance", artifact_ref={
+            "kind": "repair_candidate",
+            "path": f"run-output/{_RUN}/repair-candidate.yaml",
+            "hq_commit_sha": _HQ_COMMIT,
+            "sha256": _CANDIDATE_SHA,
+        })
+    )
+    assert any("canonical path must be runs/<run-id>/" in e for e in errors)
+
+
+def test_run_closed_requires_terminal_state() -> None:
+    errors = _coordination_errors(
+        _coordination_doc("acceptance", message_type="run_closed",
+                          state_before="repair_submitted", state_after="repair_submitted")
+    )
+    assert any("already-terminal state" in e for e in errors)
+
+
+def test_rework_request_does_not_advance_state() -> None:
+    errors = _coordination_errors(
+        _coordination_doc("acceptance", message_type="rework_request",
+                          recipient_role="repair", state_before="repair_in_progress",
+                          state_after="repair_submitted", artifact_ref=None)
+    )
+    assert any("must not advance state" in e for e in errors)
+
+
+def test_run_manifest_issue_number_url_mismatch_fails() -> None:
+    doc = _load(EXAMPLE_FILES["run-manifest"])
+    doc["coordination"]["issue_number"] = 11
+    errors: list[str] = []
+    validate_artifacts.check_coordination_reference(doc, "run-manifest", errors)
+    assert any("does not match issue_number" in e for e in errors)
+
+
+def test_run_manifest_issue_url_outside_federation_hq_fails() -> None:
+    doc = _load(EXAMPLE_FILES["run-manifest"])
+    doc["coordination"]["issue_url"] = "https://github.com/other-org/other-repo/issues/10"
+    errors = _errors_for("run-manifest", doc)
+    assert any("does not match pattern" in e for e in errors)
+
+
+def test_run_manifest_unsupported_coordination_protocol_fails() -> None:
+    doc = _load(EXAMPLE_FILES["run-manifest"])
+    doc["coordination"]["protocol_version"] = "0.2.0"
+    errors = _errors_for("run-manifest", doc)
+    assert any("expected const" in e for e in errors)
+
+
+def test_run_manifest_coherent_coordination_reference_accepted() -> None:
+    doc = _load(EXAMPLE_FILES["run-manifest"])
+    errors: list[str] = []
+    validate_artifacts.check_coordination_reference(doc, "run-manifest", errors)
+    assert errors == []
+
+
 # ── Issue templates ─────────────────────────────────────────────────────────
 
 TEMPLATE_DIR = REPO_ROOT / ".github" / "ISSUE_TEMPLATE"

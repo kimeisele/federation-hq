@@ -66,7 +66,7 @@ prompts:
     versions:
       - version: 0.1.0
         file: operator/v0.1.0.md
-        sha256: "a71e91a625a8925ff4e77b9bded437b3385c251f4f8530adcb52467b491c07b1"
+        sha256: "776bae04d9683b1d159b0e4ba2dab5a3f9c26de205cf0057b1e9fbf0854ff4fa"
         status: released
         released: "2026-08-05"
         changelog: >
@@ -74,3 +74,8 @@ prompts:
           active role assignment per run, structural artifact acceptance,
           Issue-based coordination, no merge authority, no semantic repair
           judgment, no autonomous target selection, no model invocation.
+          Pre-merge finalization (unmerged PR #3): submission references
+          delivered bytes with hq_commit_sha null; acceptance references the
+          canonical run-record branch commit with a matching hash; acceptance
+          and next assignment are separate messages. No run pinned the earlier
+          draft bytes.

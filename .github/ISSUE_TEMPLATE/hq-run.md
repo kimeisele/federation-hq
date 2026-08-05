@@ -33,6 +33,9 @@ assignees: []
 ## Run record
 
 - **HQ run path (planned or committed):** `runs/<run-id>/`
+- **HQ run-record branch:** `<hq-run-record-branch>`
+- **HQ draft record PR:** `<record PR URL>`
+- **Latest accepted HQ record commit SHA:** `<40 hex chars or "none">`
 - **Target branch or PR reference:** `<branch or PR URL when available>`
 
 ## Baseline state

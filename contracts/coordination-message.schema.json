@@ -23,8 +23,7 @@
       "const": "federation_hq_coordination_message"
     },
     "protocol_version": {
-      "type": "string",
-      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+      "const": "0.1.0"
     },
     "message_id": {
       "type": "string",
@@ -38,7 +37,7 @@
       "enum": ["operator", "scout", "repair", "review"]
     },
     "recipient_role": {
-      "enum": ["operator", "scout", "repair", "review", "all"]
+      "enum": ["operator", "scout", "repair", "review"]
     },
     "message_type": {
       "enum": [
@@ -73,7 +72,7 @@
       "$ref": "#/$defs/pipeline_state"
     },
     "prompt_used": {
-      "description": "Prompt id@version used by the sender for an artifact_submission (e.g. scout@0.1.0).",
+      "description": "Prompt id@version used by the sender for an artifact_submission (e.g. scout@0.1.0); required for artifact_submission per the protocol contract.",
       "type": "string"
     },
     "artifact_ref": {
@@ -87,7 +86,8 @@
           "type": "string"
         },
         "hq_commit_sha": {
-          "type": "string",
+          "description": "Exact commit on the HQ run-record branch; null while the submitted bytes are not yet recorded canonically.",
+          "type": ["string", "null"],
           "pattern": "^[0-9a-f]{40}$"
         },
         "sha256": {

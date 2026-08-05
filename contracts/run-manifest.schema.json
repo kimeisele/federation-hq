@@ -55,13 +55,12 @@
       "additionalProperties": false
     },
     "coordination": {
-      "description": "The run's GitHub-native coordination reference: one run maps to exactly one coordination Issue.",
+      "description": "The run's GitHub-native coordination reference: one run maps to exactly one coordination Issue in kimeisele/federation-hq.",
       "type": "object",
       "required": ["protocol_version", "issue_number", "issue_url"],
       "properties": {
         "protocol_version": {
-          "type": "string",
-          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+          "const": "0.1.0"
         },
         "issue_number": {
           "type": "integer",
@@ -69,7 +68,7 @@
         },
         "issue_url": {
           "type": "string",
-          "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[0-9]+$"
+          "pattern": "^https://github\\.com/kimeisele/federation-hq/issues/[0-9]+$"
         }
       },
       "additionalProperties": false

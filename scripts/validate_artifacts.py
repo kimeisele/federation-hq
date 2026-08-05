@@ -356,6 +356,218 @@ def check_prompt_pins(doc: dict, registry: dict | None, where: str, errors: list
             )
 
 
+# ── Coordination protocol contract checks ──────────────────────────────────
+
+_CONTROL_MESSAGE_TYPES = frozenset(
+    {"run_opened", "assignment", "artifact_acceptance", "rework_request", "run_closed"}
+)
+_WORKER_MESSAGE_TYPES = frozenset({"artifact_submission", "blocked"})
+_WORKER_ROLES = frozenset({"scout", "repair", "review"})
+_TERMINAL_STATES = frozenset({"approved", "blocked", "invalid_candidate"})
+
+# Assignment transitions permitted per recipient role (docs/COORDINATION_PROTOCOL.md).
+_ASSIGNMENT_TRANSITIONS: dict[str, frozenset[tuple[str, str]]] = {
+    "scout": frozenset({("requested", "scouting")}),
+    "repair": frozenset(
+        {("candidate_selected", "repair_in_progress"), ("changes_requested", "repair_in_progress")}
+    ),
+    "review": frozenset({("repair_submitted", "independent_review")}),
+}
+
+# Artifact-acceptance transitions permitted per recipient role.
+_ACCEPTANCE_TRANSITIONS: dict[str, frozenset[tuple[str, str]]] = {
+    "scout": frozenset({("scouting", "candidate_selected")}),
+    "repair": frozenset({("repair_in_progress", "repair_submitted")}),
+    "review": frozenset(
+        {
+            ("independent_review", "approved"),
+            ("independent_review", "changes_requested"),
+            ("independent_review", "blocked"),
+            ("independent_review", "invalid_candidate"),
+        }
+    ),
+}
+
+
+def _check_canonical_ref(ref: dict, run_id: object, where: str, errors: list[str]) -> None:
+    """Require a canonical artifact reference: runs/<run-id>/ path, exact HQ commit SHA, SHA-256."""
+    path = ref.get("path")
+    if not isinstance(path, str) or not path.startswith(f"runs/{run_id}/"):
+        errors.append(f"{where}.artifact_ref: canonical path must be runs/<run-id>/..., got {path!r}")
+    hq = ref.get("hq_commit_sha")
+    if not isinstance(hq, str) or not re.fullmatch(r"[0-9a-f]{40}", hq):
+        errors.append(f"{where}.artifact_ref: canonical reference requires a non-null 40-hex hq_commit_sha")
+    sha = ref.get("sha256")
+    if not isinstance(sha, str) or not re.fullmatch(r"[0-9a-f]{64}", sha):
+        errors.append(f"{where}.artifact_ref: canonical reference requires a 64-hex sha256")
+
+
+def check_coordination_reference(doc: dict, where: str, errors: list[str]) -> None:
+    """Verify the run manifest's coordination Issue reference is internally coherent.
+
+    Cross-field check only: the URL must be a kimeisele/federation-hq Issue and
+    its number must equal ``issue_number``. No GitHub API is called.
+    """
+    coord = doc.get("coordination") if isinstance(doc, dict) else None
+    if not isinstance(coord, dict):
+        return  # presence and format are enforced by the schema
+    issue_number = coord.get("issue_number")
+    issue_url = coord.get("issue_url")
+    match = (
+        re.fullmatch(r"https://github\.com/kimeisele/federation-hq/issues/([0-9]+)", issue_url)
+        if isinstance(issue_url, str)
+        else None
+    )
+    if match is None:
+        return  # schema pattern enforces the URL shape
+    url_number = int(match.group(1))
+    if not isinstance(issue_number, int) or isinstance(issue_number, bool) or issue_number < 1:
+        errors.append(f"{where}.coordination: issue_number must be a positive integer")
+    elif url_number != issue_number:
+        errors.append(
+            f"{where}.coordination: issue_url number {url_number} does not match "
+            f"issue_number {issue_number}"
+        )
+
+
+def check_coordination_message(doc: dict, where: str, errors: list[str]) -> None:
+    """Validate one supplied coordination-message document against the protocol contract.
+
+    Enforces sender/message authority, submission versus acceptance artifact
+    phases, and message/state semantics. Structural contract only; it does not
+    semantically validate live GitHub comments.
+    """
+    if not isinstance(doc, dict):
+        return
+    mtype = doc.get("message_type")
+    sender = doc.get("sender_role")
+    recipient = doc.get("recipient_role")
+    before, after = doc.get("state_before"), doc.get("state_after")
+    run_id = doc.get("run_id")
+
+    if mtype in _CONTROL_MESSAGE_TYPES:
+        if sender != "operator":
+            errors.append(
+                f"{where}: message_type {mtype!r} may only be emitted by operator, got {sender!r}"
+            )
+    elif mtype in _WORKER_MESSAGE_TYPES:
+        if sender not in _WORKER_ROLES:
+            errors.append(
+                f"{where}: message_type {mtype!r} may only be emitted by scout, repair or review, "
+                f"got {sender!r}"
+            )
+        if recipient != "operator":
+            errors.append(
+                f"{where}: worker message {mtype!r} must be addressed to operator, got {recipient!r}"
+            )
+    else:
+        return  # unknown types are already rejected by the schema enum
+
+    if mtype == "artifact_submission":
+        prompt_used = doc.get("prompt_used")
+        if not isinstance(prompt_used, str) or not prompt_used:
+            errors.append(f"{where}: artifact_submission requires prompt_used")
+        elif sender in _WORKER_ROLES and not re.fullmatch(
+            rf"{re.escape(sender)}@[0-9]+\.[0-9]+\.[0-9]+", prompt_used
+        ):
+            errors.append(
+                f"{where}: prompt_used {prompt_used!r} must match <sender_role>@<version> "
+                f"for sender {sender!r}"
+            )
+        ref = doc.get("artifact_ref")
+        if not isinstance(ref, dict):
+            errors.append(f"{where}: artifact_submission requires an artifact_ref")
+        else:
+            if ref.get("hq_commit_sha") is not None:
+                errors.append(
+                    f"{where}.artifact_ref: artifact_submission hq_commit_sha must be null "
+                    "(submitted bytes are not yet recorded canonically)"
+                )
+            if not isinstance(ref.get("sha256"), str) or not ref["sha256"]:
+                errors.append(f"{where}.artifact_ref: artifact_submission requires sha256")
+        if before != after:
+            errors.append(
+                f"{where}: artifact_submission must not advance pipeline state "
+                f"(state_before == state_after), got ({before} -> {after})"
+            )
+        return
+
+    if mtype == "artifact_acceptance":
+        ref = doc.get("artifact_ref")
+        if not isinstance(ref, dict):
+            errors.append(f"{where}: artifact_acceptance requires a canonical artifact_ref")
+        else:
+            _check_canonical_ref(ref, run_id, where, errors)
+        if recipient in _ACCEPTANCE_TRANSITIONS:
+            if (before, after) not in _ACCEPTANCE_TRANSITIONS[recipient]:
+                errors.append(
+                    f"{where}: invalid acceptance transition ({before} -> {after}) for "
+                    f"recipient {recipient!r}; allowed: "
+                    f"{sorted(_ACCEPTANCE_TRANSITIONS[recipient])}"
+                )
+        else:
+            errors.append(
+                f"{where}: artifact_acceptance recipient must be scout, repair or review, "
+                f"got {recipient!r}"
+            )
+        return
+
+    if mtype == "assignment":
+        if recipient not in _ASSIGNMENT_TRANSITIONS:
+            errors.append(
+                f"{where}: assignment must be addressed to one worker role, got {recipient!r}"
+            )
+            return
+        if (before, after) not in _ASSIGNMENT_TRANSITIONS[recipient]:
+            errors.append(
+                f"{where}: invalid assignment transition ({before} -> {after}) for "
+                f"recipient {recipient!r}; allowed: {sorted(_ASSIGNMENT_TRANSITIONS[recipient])}"
+            )
+        ref = doc.get("artifact_ref")
+        if isinstance(ref, dict):
+            _check_canonical_ref(ref, run_id, where, errors)
+        return
+
+    if mtype == "run_opened":
+        if (before, after) != ("requested", "requested"):
+            errors.append(
+                f"{where}: run_opened must keep state requested -> requested, "
+                f"got ({before} -> {after})"
+            )
+        ref = doc.get("artifact_ref")
+        if isinstance(ref, dict):
+            _check_canonical_ref(ref, run_id, where, errors)
+        return
+
+    if mtype == "rework_request":
+        if before != after:
+            errors.append(
+                f"{where}: rework_request must not advance state "
+                f"(state_before == state_after), got ({before} -> {after})"
+            )
+        return
+
+    if mtype == "blocked":
+        if before != after:
+            errors.append(
+                f"{where}: blocked report must not advance state "
+                f"(state_before == state_after), got ({before} -> {after})"
+            )
+        return
+
+    if mtype == "run_closed":
+        if before != after or before not in _TERMINAL_STATES:
+            errors.append(
+                f"{where}: run_closed requires an already-terminal state "
+                f"(before == after in {{approved, blocked, invalid_candidate}}), "
+                f"got ({before} -> {after})"
+            )
+        ref = doc.get("artifact_ref")
+        if isinstance(ref, dict):
+            _check_canonical_ref(ref, run_id, where, errors)
+        return
+
+
 # ── Schema / example checks ───────────────────────────────────────────────
 
 
@@ -409,6 +621,9 @@ def validate_artifact(
     check_paths(doc, repo_root, errors)
     if "run-manifest" in path.name:
         check_prompt_pins(doc, registry, path.name, errors)
+        check_coordination_reference(doc, path.name, errors)
+    if "coordination-message" in path.name:
+        check_coordination_message(doc, path.name, errors)
 
 
 def validate_examples(

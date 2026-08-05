@@ -38,7 +38,7 @@ prompt_pins:
   operator:
     id: operator
     version: 0.1.0
-    sha256: "a71e91a625a8925ff4e77b9bded437b3385c251f4f8530adcb52467b491c07b1"
+    sha256: "776bae04d9683b1d159b0e4ba2dab5a3f9c26de205cf0057b1e9fbf0854ff4fa"
 evidence:
   - kind: commit
     location: runs/run-20260805-widget-service-sorting/repair-result.yaml
