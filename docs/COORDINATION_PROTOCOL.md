@@ -206,7 +206,49 @@ blocked → blocked
 invalid_candidate → invalid_candidate
 ```
 
-`run_closed` closes the Issue; it does not dispatch another role.
+`run_closed` closes the Issue; it does not dispatch another role. Closing
+`approved`, `invalid_candidate`, or an already accepted Review verdict of
+`blocked` requires a canonical artifact reference.
+
+### Operator terminalization after an unrecoverable blocker
+
+A worker reports an inability to continue with a `blocked` message that leaves
+canonical state unchanged. The Operator then verifies the blocker is
+unrecoverable and responds with `run_closed` terminalizing the run to
+`blocked`:
+
+```text
+Worker blocked report:
+current → current
+
+Operator verifies unrecoverable blocker.
+
+Operator run_closed:
+current → blocked
+```
+
+Supported non-terminal-to-`blocked` closures:
+
+```text
+requested → blocked
+scouting → blocked
+candidate_selected → blocked
+repair_in_progress → blocked
+repair_submitted → blocked
+independent_review → blocked
+changes_requested → blocked
+```
+
+Such a closure requires: sender `operator`, message type `run_closed`, a
+present `in_reply_to` (the worker blocked report), a recipient that is one
+concrete worker role, `artifact_ref` may be null (no canonical terminal
+artifact exists yet), and a body identifying the blocker. The message closes
+the Issue. This is the Operator's explicit terminal decision; no
+`block_acknowledgement` or other message type is introduced.
+
+The Review-result path stays valid: `artifact_acceptance` may record
+`independent_review → blocked` with a canonical `review_result`, and
+`run_closed` then closes `blocked → blocked` with that artifact.
 
 ## Copyable comment examples
 
@@ -420,6 +462,37 @@ body: |
   to the independent Integrator for review and merge.
 
 created_at: "2026-08-05T22:00:00+02:00"
+```
+
+### 7. Run closure after an unrecoverable blocker (Operator → blocked worker)
+
+```text
+kind: federation_hq_coordination_message
+protocol_version: 0.1.0
+message_id: msg-20260805-0101
+run_id: run-20260805-widget-service-sorting
+
+sender_role: operator
+recipient_role: repair
+message_type: run_closed
+
+in_reply_to: msg-20260805-0100
+supersedes: null
+
+target_repository: acme/widget-service
+baseline_sha: "9f2c1e8a4b7d3f6c5e2a9b8c7d6e5f4a3b2c1d0e"
+
+state_before: repair_in_progress
+state_after: blocked
+
+artifact_ref: null
+
+body: |
+  Blocker verified as unrecoverable: the candidate evidence locations do not
+  exist in the target repository at the baseline SHA and cannot be obtained.
+  Run terminalized as blocked; the Issue is closed with this message.
+
+created_at: "2026-08-05T21:30:00+02:00"
 ```
 
 ## Message usage rules

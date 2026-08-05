@@ -66,7 +66,7 @@ prompts:
     versions:
       - version: 0.1.0
         file: operator/v0.1.0.md
-        sha256: "776bae04d9683b1d159b0e4ba2dab5a3f9c26de205cf0057b1e9fbf0854ff4fa"
+        sha256: "17cd6f0e046dd75dd9393aabec80f409c5fc50ed8bfdb1097357f6069ff45a2c"
         status: released
         released: "2026-08-05"
         changelog: >

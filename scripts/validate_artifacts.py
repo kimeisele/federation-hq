@@ -364,6 +364,25 @@ _CONTROL_MESSAGE_TYPES = frozenset(
 _WORKER_MESSAGE_TYPES = frozenset({"artifact_submission", "blocked"})
 _WORKER_ROLES = frozenset({"scout", "repair", "review"})
 _TERMINAL_STATES = frozenset({"approved", "blocked", "invalid_candidate"})
+_NON_TERMINAL_STATES = frozenset(
+    {
+        "requested",
+        "scouting",
+        "candidate_selected",
+        "repair_in_progress",
+        "repair_submitted",
+        "independent_review",
+        "changes_requested",
+    }
+)
+
+# Assignment artifact-kind requirements per recipient role (the Repair
+# re-assignment after changes_requested references the accepted review_result).
+_ASSIGNMENT_REF_KINDS: dict[str, frozenset[str]] = {
+    "scout": frozenset({"run_manifest"}),
+    "repair": frozenset({"repair_candidate", "review_result"}),
+    "review": frozenset({"repair_result"}),
+}
 
 # Assignment transitions permitted per recipient role (docs/COORDINATION_PROTOCOL.md).
 _ASSIGNMENT_TRANSITIONS: dict[str, frozenset[tuple[str, str]]] = {
@@ -485,6 +504,16 @@ def check_coordination_message(doc: dict, where: str, errors: list[str]) -> None
                 )
             if not isinstance(ref.get("sha256"), str) or not ref["sha256"]:
                 errors.append(f"{where}.artifact_ref: artifact_submission requires sha256")
+            path = ref.get("path")
+            if not isinstance(path, str) or not path.strip():
+                errors.append(
+                    f"{where}.artifact_ref: artifact_submission requires a non-empty delivery path"
+                )
+            elif path.startswith(f"runs/{run_id}/"):
+                errors.append(
+                    f"{where}.artifact_ref: artifact_submission path must not claim canonical "
+                    f"placement under runs/<run-id>/, got {path!r}"
+                )
         if before != after:
             errors.append(
                 f"{where}: artifact_submission must not advance pipeline state "
@@ -524,8 +553,24 @@ def check_coordination_message(doc: dict, where: str, errors: list[str]) -> None
                 f"recipient {recipient!r}; allowed: {sorted(_ASSIGNMENT_TRANSITIONS[recipient])}"
             )
         ref = doc.get("artifact_ref")
-        if isinstance(ref, dict):
-            _check_canonical_ref(ref, run_id, where, errors)
+        if not isinstance(ref, dict):
+            errors.append(f"{where}: assignment requires a canonical artifact_ref")
+            return
+        _check_canonical_ref(ref, run_id, where, errors)
+        kind = ref.get("kind")
+        allowed_kinds = _ASSIGNMENT_REF_KINDS.get(recipient, frozenset())
+        if recipient == "repair":
+            expected = "review_result" if before == "changes_requested" else "repair_candidate"
+            if kind != expected:
+                errors.append(
+                    f"{where}.artifact_ref: repair assignment must reference "
+                    f"{expected}, got {kind!r}"
+                )
+        elif kind not in allowed_kinds:
+            errors.append(
+                f"{where}.artifact_ref: assignment to {recipient!r} must reference one of "
+                f"{sorted(allowed_kinds)}, got {kind!r}"
+            )
         return
 
     if mtype == "run_opened":
@@ -535,8 +580,15 @@ def check_coordination_message(doc: dict, where: str, errors: list[str]) -> None
                 f"got ({before} -> {after})"
             )
         ref = doc.get("artifact_ref")
-        if isinstance(ref, dict):
-            _check_canonical_ref(ref, run_id, where, errors)
+        if not isinstance(ref, dict):
+            errors.append(f"{where}: run_opened requires a canonical run_manifest artifact_ref")
+            return
+        _check_canonical_ref(ref, run_id, where, errors)
+        if ref.get("kind") != "run_manifest":
+            errors.append(
+                f"{where}.artifact_ref: run_opened must reference a run_manifest, "
+                f"got {ref.get('kind')!r}"
+            )
         return
 
     if mtype == "rework_request":
@@ -556,6 +608,26 @@ def check_coordination_message(doc: dict, where: str, errors: list[str]) -> None
         return
 
     if mtype == "run_closed":
+        if after == "blocked" and before in _NON_TERMINAL_STATES:
+            # Operator terminalization after an unrecoverable worker blocker:
+            # no canonical terminal artifact exists yet.
+            if not isinstance(doc.get("in_reply_to"), str) or not doc["in_reply_to"]:
+                errors.append(
+                    f"{where}: non-terminal-to-blocked run_closed requires in_reply_to "
+                    "(the worker blocked report)"
+                )
+            if recipient not in _WORKER_ROLES:
+                errors.append(
+                    f"{where}: non-terminal-to-blocked run_closed must address one concrete "
+                    f"worker role, got {recipient!r}"
+                )
+            body = doc.get("body")
+            if not isinstance(body, str) or not body.strip():
+                errors.append(f"{where}: run_closed body must identify the blocker")
+            ref = doc.get("artifact_ref")
+            if ref is not None and not isinstance(ref, dict):
+                errors.append(f"{where}: artifact_ref must be an object or null")
+            return
         if before != after or before not in _TERMINAL_STATES:
             errors.append(
                 f"{where}: run_closed requires an already-terminal state "
@@ -563,8 +635,10 @@ def check_coordination_message(doc: dict, where: str, errors: list[str]) -> None
                 f"got ({before} -> {after})"
             )
         ref = doc.get("artifact_ref")
-        if isinstance(ref, dict):
-            _check_canonical_ref(ref, run_id, where, errors)
+        if not isinstance(ref, dict):
+            errors.append(f"{where}: run_closed requires a canonical artifact_ref")
+            return
+        _check_canonical_ref(ref, run_id, where, errors)
         return
 
 

@@ -613,10 +613,17 @@ def test_acceptance_and_next_assignment_are_separate_transitions() -> None:
                           state_before="candidate_selected", state_after="repair_in_progress")
     )
     assert any("invalid acceptance transition" in e for e in errors)
-    # A separate Repair assignment performs that transition.
+    # A separate Repair assignment performs that transition, referencing the
+    # accepted repair_candidate.
     repair_assignment = _coordination_doc(
         "assignment", recipient_role="repair",
         state_before="candidate_selected", state_after="repair_in_progress",
+        artifact_ref={
+            "kind": "repair_candidate",
+            "path": f"runs/{_RUN}/repair-candidate.yaml",
+            "hq_commit_sha": _HQ_COMMIT,
+            "sha256": _CANDIDATE_SHA,
+        },
     )
     assert _coordination_errors(repair_assignment) == []
 
@@ -728,6 +735,207 @@ def test_run_manifest_coherent_coordination_reference_accepted() -> None:
     errors: list[str] = []
     validate_artifacts.check_coordination_reference(doc, "run-manifest", errors)
     assert errors == []
+
+
+# ── Terminalization and reference enforcement ──────────────────────────────
+
+_REVIEW_RESULT_SHA = "1560a69d11e377cc60c4e235488d67b505d3177b67594b1903e5e2f2be5ff886"
+
+
+def _blocked_doc(state_before: str, state_after: str, sender: str = "repair") -> dict:
+    """Build a worker blocked report (state must stay unchanged)."""
+    doc = _load(EXAMPLE_FILES["coordination-message"])
+    doc.update(
+        sender_role=sender,
+        recipient_role="operator",
+        message_type="blocked",
+        in_reply_to="msg-20260805-0004",
+        supersedes=None,
+        state_before=state_before,
+        state_after=state_after,
+        artifact_ref=None,
+        body="Cannot proceed: evidence unreachable at the baseline SHA.",
+    )
+    return doc
+
+
+def _closure_doc(state_before: str, state_after: str, *, recipient: str = "scout",
+                 in_reply_to: str | None = "msg-20260805-0100",
+                 ref=None, body: str = "Blocker verified as unrecoverable: evidence unreachable.",
+                 **overrides) -> dict:
+    """Build an Operator run_closed message."""
+    doc = _load(EXAMPLE_FILES["coordination-message"])
+    doc.update(
+        sender_role="operator",
+        recipient_role=recipient,
+        message_type="run_closed",
+        in_reply_to=in_reply_to,
+        supersedes=None,
+        state_before=state_before,
+        state_after=state_after,
+        artifact_ref=ref,
+        body=body,
+    )
+    doc.update(overrides)
+    return doc
+
+
+def _review_result_ref() -> dict:
+    return {
+        "kind": "review_result",
+        "path": f"runs/{_RUN}/review-result.yaml",
+        "hq_commit_sha": _HQ_COMMIT,
+        "sha256": _REVIEW_RESULT_SHA,
+    }
+
+
+def test_worker_blocked_keeps_state_unchanged() -> None:
+    assert _coordination_errors(_blocked_doc("repair_in_progress", "repair_in_progress")) == []
+
+
+def test_worker_cannot_directly_transition_run_to_blocked() -> None:
+    errors = _coordination_errors(_blocked_doc("repair_in_progress", "blocked"))
+    assert any("must not advance state" in e for e in errors)
+
+
+def test_operator_run_closed_accepts_scouting_to_blocked() -> None:
+    assert _coordination_errors(_closure_doc("scouting", "blocked")) == []
+
+
+def test_operator_run_closed_accepts_repair_in_progress_to_blocked() -> None:
+    assert _coordination_errors(
+        _closure_doc("repair_in_progress", "blocked", recipient="repair")
+    ) == []
+
+
+def test_operator_run_closed_accepts_changes_requested_to_blocked() -> None:
+    assert _coordination_errors(
+        _closure_doc("changes_requested", "blocked", recipient="repair")
+    ) == []
+
+
+def test_non_terminal_to_blocked_closure_requires_in_reply_to() -> None:
+    errors = _coordination_errors(_closure_doc("scouting", "blocked", in_reply_to=None))
+    assert any("requires in_reply_to" in e for e in errors)
+
+
+def test_non_terminal_to_blocked_closure_permits_null_artifact_ref() -> None:
+    errors = _coordination_errors(_closure_doc("scouting", "blocked", ref=None))
+    assert errors == []
+
+
+def test_non_terminal_to_blocked_closure_requires_worker_recipient() -> None:
+    errors = _coordination_errors(_closure_doc("scouting", "blocked", recipient="operator"))
+    assert any("one concrete worker role" in e for e in errors)
+
+
+def test_approved_closure_requires_canonical_artifact_ref() -> None:
+    errors = _coordination_errors(
+        _closure_doc("approved", "approved", recipient="review", ref=None)
+    )
+    assert any("requires a canonical artifact_ref" in e for e in errors)
+    ok = _closure_doc("approved", "approved", recipient="review", ref=_review_result_ref())
+    assert _coordination_errors(ok) == []
+
+
+def test_blocked_closure_accepts_review_result_reference() -> None:
+    errors = _coordination_errors(
+        _closure_doc("blocked", "blocked", recipient="review", ref=_review_result_ref())
+    )
+    assert errors == []
+
+
+def test_run_opened_without_artifact_ref_fails() -> None:
+    doc = _load(EXAMPLE_FILES["coordination-message"])
+    doc.update(
+        sender_role="operator", recipient_role="scout", message_type="run_opened",
+        in_reply_to=None, supersedes=None,
+        state_before="requested", state_after="requested", artifact_ref=None,
+        body="Run opened.",
+    )
+    errors = _coordination_errors(doc)
+    assert any("requires a canonical run_manifest artifact_ref" in e for e in errors)
+
+
+def test_assignment_without_artifact_ref_fails() -> None:
+    errors = _coordination_errors(_coordination_doc("assignment", artifact_ref=None))
+    assert any("assignment requires a canonical artifact_ref" in e for e in errors)
+
+
+def test_assignment_with_non_canonical_reference_fails() -> None:
+    errors = _coordination_errors(
+        _coordination_doc("assignment", artifact_ref={
+            "kind": "run_manifest",
+            "path": f"run-output/{_RUN}/run-manifest.yaml",
+            "hq_commit_sha": None,
+            "sha256": _CANDIDATE_SHA,
+        })
+    )
+    assert any("canonical path must be runs/<run-id>/" in e for e in errors)
+
+
+def test_assignment_artifact_kind_must_match_recipient() -> None:
+    errors = _coordination_errors(
+        _coordination_doc("assignment", recipient_role="review",
+                          state_before="repair_submitted", state_after="independent_review",
+                          artifact_ref={
+                              "kind": "run_manifest",
+                              "path": f"runs/{_RUN}/run-manifest.yaml",
+                              "hq_commit_sha": _HQ_COMMIT,
+                              "sha256": _CANDIDATE_SHA,
+                          })
+    )
+    assert any("must reference one of" in e for e in errors)
+
+
+def test_repair_reassignment_requires_review_result() -> None:
+    errors = _coordination_errors(
+        _coordination_doc("assignment", recipient_role="repair",
+                          state_before="changes_requested", state_after="repair_in_progress",
+                          artifact_ref={
+                              "kind": "repair_candidate",
+                              "path": f"runs/{_RUN}/repair-candidate.yaml",
+                              "hq_commit_sha": _HQ_COMMIT,
+                              "sha256": _CANDIDATE_SHA,
+                          })
+    )
+    assert any("must reference review_result" in e for e in errors)
+    ok = _coordination_doc(
+        "assignment", recipient_role="repair",
+        state_before="changes_requested", state_after="repair_in_progress",
+        artifact_ref=_review_result_ref(),
+    )
+    assert _coordination_errors(ok) == []
+
+
+def test_submission_empty_delivery_path_fails() -> None:
+    errors = _coordination_errors(
+        _coordination_doc("submission", artifact_ref={
+            "kind": "repair_candidate",
+            "path": "",
+            "hq_commit_sha": None,
+            "sha256": _CANDIDATE_SHA,
+        })
+    )
+    assert any("non-empty delivery path" in e for e in errors)
+
+
+def test_submission_canonical_looking_path_fails() -> None:
+    errors = _coordination_errors(
+        _coordination_doc("submission", artifact_ref={
+            "kind": "repair_candidate",
+            "path": f"runs/{_RUN}/repair-candidate.yaml",
+            "hq_commit_sha": None,
+            "sha256": _CANDIDATE_SHA,
+        })
+    )
+    assert any("must not claim canonical placement" in e for e in errors)
+
+
+def test_submission_external_run_output_path_succeeds() -> None:
+    errors = _coordination_errors(_coordination_doc("submission"))
+    assert errors == []
+    assert _coordination_doc("submission")["artifact_ref"]["path"].startswith("run-output/")
 
 
 # ── Issue templates ─────────────────────────────────────────────────────────

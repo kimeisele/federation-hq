@@ -44,7 +44,7 @@ requested
 | `independent_review` | Reviewer checking the exact remote head | Operator `assignment` to Reviewer |
 | `approved` | Verdict: reviewer approved the exact reviewed head | Operator `artifact_acceptance` of the Review submission |
 | `changes_requested` | Verdict: reviewer requires changes | Operator `artifact_acceptance` of the Review submission; Repair may be re-assigned |
-| `blocked` | Verdict: work cannot proceed (missing evidence, unreachable state, external dependency) | Operator `artifact_acceptance` of the Review submission |
+| `blocked` | Verdict: work cannot proceed (missing evidence, unreachable state, external dependency) | Operator `artifact_acceptance` of the Review submission, or Operator `run_closed` terminalizing an unrecoverable worker blocker |
 | `invalid_candidate` | Verdict: the candidate was not a real defect or was out of scope | Operator `artifact_acceptance` of the Review submission |
 
 Transitions are driven by the Operator's coordination messages and recorded by
@@ -57,6 +57,18 @@ Issue at an already-terminal state. Assignment and acceptance transition
 tables are defined in `docs/COORDINATION_PROTOCOL.md`. Transition history is
 retained in the run manifest notes; a simple monotonic append is sufficient in
 v0.1.0.
+
+**Blocker terminalization.** A worker reports an inability to continue with a
+`blocked` message that leaves state unchanged; the worker does not decide the
+terminal state. After verifying the blocker is unrecoverable, the Operator
+responds with `run_closed` terminalizing any non-terminal state to `blocked`
+(`requested | scouting | candidate_selected | repair_in_progress |
+repair_submitted | independent_review | changes_requested → blocked`). That
+closure requires `in_reply_to` (the blocked report), one concrete worker
+recipient, and a body identifying the blocker; `artifact_ref` may be null.
+The Review-result path remains valid: an `artifact_acceptance` may record
+`independent_review → blocked` with a canonical `review_result`, and
+`run_closed` then closes `blocked → blocked` with that artifact.
 
 ## Invariants
 
