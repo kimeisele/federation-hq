@@ -1,21 +1,26 @@
 # Repair Pipeline (v0.1.0)
 
-This document defines the initial three-role repair workflow implemented by
-Federation HQ. In v0.1.0 the workflow is **manually advanced** by a human
-operator: no dispatcher, no automatic model invocation, no autonomous PR
-creation, no autonomous merging.
+This document defines the initial repair workflow implemented by Federation
+HQ: three execution and judgment roles coordinated by the **HQ Operator**. In
+v0.1.0 the workflow is **manually coordinated** — no dispatcher, no automatic
+model invocation, no autonomous PR creation, no autonomous merging. The
+Operator posts structured assignments and decisions into the run's
+coordination Issue (see `docs/COORDINATION_PROTOCOL.md`); an external human or
+agent reads and executes them.
 
 ## Roles
 
 | Role | Prompt | Responsibility |
 |------|--------|----------------|
+| HQ Operator | `prompts/operator/v0.1.0.md` (`operator@0.1.0`) | Coordinate one run via its GitHub Issue; exactly one active assignment at a time; no merge authority, no semantic repair judgment |
 | Unwired Functionality Scout | `prompts/scout/v0.1.0.md` (`scout@0.1.0`) | Investigate a bounded functionality gap and select exactly one candidate |
 | Targeted Repair Builder | `prompts/repair/v0.1.0.md` (`repair@0.1.0`) | Repair exactly the selected candidate in the target repository |
 | Independent Repair Reviewer | `prompts/review/v0.1.0.md` (`review@0.1.0`) | Independently check the exact remote head and record a verdict |
 
-The three prompts are released versions pinned by each run manifest. A run
-never mixes prompt versions: all three roles in a run use the versions pinned
-at run creation.
+The four prompts are released versions pinned by each run manifest. A run
+never mixes prompt versions: all roles in a run use the versions pinned at run
+creation. The Operator never performs Scout, Repair, or Review work in the
+same run and never maintains more than one active assignment per run.
 
 ## State machine
 
@@ -31,21 +36,39 @@ requested
 
 | State | Meaning | Advanced by |
 |-------|---------|-------------|
-| `requested` | A bounded maintenance request exists; the run manifest pins it as `maintenance_request` | Operator creates the run |
-| `scouting` | Scout investigating the target repository | Operator starts the scout |
-| `candidate_selected` | Scout recorded exactly one candidate | Operator records `repair-candidate` artifact |
-| `repair_in_progress` | Repair Builder working the selected candidate | Operator starts the repair |
-| `repair_submitted` | Repair result and PR/branch evidence recorded | Operator records `repair-result` artifact |
-| `independent_review` | Reviewer checking the exact remote head | Operator starts the review |
-| `approved` | Verdict: reviewer approved the exact reviewed head | Operator records `review-result` |
-| `changes_requested` | Verdict: reviewer requires changes | Operator records `review-result`; repair may resume |
-| `blocked` | Verdict: work cannot proceed (missing evidence, unreachable state, external dependency) | Operator records `review-result` |
-| `invalid_candidate` | Verdict: the candidate was not a real defect or was out of scope | Operator records `review-result` |
+| `requested` | A bounded maintenance request exists; the run manifest pins it as `maintenance_request` | Operator opens the run (`run_opened`) |
+| `scouting` | Scout investigating the target repository | Operator `assignment` to Scout |
+| `candidate_selected` | Scout recorded exactly one candidate | Operator `artifact_acceptance` of the Scout submission |
+| `repair_in_progress` | Repair Builder working the selected candidate | Operator `assignment` to Repair |
+| `repair_submitted` | Repair result and PR/branch evidence recorded | Operator `artifact_acceptance` of the Repair submission |
+| `independent_review` | Reviewer checking the exact remote head | Operator `assignment` to Reviewer |
+| `approved` | Verdict: reviewer approved the exact reviewed head | Operator `artifact_acceptance` of the Review submission |
+| `changes_requested` | Verdict: reviewer requires changes | Operator `artifact_acceptance` of the Review submission; Repair may be re-assigned |
+| `blocked` | Verdict: work cannot proceed (missing evidence, unreachable state, external dependency) | Operator `artifact_acceptance` of the Review submission, or Operator `run_closed` terminalizing an unrecoverable worker blocker |
+| `invalid_candidate` | Verdict: the candidate was not a real defect or was out of scope | Operator `artifact_acceptance` of the Review submission |
 
-Transitions are recorded by writing the corresponding artifact into the run's
-directory under `runs/` and updating the run manifest's `pipeline_state`.
-Transition history is retained in the run manifest notes; a simple monotonic
-append is sufficient in v0.1.0.
+Transitions are driven by the Operator's coordination messages and recorded by
+writing the corresponding artifact into the run's directory under `runs/` and
+updating the run manifest's `pipeline_state`. **Only Operator control
+messages advance state**: worker `artifact_submission` and `blocked` messages
+keep `state_before == state_after`; `run_opened` keeps `requested →
+requested`; `rework_request` keeps state unchanged; `run_closed` closes the
+Issue at an already-terminal state. Assignment and acceptance transition
+tables are defined in `docs/COORDINATION_PROTOCOL.md`. Transition history is
+retained in the run manifest notes; a simple monotonic append is sufficient in
+v0.1.0.
+
+**Blocker terminalization.** A worker reports an inability to continue with a
+`blocked` message that leaves state unchanged; the worker does not decide the
+terminal state. After verifying the blocker is unrecoverable, the Operator
+responds with `run_closed` terminalizing any non-terminal state to `blocked`
+(`requested | scouting | candidate_selected | repair_in_progress |
+repair_submitted | independent_review | changes_requested → blocked`). That
+closure requires `in_reply_to` (the blocked report), one concrete worker
+recipient, and a body identifying the blocker; `artifact_ref` may be null.
+The Review-result path remains valid: an `artifact_acceptance` may record
+`independent_review → blocked` with a canonical `review_result`, and
+`run_closed` then closes `blocked → blocked` with that artifact.
 
 ## Invariants
 
@@ -81,15 +104,32 @@ append is sufficient in v0.1.0.
 A run lives in `runs/run-<date>-<slug>/` and accumulates:
 
 1. `run-manifest.yaml` (or `.json`) — pins target repository, baseline SHA,
-   the original `maintenance_request`, and the exact prompt versions with
-   content hashes.
+   the original `maintenance_request`, the `coordination` Issue reference, and
+   the exact prompt versions (operator, scout, repair, review) with content
+   hashes.
 2. `repair-candidate.<ext>` — the single selected candidate.
 3. `repair-result.<ext>` — head SHA, PR reference, commands and outcomes,
    baseline/newly-introduced failure lists.
 4. `review-result.<ext>` — reviewer head SHA and verdict.
 
 All artifacts are validated against the schemas in `contracts/` by
-`scripts/validate_artifacts.py`. See `runs/README.md` for naming and layout.
+`scripts/validate_artifacts.py`. Coordination messages are validated against
+`contracts/coordination-message.schema.json` and posted as comments on the
+run's coordination Issue (`docs/COORDINATION_PROTOCOL.md`); they are audit
+context, not canonical proof. See `runs/README.md` for naming and layout.
+
+## Run-record branch lifecycle
+
+For each real run the Operator maintains, alongside the coordination Issue: one
+dedicated Federation HQ run-record branch, one draft run-record PR, and the
+canonical directory `runs/<run-id>/`. Accepted submissions are copied
+**byte-for-byte** into `runs/<run-id>/` and committed on that branch; roles
+proceed from accepted artifacts committed on the branch, without requiring a
+merge into `main` between Scout, Repair, and Review. The Operator never edits
+the semantic content of a submission, never merges the run-record PR, and
+never pushes to protected `main`. At a terminal state the completed
+run-record PR is handed to an independent Integrator for review and normal
+merge.
 
 ## Deferred
 

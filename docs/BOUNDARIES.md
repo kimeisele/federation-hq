@@ -107,4 +107,14 @@ claims against code and evidence before any verdict is recorded.
 - No code path in this repository pushes, merges, or writes to a target repository.
 - No code path invokes a model, schedules jobs, or selects repositories.
 - The validator rejects artifact paths that escape the repository.
-- The three-role workflow is advanced manually by a human operator.
+- The workflow is advanced by the **HQ Operator** role, which coordinates but
+  has no target-repository authority and no merge authority.
+- **Dispatch in v0.1** means posting a structured role assignment into the
+  run's coordination Issue (see `docs/COORDINATION_PROTOCOL.md`). An external
+  human or agent context reads and executes that assignment. Federation HQ
+  does not wake, schedule, or invoke agents.
+- Human involvement is reduced from message routing to policy initiation and
+  exceptional intervention; the human bottleneck is **not** claimed to be
+  eliminated until an external wake-up mechanism exists.
+- GitHub Issue comments are transport and audit context, not canonical proof;
+  committed artifacts under `runs/<run-id>/` are canonical.

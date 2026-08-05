@@ -46,21 +46,26 @@ Target repositories retain authority over their own architecture, governance,
 code, CI, issues, pull requests, and merge decisions. See
 [`docs/BOUNDARIES.md`](docs/BOUNDARIES.md) for the full boundary contract.
 
-## The three-role repair workflow
+## The repair workflow (three execution roles, one coordinator)
 
-The first supported workflow separates three roles with three independently
-versioned prompts:
+The repair workflow separates three execution and judgment roles with three
+independently versioned prompts, coordinated by a fourth role, the **HQ
+Operator**:
 
 | Role | Prompt | Does |
 |------|--------|------|
+| HQ Operator | `operator@0.1.0` | Coordinates the run via a GitHub Issue; exactly one active assignment at a time; no merge authority, no semantic repair judgment |
 | Unwired Functionality Scout | `scout@0.1.0` | Investigates a bounded maintenance request and selects **exactly one** candidate |
 | Targeted Repair Builder | `repair@0.1.0` | Repairs **exactly that** candidate, compares baseline-versus-head failures |
 | Independent Repair Reviewer | `review@0.1.0` | Independently checks the **exact remote head** and records a verdict |
 
-State transitions, invariants (new commits invalidate prior approval; no role
-merges its own work; no admin bypass; red CI compared baseline-versus-head),
-and artifacts are documented in [`docs/REPAIR_PIPELINE.md`](docs/REPAIR_PIPELINE.md).
-Why three prompts instead of one master prompt with a mode switch:
+The Operator coordinates via structured Issue comments (see
+[`docs/COORDINATION_PROTOCOL.md`](docs/COORDINATION_PROTOCOL.md)); committed
+artifacts under `runs/<run-id>/` remain canonical. State transitions,
+invariants (new commits invalidate prior approval; no role merges its own
+work; no admin bypass; red CI compared baseline-versus-head), and artifacts
+are documented in [`docs/REPAIR_PIPELINE.md`](docs/REPAIR_PIPELINE.md). Why
+three separate prompts instead of one master prompt with a mode switch:
 [`docs/decisions/ADR-0001-three-role-repair-workflow.md`](docs/decisions/ADR-0001-three-role-repair-workflow.md).
 
 ## Prompt versions and run artifacts
@@ -69,9 +74,9 @@ Why three prompts instead of one master prompt with a mode switch:
   rationale in [`prompts/registry.yaml`](prompts/registry.yaml). See
   [`docs/PROMPT_VERSIONING.md`](docs/PROMPT_VERSIONING.md).
 - Each registry version pins the **SHA-256 of its exact file bytes**, and each
-  run manifest pins the exact `id`, `version`, and `sha256` of the scout,
-  repair, and review prompts — a run binds exact prompt content, not just a
-  version label.
+  run manifest pins the exact `id`, `version`, and `sha256` of the operator,
+  scout, repair, and review prompts — a run binds exact prompt content, not
+  just a version label.
 - Each run manifest binds the original bounded **`maintenance_request`**
   (text, source, created_at, optional reference); the Scout candidate may
   clarify it but may not replace or silently broaden it.
@@ -113,22 +118,29 @@ verifier as proof that code is correct. See
 
 ## Current manual workflow (v0.1.0)
 
-In v0.1.0 the workflow is **manually advanced** by a human operator — there is
-no dispatcher, no automatic model invocation, and no autonomous PR creation or
-merging:
+In v0.1.0 the workflow is **manually advanced and coordinated by the HQ
+Operator** — there is no dispatcher, no automatic model invocation, and no
+autonomous PR creation or merging. Coordination happens through structured
+comments on the run's GitHub Issue (see
+[`docs/COORDINATION_PROTOCOL.md`](docs/COORDINATION_PROTOCOL.md));
+"dispatch" means posting a structured role assignment into that Issue, which
+an external human or agent reads and executes:
 
-1. A bounded `repository_maintenance_request` arrives; the operator creates a
+1. A bounded `repository_maintenance_request` arrives; the Operator creates a
    run directory under `runs/` with a `run-manifest` pinning target, baseline
-   SHA, the original `maintenance_request`, and the exact prompt versions with
-   content hashes.
-2. The operator starts the Scout with the run manifest; the Scout records
-   exactly one `repair-candidate`.
-3. The operator starts the Repair Builder with the frozen candidate; the
-   Builder records a `repair-result` (head SHA, PR reference, commands,
+   SHA, the original `maintenance_request`, the `coordination` Issue
+   reference, and the exact operator/scout/repair/review prompt versions with
+   content hashes, then opens the run's coordination Issue.
+2. The Operator posts one assignment at a time; the Scout records exactly one
+   `repair-candidate`, which the Operator structurally validates and accepts
+   or rejects as a whole.
+3. The Operator routes the accepted candidate to the Repair Builder, who
+   records a `repair-result` (head SHA, PR reference, commands,
    baseline/newly-introduced failures).
-4. The operator starts the Reviewer, who checks the exact remote head and
-   records a `review-result` verdict.
-5. The operator updates the run's `pipeline_state` at each step. Artifacts are
+4. The Operator routes the accepted result to the Reviewer, who checks the
+   exact remote head and records a `review-result` verdict.
+5. The Operator updates the run's `pipeline_state` at each permitted
+   transition and closes the Issue at a terminal state. Artifacts are
    validated with `scripts/validate_artifacts.py`.
 
 ## Explicitly deferred
@@ -181,11 +193,13 @@ verifies their authority feeds without committing or pushing to any branch.
 
 | Path | Purpose |
 |------|---------|
-| `prompts/` | Versioned role prompts and `registry.yaml` |
-| `contracts/` | JSON Schemas for run/candidate/result/review artifacts |
+| `prompts/` | Versioned role prompts (operator, scout, repair, review) and `registry.yaml` |
+| `contracts/` | JSON Schemas for run/candidate/result/review artifacts and coordination messages |
 | `examples/` | One valid YAML example per schema |
 | `runs/` | Durable run records (one directory per run) |
-| `docs/` | Boundaries, pipeline, versioning, ADRs |
+| `docs/` | Boundaries, pipeline, coordination protocol, versioning, ADRs |
+| `docs/COORDINATION_PROTOCOL.md` | GitHub-native coordination protocol v0.1 (message envelope + comment examples) |
+| `.github/ISSUE_TEMPLATE/` | HQ Run / HQ Change / HQ Defect plain-Markdown Issue templates |
 | `scripts/validate_artifacts.py` | Structural artifact validation |
 | `docs/authority/` | Charter and capability manifest (generated by setup, then customized) |
 | `.well-known/` | Federation descriptor and agent card (auto-generated) |

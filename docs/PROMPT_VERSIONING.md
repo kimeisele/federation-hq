@@ -8,6 +8,7 @@ reproducible in spirit — years from now, after prompts have changed.
 
 Prompts are content-addressed by **id** and **semantic version**:
 
+- `operator@0.1.0`
 - `scout@0.1.0`
 - `repair@0.1.0`
 - `review@0.1.0`
@@ -40,10 +41,11 @@ The id is the role. The version is a semantic version (`MAJOR.MINOR.PATCH`).
    release.
 
 5. **Run manifests pin exact prompt versions.** A run manifest records the exact
-   `id` and `version` of the scout, repair, and review prompts used in that run.
-   The validator rejects run manifests with missing, unknown, or non-released
-   prompt versions: only entries whose status is exactly `released` are
-   pinnable, and a pin to an `unreleased_bootstrap` version fails validation.
+   `id` and `version` of the operator, scout, repair, and review prompts used
+   in that run. The validator rejects run manifests with missing, unknown, or
+   non-released prompt versions: only entries whose status is exactly
+   `released` are pinnable, and a pin to an `unreleased_bootstrap` version
+   fails validation.
 
 6. **Every version pins its content hash.** Each registry version records the
    SHA-256 of the exact UTF-8 bytes of its prompt file, and every run-manifest

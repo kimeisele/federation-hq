@@ -1,6 +1,6 @@
 # Federation HQ Prompt Registry
 #
-# Versioned role prompts for the three-role repair workflow.
+# Versioned role prompts for the repair workflow.
 #
 # Schema and rules: see `docs/PROMPT_VERSIONING.md`. Released versions are
 # immutable; every release requires a changelog rationale. Each version pins
@@ -9,9 +9,8 @@
 # files exist, changelog present, hashes match file bytes). Only entries with
 # `status: released` are pinnable by run manifests.
 #
-# The three `0.1.0` versions below are released with the repository's founding
-# merge (federation-hq/federation-hq PR #1); release status is never mutated
-# automatically.
+# The four `0.1.0` versions below are released with their respective PR
+# merges; release status is never mutated automatically.
 
 schema_version: 1
 prompts:
@@ -60,3 +59,23 @@ prompts:
           approval invalidated by new commits, artifact-output contract
           (exactly one artifact, writable run-output directory only, never
           mutate Federation HQ).
+
+  - id: operator
+    name: HQ Operator
+    description: Coordinates the three-role repair workflow via GitHub-native structured Issue comments.
+    versions:
+      - version: 0.1.0
+        file: operator/v0.1.0.md
+        sha256: "17cd6f0e046dd75dd9393aabec80f409c5fc50ed8bfdb1097357f6069ff45a2c"
+        status: released
+        released: "2026-08-05"
+        changelog: >
+          Initial release for the HQ Operator coordination role: exactly one
+          active role assignment per run, structural artifact acceptance,
+          Issue-based coordination, no merge authority, no semantic repair
+          judgment, no autonomous target selection, no model invocation.
+          Pre-merge finalization (unmerged PR #3): submission references
+          delivered bytes with hq_commit_sha null; acceptance references the
+          canonical run-record branch commit with a matching hash; acceptance
+          and next assignment are separate messages. No run pinned the earlier
+          draft bytes.
