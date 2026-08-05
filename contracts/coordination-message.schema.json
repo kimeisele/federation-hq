@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/kimeisele/federation-hq/main/contracts/coordination-message.schema.json",
+  "title": "Coordination Message",
+  "description": "Shared message envelope for HQ Operator, Scout, Repair and Review coordination via GitHub Issue comments. Structural validation only; it never proves semantic truth and does not validate live GitHub comments.",
+  "type": "object",
+  "required": [
+    "kind",
+    "protocol_version",
+    "message_id",
+    "run_id",
+    "sender_role",
+    "recipient_role",
+    "message_type",
+    "target_repository",
+    "state_before",
+    "state_after",
+    "body",
+    "created_at"
+  ],
+  "properties": {
+    "kind": {
+      "const": "federation_hq_coordination_message"
+    },
+    "protocol_version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "message_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "sender_role": {
+      "enum": ["operator", "scout", "repair", "review"]
+    },
+    "recipient_role": {
+      "enum": ["operator", "scout", "repair", "review", "all"]
+    },
+    "message_type": {
+      "enum": [
+        "run_opened",
+        "assignment",
+        "artifact_submission",
+        "artifact_acceptance",
+        "rework_request",
+        "blocked",
+        "run_closed"
+      ]
+    },
+    "in_reply_to": {
+      "type": ["string", "null"]
+    },
+    "supersedes": {
+      "type": ["string", "null"]
+    },
+    "target_repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "baseline_sha": {
+      "description": "The run's baseline SHA when relevant to the message; reviewed-head references live in the bound artifacts.",
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "state_before": {
+      "$ref": "#/$defs/pipeline_state"
+    },
+    "state_after": {
+      "$ref": "#/$defs/pipeline_state"
+    },
+    "prompt_used": {
+      "description": "Prompt id@version used by the sender for an artifact_submission (e.g. scout@0.1.0).",
+      "type": "string"
+    },
+    "artifact_ref": {
+      "type": ["object", "null"],
+      "required": ["kind", "path", "hq_commit_sha", "sha256"],
+      "properties": {
+        "kind": {
+          "enum": ["run_manifest", "repair_candidate", "repair_result", "review_result"]
+        },
+        "path": {
+          "type": "string"
+        },
+        "hq_commit_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "body": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "pipeline_state": {
+      "enum": [
+        "requested",
+        "scouting",
+        "candidate_selected",
+        "repair_in_progress",
+        "repair_submitted",
+        "independent_review",
+        "approved",
+        "changes_requested",
+        "blocked",
+        "invalid_candidate"
+      ]
+    }
+  }
+}

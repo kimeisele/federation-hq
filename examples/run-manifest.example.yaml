@@ -17,6 +17,10 @@ maintenance_request:
   source: human_operator
   created_at: "2026-08-05T09:15:00Z"
   source_reference: "https://github.com/acme/widget-service/issues/477"
+coordination:
+  protocol_version: 0.1.0
+  issue_number: 10
+  issue_url: https://github.com/kimeisele/federation-hq/issues/10
 pipeline_state: independent_review
 prompt_pins:
   scout:
@@ -31,6 +35,10 @@ prompt_pins:
     id: review
     version: 0.1.0
     sha256: "82b9cc37176304d418a934b261fa5efa2374d4e886c5afdec3789eaa264479e9"
+  operator:
+    id: operator
+    version: 0.1.0
+    sha256: "a71e91a625a8925ff4e77b9bded437b3385c251f4f8530adcb52467b491c07b1"
 evidence:
   - kind: commit
     location: runs/run-20260805-widget-service-sorting/repair-result.yaml

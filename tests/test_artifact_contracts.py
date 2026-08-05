@@ -7,6 +7,7 @@ the end-to-end CLI.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -28,6 +29,7 @@ SCHEMA_FILES = {
     "repair-candidate": CONTRACTS / "repair-candidate.schema.json",
     "repair-result": CONTRACTS / "repair-result.schema.json",
     "review-result": CONTRACTS / "review-result.schema.json",
+    "coordination-message": CONTRACTS / "coordination-message.schema.json",
 }
 
 EXAMPLE_FILES = {
@@ -35,6 +37,7 @@ EXAMPLE_FILES = {
     "repair-candidate": EXAMPLES / "repair-candidate.example.yaml",
     "repair-result": EXAMPLES / "repair-result.example.yaml",
     "review-result": EXAMPLES / "review-result.example.yaml",
+    "coordination-message": EXAMPLES / "coordination-message.example.yaml",
 }
 
 
@@ -194,13 +197,13 @@ def test_registry_rejects_sha256_not_matching_file(tmp_path: Path) -> None:
 # ── Schema conformance: examples are valid ────────────────────────────────
 
 
-@pytest.mark.parametrize("kind", ["run-manifest", "repair-candidate", "repair-result", "review-result"])
+@pytest.mark.parametrize("kind", ["run-manifest", "repair-candidate", "repair-result", "review-result", "coordination-message"])
 def test_example_validates_against_schema(kind: str) -> None:
     doc = _load(EXAMPLE_FILES[kind])
     assert _errors_for(kind, doc) == []
 
 
-@pytest.mark.parametrize("kind", ["run-manifest", "repair-candidate", "repair-result", "review-result"])
+@pytest.mark.parametrize("kind", ["run-manifest", "repair-candidate", "repair-result", "review-result", "coordination-message"])
 def test_example_kind_matches_schema(kind: str) -> None:
     doc = _load(EXAMPLE_FILES[kind])
     expected = {
@@ -208,6 +211,7 @@ def test_example_kind_matches_schema(kind: str) -> None:
         "repair-candidate": "federation_hq_repair_candidate",
         "repair-result": "federation_hq_repair_result",
         "review-result": "federation_hq_review_result",
+        "coordination-message": "federation_hq_coordination_message",
     }[kind]
     assert doc["kind"] == expected
 
@@ -360,6 +364,240 @@ def test_release_resolution_excludes_unreleased_status() -> None:
     assert ("scout", "0.1.0") in hashes
     assert ("scout", "0.2.0") not in hashes
     assert ("scout", "0.3.0") not in hashes
+
+
+# ── HQ Operator and coordination protocol ───────────────────────────────────
+
+
+def test_operator_registry_entry_released_with_matching_hash() -> None:
+    """operator@0.1.0 exists, is released, and its hash matches the file bytes."""
+    registry = _load(REPO_ROOT / "prompts" / "registry.yaml")
+    operator = next(e for e in registry["prompts"] if e["id"] == "operator")
+    version = operator["versions"][0]
+    assert version["version"] == "0.1.0"
+    assert version["status"] == "released"
+    path = REPO_ROOT / "prompts" / version["file"]
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    assert version["sha256"] == actual
+
+
+def test_original_three_prompt_hashes_unchanged() -> None:
+    """The three original released prompt files are byte-identical to their pins."""
+    registry = _load(REPO_ROOT / "prompts" / "registry.yaml")
+    expected = {
+        "scout": "6940ea39da9799fa6595809cfce6a948427bdc07edba2e48774418642fe6eb8a",
+        "repair": "0606d8ed7bec4501c10613d8e13b399325d6245b72f5d9212ea65e459f933f84",
+        "review": "82b9cc37176304d418a934b261fa5efa2374d4e886c5afdec3789eaa264479e9",
+    }
+    for entry in registry["prompts"]:
+        if entry["id"] in expected:
+            version = entry["versions"][0]
+            assert version["sha256"] == expected[entry["id"]], (
+                f"{entry['id']} prompt bytes changed after release"
+            )
+
+
+def test_run_manifest_requires_operator_pin() -> None:
+    doc = _load(EXAMPLE_FILES["run-manifest"])
+    del doc["prompt_pins"]["operator"]
+    errors = _errors_for("run-manifest", doc)
+    assert any("missing required field 'operator'" in e for e in errors)
+
+
+def test_run_manifest_requires_coordination_reference() -> None:
+    doc = _load(EXAMPLE_FILES["run-manifest"])
+    del doc["coordination"]
+    errors = _errors_for("run-manifest", doc)
+    assert any("missing required field 'coordination'" in e for e in errors)
+
+
+def test_run_manifest_rejects_invalid_coordination_issue_url() -> None:
+    doc = _load(EXAMPLE_FILES["run-manifest"])
+    doc["coordination"]["issue_url"] = "https://example.com/not-an-issue"
+    errors = _errors_for("run-manifest", doc)
+    assert any("does not match pattern" in e for e in errors)
+
+
+def test_operator_pin_rejected_when_unreleased() -> None:
+    """Only released Operator versions can be pinned."""
+    registry = {
+        "prompts": [
+            {
+                "id": "operator",
+                "versions": [
+                    {
+                        "version": "0.1.0",
+                        "file": "operator/v0.1.0.md",
+                        "sha256": "d" * 64,
+                        "status": "unreleased_bootstrap",
+                        "released": "2026-08-05",
+                        "changelog": "draft",
+                    }
+                ],
+            }
+        ],
+    }
+    doc = _load(EXAMPLE_FILES["run-manifest"])
+    errors: list[str] = []
+    validate_artifacts.check_prompt_pins(doc, registry, "run-manifest", errors)
+    assert any("no released prompt" in e for e in errors)
+
+
+def test_coordination_invalid_sender_role() -> None:
+    doc = _load(EXAMPLE_FILES["coordination-message"])
+    doc["sender_role"] = "scoutmaster"
+    errors = _errors_for("coordination-message", doc)
+    assert any("not in enum" in e for e in errors)
+
+
+def test_coordination_invalid_recipient_role() -> None:
+    doc = _load(EXAMPLE_FILES["coordination-message"])
+    doc["recipient_role"] = "builder"
+    errors = _errors_for("coordination-message", doc)
+    assert any("not in enum" in e for e in errors)
+
+
+def test_coordination_unknown_message_type() -> None:
+    doc = _load(EXAMPLE_FILES["coordination-message"])
+    doc["message_type"] = "ping"
+    errors = _errors_for("coordination-message", doc)
+    assert any("not in enum" in e for e in errors)
+
+
+def test_coordination_malformed_repository() -> None:
+    doc = _load(EXAMPLE_FILES["coordination-message"])
+    doc["target_repository"] = "not-a-repository"
+    errors = _errors_for("coordination-message", doc)
+    assert any("does not match pattern" in e for e in errors)
+
+
+def test_coordination_malformed_hq_commit_sha() -> None:
+    doc = _load(EXAMPLE_FILES["coordination-message"])
+    doc["artifact_ref"]["hq_commit_sha"] = "xyz"
+    errors = _errors_for("coordination-message", doc)
+    assert any("does not match pattern" in e for e in errors)
+
+
+def test_coordination_malformed_artifact_hash() -> None:
+    doc = _load(EXAMPLE_FILES["coordination-message"])
+    doc["artifact_ref"]["sha256"] = "zz"
+    errors = _errors_for("coordination-message", doc)
+    assert any("does not match pattern" in e for e in errors)
+
+
+def test_coordination_malformed_timestamp() -> None:
+    doc = _load(EXAMPLE_FILES["coordination-message"])
+    doc["created_at"] = "08/05/2026 19:50"
+    errors = _errors_for("coordination-message", doc)
+    assert any("does not match pattern" in e for e in errors)
+
+
+def test_coordination_baseline_sha_nullable() -> None:
+    """blocked messages may carry a null baseline_sha and null artifact_ref."""
+    doc = _load(EXAMPLE_FILES["coordination-message"])
+    doc["baseline_sha"] = None
+    doc["artifact_ref"] = None
+    assert _errors_for("coordination-message", doc) == []
+
+
+# ── Issue templates ─────────────────────────────────────────────────────────
+
+TEMPLATE_DIR = REPO_ROOT / ".github" / "ISSUE_TEMPLATE"
+
+EXPECTED_TEMPLATES = {"hq-run.md", "hq-change.md", "hq-defect.md"}
+
+
+def _front_matter(path: Path) -> dict:
+    text = path.read_text(encoding="utf-8")
+    parts = text.split("---", 2)
+    assert len(parts) == 3, f"{path.name}: front matter not delimited by ---"
+    assert parts[0].strip() == "", f"{path.name}: content before front matter"
+    return yaml.safe_load(parts[1])
+
+
+@pytest.mark.parametrize("name", sorted(EXPECTED_TEMPLATES))
+def test_issue_template_front_matter_valid(name: str) -> None:
+    path = TEMPLATE_DIR / name
+    assert path.exists()
+    fm = _front_matter(path)
+    assert fm["name"].startswith("HQ ")
+    assert fm["about"]
+    assert fm["title"].startswith("[HQ ")
+    assert fm["labels"] == []
+
+
+def test_no_role_specific_issue_templates() -> None:
+    """No separate Operator/Scout/Repair/Review templates exist."""
+    present = {p.name for p in TEMPLATE_DIR.iterdir() if p.is_file()}
+    for name in EXPECTED_TEMPLATES:
+        assert name in present, f"missing template: {name}"
+    for role in ("operator", "scout", "repair", "review"):
+        assert not any(role in name for name in present), (
+            f"role-specific Issue template present: {role}"
+        )
+
+
+def test_hq_run_template_has_required_sections() -> None:
+    text = (TEMPLATE_DIR / "hq-run.md").read_text()
+    for marker in (
+        "Run ID",
+        "Target repository",
+        "Baseline SHA",
+        "## Bounded maintenance request",
+        "Source reference",
+        "Pinned prompt releases",
+        "HQ run path",
+        "Current pipeline state",
+        "Active role assignment",
+        "Known baseline failures",
+        "Constraints and stop conditions",
+        "runs/<run-id>/",
+        "operational coordination thread",
+        "are canonical",
+    ):
+        assert marker in text, f"hq-run.md missing: {marker}"
+
+
+def test_hq_change_template_has_invariants() -> None:
+    text = (TEMPLATE_DIR / "hq-change.md").read_text()
+    for marker in (
+        "Affected canonical files",
+        "Current behavior",
+        "Proposed behavior",
+        "Rationale and evidence",
+        "Prompt-version impact",
+        "Schema or contract impact",
+        "Migration impact on existing runs",
+        "Explicit non-goals",
+        "Acceptance criteria",
+        "not edited in place",
+        "not inserted opportunistically",
+        "Amend existing canonical documents",
+        "not automatically authorized",
+    ):
+        assert marker in text, f"hq-change.md missing: {marker}"
+
+
+def test_hq_defect_template_has_required_fields() -> None:
+    text = (TEMPLATE_DIR / "hq-defect.md").read_text()
+    for marker in (
+        "Affected file, workflow, contract or renderer",
+        "Exact HQ commit SHA",
+        "Expected behavior",
+        "Observed behavior",
+        "Reproduction",
+        "Command",
+        "Exit code",
+        "Evidence location",
+        "Reproduces on `main`",
+        "Impact on released prompts",
+        "Impact on existing runs",
+        "Minimal repair boundary",
+        "No unrelated cleanup",
+        "No mutation of released prompt files",
+        "claims until reproduced",
+    ):
+        assert marker in text, f"hq-defect.md missing: {marker}"
 
 
 # ── Negative: path escape ─────────────────────────────────────────────────

@@ -49,6 +49,7 @@ SCHEMA_MATCHERS: list[tuple[str, str]] = [
     ("repair-candidate", "repair-candidate.schema.json"),
     ("repair-result", "repair-result.schema.json"),
     ("review-result", "review-result.schema.json"),
+    ("coordination-message", "coordination-message.schema.json"),
 ]
 
 # Keys whose string values are repo-relative artifact paths and must not
@@ -103,10 +104,32 @@ def validate_value(value, schema: dict, where: str, errors: list[str], root: dic
         return
 
     typ = schema.get("type")
-    if typ == "string":
-        if not isinstance(value, str):
-            errors.append(f"{where}: expected string, got {type(value).__name__}")
-            return
+    if isinstance(typ, str):
+        type_list = [typ]
+    elif isinstance(typ, list):
+        type_list = typ
+    else:
+        type_list = []
+
+    def _type_matches(value, t: str) -> bool:
+        if t == "string":
+            return isinstance(value, str)
+        if t == "integer":
+            return isinstance(value, int) and not isinstance(value, bool)
+        if t == "object":
+            return isinstance(value, dict)
+        if t == "array":
+            return isinstance(value, list)
+        if t == "null":
+            return value is None
+        return True  # unknown type keyword: no constraint
+
+    if type_list and not any(_type_matches(value, t) for t in type_list):
+        errors.append(f"{where}: expected type {type_list}, got {type(value).__name__}")
+        return
+    branch = next((t for t in type_list if _type_matches(value, t)), None)
+
+    if branch == "string":
         pattern = schema.get("pattern")
         if pattern:
             try:
@@ -115,14 +138,12 @@ def validate_value(value, schema: dict, where: str, errors: list[str], root: dic
             except re.error:
                 pass  # malformed pattern in schema: not a document problem
         return
-    if typ == "integer":
-        if not isinstance(value, int) or isinstance(value, bool):
-            errors.append(f"{where}: expected integer, got {type(value).__name__}")
+    if branch == "integer":
+        minimum = schema.get("minimum")
+        if minimum is not None and value < minimum:
+            errors.append(f"{where}: value {value} is below minimum {minimum}")
         return
-    if typ == "object":
-        if not isinstance(value, dict):
-            errors.append(f"{where}: expected object, got {type(value).__name__}")
-            return
+    if branch == "object":
         props = schema.get("properties", {})
         for name, subschema in props.items():
             if name in value:
@@ -135,18 +156,13 @@ def validate_value(value, schema: dict, where: str, errors: list[str], root: dic
             if extra:
                 errors.append(f"{where}: unexpected field(s) {extra}")
         return
-    if typ == "array":
-        if not isinstance(value, list):
-            errors.append(f"{where}: expected array, got {type(value).__name__}")
-            return
+    if branch == "array":
         items = schema.get("items")
         if isinstance(items, dict):
             for index, item in enumerate(value):
                 validate_value(item, items, f"{where}[{index}]", errors, root)
         return
-    if typ is None:
-        return
-    errors.append(f"{where}: unsupported schema type {typ!r}")
+    # branch in (None, "null"): nothing further to check.
 
 
 # ── Path-escape checks ────────────────────────────────────────────────────

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/kimeisele/federation-hq/main/contracts/run-manifest.schema.json",
   "title": "Run Manifest",
-  "description": "Pins one scoped repair run: target repository, baseline SHA, the original bounded maintenance request, exact prompt versions with content hashes, evidence references, and optional Engineering Encyclopedia context pack. Structural validation only; it does not prove semantic truth.",
+  "description": "Pins one scoped repair run: target repository, baseline SHA, the original bounded maintenance request, the coordination Issue reference, exact prompt versions (scout, repair, review, operator) with content hashes, evidence references, and optional Engineering Encyclopedia context pack. Structural validation only; it does not prove semantic truth.",
   "type": "object",
   "required": [
     "kind",
@@ -10,6 +10,7 @@
     "target_repository",
     "baseline_sha",
     "maintenance_request",
+    "coordination",
     "pipeline_state",
     "prompt_pins",
     "created_at"
@@ -53,6 +54,26 @@
       },
       "additionalProperties": false
     },
+    "coordination": {
+      "description": "The run's GitHub-native coordination reference: one run maps to exactly one coordination Issue.",
+      "type": "object",
+      "required": ["protocol_version", "issue_number", "issue_url"],
+      "properties": {
+        "protocol_version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "issue_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "issue_url": {
+          "type": "string",
+          "pattern": "^https://github\\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/issues/[0-9]+$"
+        }
+      },
+      "additionalProperties": false
+    },
     "pipeline_state": {
       "enum": [
         "requested",
@@ -69,7 +90,7 @@
     },
     "prompt_pins": {
       "type": "object",
-      "required": ["scout", "repair", "review"],
+      "required": ["scout", "repair", "review", "operator"],
       "properties": {
         "scout": {
           "$ref": "#/$defs/prompt_pin"
@@ -78,6 +99,9 @@
           "$ref": "#/$defs/prompt_pin"
         },
         "review": {
+          "$ref": "#/$defs/prompt_pin"
+        },
+        "operator": {
           "$ref": "#/$defs/prompt_pin"
         }
       },
@@ -108,7 +132,7 @@
       "properties": {
         "id": {
           "type": "string",
-          "enum": ["scout", "repair", "review"]
+          "enum": ["scout", "repair", "review", "operator"]
         },
         "version": {
           "type": "string",

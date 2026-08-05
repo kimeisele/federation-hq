@@ -1,0 +1,35 @@
+# Coordination message — example
+#
+# A complete `federation_hq_coordination_message` (assignment) posted as a
+# comment on the run's coordination Issue. Follows
+# `contracts/coordination-message.schema.json`. Structural validation only.
+
+kind: federation_hq_coordination_message
+protocol_version: 0.1.0
+message_id: msg-20260805-0001
+run_id: run-20260805-widget-service-sorting
+
+sender_role: operator
+recipient_role: scout
+message_type: assignment
+
+in_reply_to: null
+supersedes: null
+
+target_repository: acme/widget-service
+baseline_sha: "9f2c1e8a4b7d3f6c5e2a9b8c7d6e5f4a3b2c1d0e"
+
+state_before: requested
+state_after: scouting
+
+artifact_ref:
+  kind: run_manifest
+  path: runs/run-20260805-widget-service-sorting/run-manifest.yaml
+  hq_commit_sha: "abcdef0123456789abcdef0123456789abcdef01"
+  sha256: "4fefd629922d16c627396bc185ac375a805a015081abe4a225a3849ceaacd9a4"
+
+body: |
+  Investigate the bounded maintenance request and return exactly one
+  repair-candidate artifact.
+
+created_at: "2026-08-05T19:50:00+02:00"

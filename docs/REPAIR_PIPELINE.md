@@ -1,21 +1,26 @@
 # Repair Pipeline (v0.1.0)
 
-This document defines the initial three-role repair workflow implemented by
-Federation HQ. In v0.1.0 the workflow is **manually advanced** by a human
-operator: no dispatcher, no automatic model invocation, no autonomous PR
-creation, no autonomous merging.
+This document defines the initial repair workflow implemented by Federation
+HQ: three execution and judgment roles coordinated by the **HQ Operator**. In
+v0.1.0 the workflow is **manually coordinated** — no dispatcher, no automatic
+model invocation, no autonomous PR creation, no autonomous merging. The
+Operator posts structured assignments and decisions into the run's
+coordination Issue (see `docs/COORDINATION_PROTOCOL.md`); an external human or
+agent reads and executes them.
 
 ## Roles
 
 | Role | Prompt | Responsibility |
 |------|--------|----------------|
+| HQ Operator | `prompts/operator/v0.1.0.md` (`operator@0.1.0`) | Coordinate one run via its GitHub Issue; exactly one active assignment at a time; no merge authority, no semantic repair judgment |
 | Unwired Functionality Scout | `prompts/scout/v0.1.0.md` (`scout@0.1.0`) | Investigate a bounded functionality gap and select exactly one candidate |
 | Targeted Repair Builder | `prompts/repair/v0.1.0.md` (`repair@0.1.0`) | Repair exactly the selected candidate in the target repository |
 | Independent Repair Reviewer | `prompts/review/v0.1.0.md` (`review@0.1.0`) | Independently check the exact remote head and record a verdict |
 
-The three prompts are released versions pinned by each run manifest. A run
-never mixes prompt versions: all three roles in a run use the versions pinned
-at run creation.
+The four prompts are released versions pinned by each run manifest. A run
+never mixes prompt versions: all roles in a run use the versions pinned at run
+creation. The Operator never performs Scout, Repair, or Review work in the
+same run and never maintains more than one active assignment per run.
 
 ## State machine
 
@@ -81,15 +86,19 @@ append is sufficient in v0.1.0.
 A run lives in `runs/run-<date>-<slug>/` and accumulates:
 
 1. `run-manifest.yaml` (or `.json`) — pins target repository, baseline SHA,
-   the original `maintenance_request`, and the exact prompt versions with
-   content hashes.
+   the original `maintenance_request`, the `coordination` Issue reference, and
+   the exact prompt versions (operator, scout, repair, review) with content
+   hashes.
 2. `repair-candidate.<ext>` — the single selected candidate.
 3. `repair-result.<ext>` — head SHA, PR reference, commands and outcomes,
    baseline/newly-introduced failure lists.
 4. `review-result.<ext>` — reviewer head SHA and verdict.
 
 All artifacts are validated against the schemas in `contracts/` by
-`scripts/validate_artifacts.py`. See `runs/README.md` for naming and layout.
+`scripts/validate_artifacts.py`. Coordination messages are validated against
+`contracts/coordination-message.schema.json` and posted as comments on the
+run's coordination Issue (`docs/COORDINATION_PROTOCOL.md`); they are audit
+context, not canonical proof. See `runs/README.md` for naming and layout.
 
 ## Deferred
 

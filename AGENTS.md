@@ -13,10 +13,14 @@ Federation HQ is the durable registry and coordination workspace for:
 - Scout candidates,
 - Repair results,
 - independent Review results,
-- verifiable repository/SHA/PR evidence.
+- verifiable repository/SHA/PR evidence,
+- GitHub-native coordination records (structured Issue comments per
+  `docs/COORDINATION_PROTOCOL.md`).
 
-It is a federation service node, not a runtime: it does not dispatch agents,
-merge into target repositories, or replace their governance.
+It is a federation service node, not a runtime: it does not dispatch agents
+(the Operator posts structured assignments into a run Issue; an external human
+or agent reads and executes them), does not merge into target repositories,
+and does not replace their governance.
 
 ## Authority hierarchy
 
@@ -24,13 +28,14 @@ When sources conflict, use this order:
 
 1. `AGENTS.md` — repository collaboration and operating rules.
 2. `docs/BOUNDARIES.md` — architectural ownership boundaries.
-3. `docs/REPAIR_PIPELINE.md` — the current three-role workflow.
-4. Released prompts and their registry entries (`prompts/registry.yaml`) —
-   role behavior.
-5. JSON Schemas (`contracts/`) and validator behavior
+3. `docs/COORDINATION_PROTOCOL.md` — how runs are coordinated (v0.1).
+4. `docs/REPAIR_PIPELINE.md` — the current repair workflow and its states.
+5. Released prompts and their registry entries (`prompts/registry.yaml`) —
+   role behavior (operator, scout, repair, review).
+6. JSON Schemas (`contracts/`) and validator behavior
    (`scripts/validate_artifacts.py`) — structural contracts.
-6. Run artifacts under `runs/` — one particular execution.
-7. Agent reports and summaries — claims requiring verification, never proof.
+7. Run artifacts under `runs/` — one particular execution.
+8. Agent reports and summaries — claims requiring verification, never proof.
 
 ## Binding rules
 
@@ -41,9 +46,10 @@ When sources conflict, use this order:
   version (or an explicitly documented unreleased-bootstrap amendment before
   the repository's first merge — see `docs/PROMPT_VERSIONING.md`). Never edit
   a released prompt file and keep its release identity.
-- **Do not silently expand the three-role workflow.** Scout selects exactly one
-  candidate; Repair repairs only that candidate; Review checks the exact remote
-  head. New roles or phases are a documented decision, not an inline addition.
+- **Do not silently expand the repair workflow.** The workflow is: HQ
+  Operator coordinates; Scout selects exactly one candidate; Repair repairs
+  only that candidate; Review checks the exact remote head. New roles or
+  phases are a documented decision, not an inline addition.
 - **Amend, don't proliferate.** Do not create new governance, north-star,
   handoff, or architecture documents when an existing canonical document
   (`docs/BOUNDARIES.md`, `docs/REPAIR_PIPELINE.md`, `docs/PROMPT_VERSIONING.md`,
