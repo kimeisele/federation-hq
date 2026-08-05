@@ -9,7 +9,7 @@ workflow execution against one target repository.
 runs/
   README.md
   run-<YYYYMMDD>-<slug>/
-    run-manifest.yaml        # pins target repo, baseline SHA, prompt versions
+    run-manifest.yaml        # pins target repo, baseline SHA, maintenance request, prompt versions+hashes
     repair-candidate.yaml    # the single selected candidate
     repair-result.yaml       # head SHA, PR reference, commands, failures
     review-result.yaml       # reviewer head SHA, verdict, blockers

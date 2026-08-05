@@ -68,8 +68,13 @@ Why three prompts instead of one master prompt with a mode switch:
 - Released prompt versions are **immutable**; every release records a changelog
   rationale in [`prompts/registry.yaml`](prompts/registry.yaml). See
   [`docs/PROMPT_VERSIONING.md`](docs/PROMPT_VERSIONING.md).
-- Each run manifest pins the exact `id` and `version` of the scout, repair, and
-  review prompts, so a run stays interpretable after prompts change.
+- Each registry version pins the **SHA-256 of its exact file bytes**, and each
+  run manifest pins the exact `id`, `version`, and `sha256` of the scout,
+  repair, and review prompts — a run binds exact prompt content, not just a
+  version label.
+- Each run manifest binds the original bounded **`maintenance_request`**
+  (text, source, created_at, optional reference); the Scout candidate may
+  clarify it but may not replace or silently broaden it.
 - Artifacts are validated against JSON Schemas in `contracts/` by
   `scripts/validate_artifacts.py` — structural validation only; it never proves
   semantic truth.
@@ -112,9 +117,10 @@ In v0.1.0 the workflow is **manually advanced** by a human operator — there is
 no dispatcher, no automatic model invocation, and no autonomous PR creation or
 merging:
 
-1. A `repository_maintenance_request` arrives; the operator creates a run
-   directory under `runs/` with a `run-manifest` pinning target, baseline SHA,
-   and prompt versions.
+1. A bounded `repository_maintenance_request` arrives; the operator creates a
+   run directory under `runs/` with a `run-manifest` pinning target, baseline
+   SHA, the original `maintenance_request`, and the exact prompt versions with
+   content hashes.
 2. The operator starts the Scout with the run manifest; the Scout records
    exactly one `repair-candidate`.
 3. The operator starts the Repair Builder with the frozen candidate; the
@@ -161,9 +167,16 @@ The default branch is protected by the `agent-federation-baseline-v1` ruleset
 a pull request. See
 [`docs/governance/DEFAULT_BRANCH_GOVERNANCE_VALIDATION.md`](docs/governance/DEFAULT_BRANCH_GOVERNANCE_VALIDATION.md).
 
-After merging your setup PR, the workflows regenerate
-`.well-known/agent-federation.json` and `.well-known/agent.json` and publish
-the authority feed.
+**Sync posture:** the `sync-agent-card` and `sync-federation-descriptor`
+workflows do not push generated content to `main`. Generated identity surfaces
+(`.well-known/`) are regenerated and committed through normal feature branches
+and PRs; CI renders them and **fails on drift**. After merging your setup PR,
+CI checks the committed surfaces against the renderers on every relevant push
+and pull request. The authority-feed workflow publishes only to the separate
+`authority-feed` publication branch. The weekly peer-discovery workflow still
+targets `HEAD:${GITHUB_REF_NAME}` and is expected to fail on scheduled runs
+until the target repository's governance permits that push — peer data is not
+identity content and is out of scope for the sync posture.
 
 ## Repository map
 

@@ -1,27 +1,41 @@
-name: Sync Federation Descriptor
+name: Check Federation Descriptor
+
+# Federation HQ posture (v0.1.0): no bot pushes to the protected default
+# branch. The federation descriptor is regenerated and committed through
+# normal feature branches and PRs; this workflow renders it in CI and fails
+# on drift.
 
 on:
+  pull_request:
+    paths:
+      - ".well-known/**"
+      - "docs/authority/**"
+      - "scripts/render_agent_card.py"
+      - "scripts/render_federation_descriptor.py"
+      - "scripts/federation_utils.py"
   push:
     branches: [main]
-    paths-ignore:
+    paths:
       - ".well-known/**"
+      - "docs/authority/**"
+      - "scripts/render_agent_card.py"
+      - "scripts/render_federation_descriptor.py"
+      - "scripts/federation_utils.py"
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  sync-descriptor:
+  check-descriptor:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Render descriptor
-        run: python scripts/render_federation_descriptor.py --output .well-known/agent-federation.json
-      - name: Commit descriptor if changed
+
+      - name: Render federation descriptor and compare with committed
         run: |
-          git config user.name "federation-bot"
-          git config user.email "bot@federation"
-          git add .well-known/agent-federation.json
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m "[skip ci] Sync federation descriptor"
-          git push origin HEAD:${GITHUB_REF_NAME}
+          python scripts/render_federation_descriptor.py --output /tmp/descriptor.json --repo "$GITHUB_REPOSITORY" --layer node
+          if ! diff -u .well-known/agent-federation.json /tmp/descriptor.json; then
+            echo "::error::Federation descriptor drift: .well-known/agent-federation.json does not match the renderer output. Regenerate with scripts/render_federation_descriptor.py and commit through a feature branch PR (no direct push to main)."
+            exit 1
+          fi

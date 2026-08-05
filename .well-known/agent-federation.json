@@ -1,5 +1,5 @@
 {
-  "authority_feed_manifest_url": "https://raw.githubusercontent.com/test-org/test-repo/authority-feed/latest-authority-manifest.json",
+  "authority_feed_manifest_url": "https://raw.githubusercontent.com/kimeisele/federation-hq/authority-feed/latest-authority-manifest.json",
   "capabilities": [
     "authority-publishing",
     "service-provider",
@@ -15,11 +15,11 @@
   },
   "kind": "agent_federation_descriptor",
   "layer": "node",
-  "owner_boundary": "test_repo_surface",
+  "owner_boundary": "federation_hq_surface",
   "projection_intents": [
     "public_authority_page"
   ],
-  "repo_id": "test-repo",
+  "repo_id": "federation-hq",
   "status": "active",
   "version": 1
 }

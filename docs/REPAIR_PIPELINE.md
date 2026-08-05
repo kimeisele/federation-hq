@@ -31,7 +31,7 @@ requested
 
 | State | Meaning | Advanced by |
 |-------|---------|-------------|
-| `requested` | A bounded maintenance request exists; no work started | Operator creates the run |
+| `requested` | A bounded maintenance request exists; the run manifest pins it as `maintenance_request` | Operator creates the run |
 | `scouting` | Scout investigating the target repository | Operator starts the scout |
 | `candidate_selected` | Scout recorded exactly one candidate | Operator records `repair-candidate` artifact |
 | `repair_in_progress` | Repair Builder working the selected candidate | Operator starts the repair |
@@ -71,12 +71,18 @@ append is sufficient in v0.1.0.
    role may use administrative merge bypass, force-push to protected branches,
    or direct pushes where a pull request is required — in either Federation HQ
    or target repositories.
+8. **Every run binds its original maintenance request.** The run manifest
+   records the bounded request (`maintenance_request`: text, source,
+   created_at, optional source reference) as the durable original scope. The
+   Scout candidate may clarify it but may not replace or silently broaden it.
 
 ## Artifacts per run
 
 A run lives in `runs/run-<date>-<slug>/` and accumulates:
 
-1. `run-manifest.yaml` (or `.json`) — pins target, baseline SHA, prompt versions.
+1. `run-manifest.yaml` (or `.json`) — pins target repository, baseline SHA,
+   the original `maintenance_request`, and the exact prompt versions with
+   content hashes.
 2. `repair-candidate.<ext>` — the single selected candidate.
 3. `repair-result.<ext>` — head SHA, PR reference, commands and outcomes,
    baseline/newly-introduced failure lists.

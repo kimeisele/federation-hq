@@ -42,6 +42,29 @@ def _load(path: Path) -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
+# 64 lowercase hex chars: a structurally valid but content-neutral sha256.
+_ZERO64 = "0" * 64
+
+
+REGISTRY_VERSION_HEADER = (
+    "schema_version: 1\n"
+    "prompts:\n"
+)
+
+
+def _version_block(pid: str, version: str, changelog: str) -> str:
+    return (
+        f"  - id: {pid}\n"
+        "    versions:\n"
+        f"      - version: {version}\n"
+        f"        file: {pid}/v{version}.md\n"
+        f"        sha256: \"{_ZERO64}\"\n"
+        "        status: released\n"
+        "        released: '2026-08-05'\n"
+        f"        changelog: {changelog}\n"
+    )
+
+
 def _schema(kind: str) -> dict:
     return json.loads(SCHEMA_FILES[kind].read_text(encoding="utf-8"))
 
@@ -90,20 +113,9 @@ def test_registry_referenced_prompt_files_exist() -> None:
 def test_registry_rejects_duplicate_prompt_id(tmp_path: Path) -> None:
     registry = tmp_path / "registry.yaml"
     registry.write_text(
-        "schema_version: 1\n"
-        "prompts:\n"
-        "  - id: scout\n"
-        "    versions:\n"
-        "      - version: 0.1.0\n"
-        "        file: scout/v0.1.0.md\n"
-        "        released: '2026-08-05'\n"
-        "        changelog: first\n"
-        "  - id: scout\n"
-        "    versions:\n"
-        "      - version: 0.2.0\n"
-        "        file: scout/v0.2.0.md\n"
-        "        released: '2026-08-05'\n"
-        "        changelog: second\n"
+        REGISTRY_VERSION_HEADER
+        + _version_block("scout", "0.1.0", "first")
+        + _version_block("scout", "0.2.0", "second")
     )
     errors: list[str] = []
     validate_artifacts.validate_registry(registry, tmp_path, errors)
@@ -117,14 +129,8 @@ def test_registry_rejects_duplicate_version(tmp_path: Path) -> None:
         "prompts:\n"
         "  - id: scout\n"
         "    versions:\n"
-        "      - version: 0.1.0\n"
-        "        file: scout/v0.1.0.md\n"
-        "        released: '2026-08-05'\n"
-        "        changelog: first\n"
-        "      - version: 0.1.0\n"
-        "        file: scout/v0.1.0.md\n"
-        "        released: '2026-08-05'\n"
-        "        changelog: second\n"
+        f"      - version: 0.1.0\n        file: scout/v0.1.0.md\n        sha256: \"{_ZERO64}\"\n        status: released\n        released: '2026-08-05'\n        changelog: first\n"
+        f"      - version: 0.1.0\n        file: scout/v0.1.0.md\n        sha256: \"{_ZERO64}\"\n        status: released\n        released: '2026-08-05'\n        changelog: second\n"
     )
     errors: list[str] = []
     validate_artifacts.validate_registry(registry, tmp_path, errors)
@@ -133,16 +139,7 @@ def test_registry_rejects_duplicate_version(tmp_path: Path) -> None:
 
 def test_registry_rejects_missing_prompt_file(tmp_path: Path) -> None:
     registry = tmp_path / "registry.yaml"
-    registry.write_text(
-        "schema_version: 1\n"
-        "prompts:\n"
-        "  - id: scout\n"
-        "    versions:\n"
-        "      - version: 0.1.0\n"
-        "        file: scout/v0.1.0.md\n"
-        "        released: '2026-08-05'\n"
-        "        changelog: first\n"
-    )
+    registry.write_text(REGISTRY_VERSION_HEADER + _version_block("scout", "0.1.0", "first"))
     errors: list[str] = []
     validate_artifacts.validate_registry(registry, tmp_path, errors)
     assert any("does not exist" in e for e in errors)
@@ -156,12 +153,42 @@ def test_registry_rejects_missing_changelog(tmp_path: Path) -> None:
         "  - id: scout\n"
         "    versions:\n"
         "      - version: 0.1.0\n"
-        "        file: scout/v0.1.0.md\n"
+        f"        sha256: \"{_ZERO64}\"\n"
+        "        status: released\n"
         "        released: '2026-08-05'\n"
     )
     errors: list[str] = []
     validate_artifacts.validate_registry(registry, tmp_path, errors)
     assert any("missing required field 'changelog'" in e for e in errors)
+
+
+def test_registry_sha256_matches_prompt_file_bytes() -> None:
+    """Registry hashes must equal the exact UTF-8 bytes of the prompt files."""
+    registry = _load(REPO_ROOT / "prompts" / "registry.yaml")
+    import hashlib
+
+    for entry in registry["prompts"]:
+        for version in entry["versions"]:
+            path = REPO_ROOT / "prompts" / version["file"]
+            actual = hashlib.sha256(path.read_bytes()).hexdigest()
+            assert version["sha256"] == actual, (
+                f"registry sha256 for {entry['id']}@{version['version']} is stale"
+            )
+
+
+def test_registry_rejects_sha256_not_matching_file(tmp_path: Path) -> None:
+    """A registry hash that does not match the referenced file fails closed."""
+    prompts_dir = tmp_path / "prompts" / "scout"
+    prompts_dir.mkdir(parents=True)
+    (prompts_dir / "v0.1.0.md").write_text("actual prompt content\n")
+    registry = tmp_path / "registry.yaml"
+    registry.write_text(
+        REGISTRY_VERSION_HEADER
+        + _version_block("scout", "0.1.0", "first").replace(_ZERO64, "a" * 64)
+    )
+    errors: list[str] = []
+    validate_artifacts.validate_registry(registry, tmp_path, errors)
+    assert any("does not match prompt file bytes" in e for e in errors)
 
 
 # ── Schema conformance: examples are valid ────────────────────────────────
@@ -216,6 +243,41 @@ def test_rejects_missing_verdict() -> None:
     assert any("missing required field 'verdict'" in e for e in errors)
 
 
+def test_rejects_missing_maintenance_request() -> None:
+    doc = _load(EXAMPLE_FILES["run-manifest"])
+    del doc["maintenance_request"]
+    errors = _errors_for("run-manifest", doc)
+    assert any("missing required field 'maintenance_request'" in e for e in errors)
+
+
+def test_rejects_missing_pipeline_state() -> None:
+    doc = _load(EXAMPLE_FILES["run-manifest"])
+    del doc["pipeline_state"]
+    errors = _errors_for("run-manifest", doc)
+    assert any("missing required field 'pipeline_state'" in e for e in errors)
+
+
+def test_rejects_non_iso8601_created_at() -> None:
+    doc = _load(EXAMPLE_FILES["run-manifest"])
+    doc["created_at"] = "08/05/2026 09:15"
+    errors = _errors_for("run-manifest", doc)
+    assert any("does not match pattern" in e for e in errors)
+
+
+def test_rejects_maintenance_request_without_text() -> None:
+    doc = _load(EXAMPLE_FILES["run-manifest"])
+    del doc["maintenance_request"]["text"]
+    errors = _errors_for("run-manifest", doc)
+    assert any("missing required field 'text'" in e for e in errors)
+
+
+def test_rejects_missing_prompt_pin_hash() -> None:
+    doc = _load(EXAMPLE_FILES["run-manifest"])
+    del doc["prompt_pins"]["review"]["sha256"]
+    errors = _errors_for("run-manifest", doc)
+    assert any("missing required field 'sha256'" in e for e in errors)
+
+
 def test_rejects_missing_repair_head_sha() -> None:
     doc = _load(EXAMPLE_FILES["repair-result"])
     del doc["repair_head_sha"]
@@ -236,6 +298,16 @@ def test_rejects_unknown_prompt_version_pin(tmp_path: Path) -> None:
     errors: list[str] = []
     validate_artifacts.check_prompt_pins(doc, {"prompts": []}, "run-manifest", errors)
     assert any("no released prompt" in e for e in errors)
+
+
+def test_rejects_mismatched_prompt_pin_hash() -> None:
+    """A pin hash that does not match the registry release fails closed."""
+    doc = _load(EXAMPLE_FILES["run-manifest"])
+    doc["prompt_pins"]["repair"]["sha256"] = "b" * 64
+    registry = _load(REPO_ROOT / "prompts" / "registry.yaml")
+    errors: list[str] = []
+    validate_artifacts.check_prompt_pins(doc, registry, "run-manifest", errors)
+    assert any("does not match registry release" in e for e in errors)
 
 
 # ── Negative: path escape ─────────────────────────────────────────────────
@@ -332,3 +404,115 @@ def test_cli_rejects_escaping_artifact(tmp_path: Path) -> None:
     result = _run_cli("--artifact", str(artifact))
     assert result.returncode == 1
     assert "may escape the repository" in result.stderr
+
+
+# ── Committed run bundle coherence ──────────────────────────────────────────
+
+BUNDLE_FILES = {
+    "run-manifest": "run-manifest.yaml",
+    "repair-candidate": "repair-candidate.yaml",
+    "repair-result": "repair-result.yaml",
+    "review-result": "review-result.yaml",
+}
+
+
+def _write_bundle(root: Path, kind: str = "coherent") -> Path:
+    """Write a run bundle under *root*/runs/run-1; return the runs dir."""
+    run_dir = root / "runs" / "run-1"
+    run_dir.mkdir(parents=True)
+    docs: dict[str, dict] = {}
+    for kind_name, fname in BUNDLE_FILES.items():
+        docs[kind_name] = _load(EXAMPLE_FILES[kind_name])
+    if kind == "bad_run_id":
+        docs["repair-result"]["run_id"] = "run-999"
+    elif kind == "bad_candidate_chain":
+        docs["repair-result"]["candidate_id"] = "other-candidate"
+    elif kind == "bad_result_chain":
+        docs["review-result"]["result_id"] = "other-result"
+    elif kind == "bad_head":
+        docs["review-result"]["reviewer_head_sha"] = "0" * 40
+    elif kind == "bad_repo":
+        docs["repair-result"]["target_repository"] = "other-org/other-repo"
+    elif kind == "bad_baseline":
+        docs["repair-candidate"]["baseline_sha"] = "1" * 40
+    for kind_name, fname in BUNDLE_FILES.items():
+        (run_dir / fname).write_text(yaml.safe_dump(docs[kind_name], sort_keys=False))
+    return root / "runs"
+
+
+def _bundle_errors(runs_dir: Path, root: Path) -> list[str]:
+    errors: list[str] = []
+    registry = _load(REPO_ROOT / "prompts" / "registry.yaml")
+    validate_artifacts.validate_run_bundles(
+        runs_dir, CONTRACTS, root, errors, registry
+    )
+    return errors
+
+
+def test_coherent_run_bundle_validates(tmp_path: Path) -> None:
+    runs_dir = _write_bundle(tmp_path, "coherent")
+    assert _bundle_errors(runs_dir, tmp_path) == []
+
+
+def test_bundle_rejects_run_id_mismatch(tmp_path: Path) -> None:
+    runs_dir = _write_bundle(tmp_path, "bad_run_id")
+    assert any("run_id mismatch" in e for e in _bundle_errors(runs_dir, tmp_path))
+
+
+def test_bundle_rejects_candidate_id_mismatch(tmp_path: Path) -> None:
+    runs_dir = _write_bundle(tmp_path, "bad_candidate_chain")
+    assert any("candidate_id does not match" in e for e in _bundle_errors(runs_dir, tmp_path))
+
+
+def test_bundle_rejects_result_id_mismatch(tmp_path: Path) -> None:
+    runs_dir = _write_bundle(tmp_path, "bad_result_chain")
+    assert any("result_id does not match" in e for e in _bundle_errors(runs_dir, tmp_path))
+
+
+def test_bundle_rejects_reviewer_head_mismatch(tmp_path: Path) -> None:
+    runs_dir = _write_bundle(tmp_path, "bad_head")
+    assert any("reviewer_head_sha does not match" in e for e in _bundle_errors(runs_dir, tmp_path))
+
+
+def test_bundle_rejects_target_repository_mismatch(tmp_path: Path) -> None:
+    runs_dir = _write_bundle(tmp_path, "bad_repo")
+    assert any("target_repository does not match" in e for e in _bundle_errors(runs_dir, tmp_path))
+
+
+def test_bundle_rejects_baseline_sha_mismatch(tmp_path: Path) -> None:
+    runs_dir = _write_bundle(tmp_path, "bad_baseline")
+    assert any("baseline_sha does not match" in e for e in _bundle_errors(runs_dir, tmp_path))
+
+
+def test_cli_validates_run_bundles(tmp_path: Path) -> None:
+    runs_dir = _write_bundle(tmp_path, "coherent")
+    result = _run_cli("--runs-dir", str(runs_dir))
+    assert result.returncode == 0, result.stderr
+
+
+def test_cli_rejects_incoherent_run_bundles(tmp_path: Path) -> None:
+    runs_dir = _write_bundle(tmp_path, "bad_head")
+    result = _run_cli("--runs-dir", str(runs_dir))
+    assert result.returncode == 1
+    assert "reviewer_head_sha does not match" in result.stderr
+
+
+def test_run_bundle_binds_maintenance_request(tmp_path: Path) -> None:
+    """Every run binds its original maintenance request via the manifest."""
+    runs_dir = _write_bundle(tmp_path, "coherent")
+    manifest = _load(runs_dir / "run-1" / "run-manifest.yaml")
+    mr = manifest["maintenance_request"]
+    assert mr["text"].strip()
+    assert mr["source"] in ("human_operator", "issue", "other")
+    assert mr["created_at"]
+
+
+def test_run_bundle_prompt_pins_resolve_to_exact_hashes(tmp_path: Path) -> None:
+    """Bundle pin hashes must equal the released registry hashes."""
+    runs_dir = _write_bundle(tmp_path, "coherent")
+    manifest = _load(runs_dir / "run-1" / "run-manifest.yaml")
+    registry = _load(REPO_ROOT / "prompts" / "registry.yaml")
+    hashes = validate_artifacts.registry_release_hashes(registry)
+    for role, pin in manifest["prompt_pins"].items():
+        assert (pin["id"], pin["version"]) in hashes
+        assert pin["sha256"] == hashes[(pin["id"], pin["version"])]

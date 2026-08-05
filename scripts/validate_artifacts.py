@@ -6,11 +6,15 @@ dependency of this project — see pyproject.toml):
 
 - prompt registry: schema version, unique prompt ids, unique versions per id,
   every referenced prompt file exists inside the repository, every release has
-  a changelog rationale;
+  a changelog rationale, a release status, and a SHA-256 that matches the
+  referenced prompt file's bytes;
 - every example artifact validates against its JSON Schema (a small structural
   subset: type, const, enum, pattern, properties, required,
   additionalProperties, items);
-- run-manifest prompt pins resolve to released registry versions;
+- run-manifest prompt pins resolve to exact released prompt hashes;
+- committed run bundles below `runs/` are discovered, validated, and
+  cross-checked (run_id, repository/SHA agreement, candidate/result chains,
+  review head, exact prompt hashes);
 - artifact path fields cannot escape the repository (no absolute paths, no
   ``..`` traversal).
 
@@ -19,12 +23,14 @@ Structural validation only — schema conformance never proves semantic truth.
 Usage:
     python scripts/validate_artifacts.py
     python scripts/validate_artifacts.py --artifact runs/<run>/repair-result.yaml
+    python scripts/validate_artifacts.py --runs-dir runs
 
 Exit codes: 0 = valid, 1 = validation failures, 2 = usage/IO error.
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -193,7 +199,12 @@ def check_paths(data, repo_root: Path, errors: list[str]) -> None:
 
 def registry_releases(registry: dict) -> set[tuple[str, str]]:
     """Return the set of released ``(id, version)`` pairs in a registry."""
-    released: set[tuple[str, str]] = set()
+    return set(registry_release_hashes(registry))
+
+
+def registry_release_hashes(registry: dict) -> dict[tuple[str, str], str]:
+    """Return {(id, version): sha256} for every version in the registry."""
+    hashes: dict[tuple[str, str], str] = {}
     prompts = registry.get("prompts", []) if isinstance(registry, dict) else []
     for entry in prompts:
         if not isinstance(entry, dict):
@@ -202,9 +213,10 @@ def registry_releases(registry: dict) -> set[tuple[str, str]]:
         for ver in entry.get("versions", []):
             if isinstance(ver, dict) and isinstance(pid, str):
                 version = ver.get("version")
-                if isinstance(version, str):
-                    released.add((pid, version))
-    return released
+                sha = ver.get("sha256")
+                if isinstance(version, str) and isinstance(sha, str):
+                    hashes[(pid, version)] = sha.lower()
+    return hashes
 
 
 def validate_registry(registry_path: Path, repo_root: Path, errors: list[str]) -> dict | None:
@@ -252,10 +264,30 @@ def validate_registry(registry_path: Path, repo_root: Path, errors: list[str]) -
             if not isinstance(ver, dict):
                 errors.append(f"{vwhere}: expected an object")
                 continue
-            for required in ("version", "file", "released", "changelog"):
+            for required in ("version", "file", "released", "changelog", "status", "sha256"):
                 value = ver.get(required)
                 if not isinstance(value, str) or not value.strip():
                     errors.append(f"{vwhere}: missing required field {required!r}")
+            status = ver.get("status")
+            if status not in ("released", "unreleased_bootstrap"):
+                errors.append(
+                    f"{vwhere}: status must be 'released' or 'unreleased_bootstrap', got {status!r}"
+                )
+            sha = ver.get("sha256")
+            if isinstance(sha, str):
+                if not re.fullmatch(r"[0-9a-f]{64}", sha):
+                    errors.append(f"{vwhere}: sha256 must be 64 lowercase hex chars")
+                else:
+                    fname = ver.get("file")
+                    if isinstance(fname, str) and fname:
+                        fpath = (prompts_dir / fname).resolve()
+                        if fpath.exists() and fpath.is_file():
+                            actual = hashlib.sha256(fpath.read_bytes()).hexdigest()
+                            if actual != sha.lower():
+                                errors.append(
+                                    f"{vwhere}: sha256 {sha!r} does not match prompt file bytes "
+                                    f"({actual})"
+                                )
             version = ver.get("version")
             if isinstance(version, str):
                 if version in seen_versions:
@@ -276,20 +308,28 @@ def validate_registry(registry_path: Path, repo_root: Path, errors: list[str]) -
 
 
 def check_prompt_pins(doc: dict, registry: dict | None, where: str, errors: list[str]) -> None:
-    """Verify run-manifest prompt pins resolve to released registry versions."""
+    """Verify run-manifest prompt pins resolve to exact released prompt hashes."""
     if registry is None:
         return
     pins = doc.get("prompt_pins") if isinstance(doc, dict) else None
     if not isinstance(pins, dict):
         return
-    released = registry_releases(registry)
+    release_hashes = registry_release_hashes(registry)
     for role, pin in pins.items():
         if not isinstance(pin, dict):
             continue
         pid, version = pin.get("id"), pin.get("version")
-        if (pid, version) not in released:
+        pin_sha = pin.get("sha256")
+        if (pid, version) not in release_hashes:
             errors.append(
                 f"{where}.prompt_pins.{role}: no released prompt {pid!r}@{version!r} in registry"
+            )
+            continue
+        expected = release_hashes[(pid, version)]
+        if not isinstance(pin_sha, str) or pin_sha.lower() != expected:
+            errors.append(
+                f"{where}.prompt_pins.{role}: sha256 {pin_sha!r} does not match registry release "
+                f"{pid!r}@{version!r} ({expected})"
             )
 
 
@@ -362,6 +402,128 @@ def validate_examples(
         validate_artifact(path, schemas_dir, repo_root, errors, registry)
 
 
+# ── Committed run bundle checks ────────────────────────────────────────────
+
+RUN_ARTIFACT_PREFIXES = (
+    "run-manifest",
+    "repair-candidate",
+    "repair-result",
+    "review-result",
+)
+
+
+def _find_artifact(run_dir: Path, prefix: str) -> Path | None:
+    """Return the first artifact file in *run_dir* with the given prefix."""
+    for path in sorted(run_dir.iterdir()):
+        if (
+            path.is_file()
+            and path.name.startswith(prefix)
+            and path.suffix.lower() in (".yaml", ".yml", ".json")
+        ):
+            return path
+    return None
+
+
+def _load_if_valid(path: Path | None, schemas_dir: Path, repo_root: Path,
+                   errors: list[str], registry: dict | None) -> dict | None:
+    """Validate one bundle artifact; return its document when valid."""
+    if path is None:
+        return None
+    before = len(errors)
+    validate_artifact(path, schemas_dir, repo_root, errors, registry)
+    if len(errors) > before:
+        return None
+    try:
+        doc = load_document(path)
+    except Exception as exc:  # pragma: no cover - validate_artifact already loaded it
+        errors.append(f"{path.name}: could not load: {exc}")
+        return None
+    return doc if isinstance(doc, dict) else None
+
+
+def validate_run_bundles(
+    runs_dir: Path,
+    schemas_dir: Path,
+    repo_root: Path,
+    errors: list[str],
+    registry: dict | None = None,
+) -> None:
+    """Validate every committed run bundle below *runs_dir* and cross-check it.
+
+    Per run directory: all artifacts parse and satisfy their schemas; all
+    artifacts carry the same ``run_id``; target repository and baseline SHA
+    agree with the manifest; the repair result's ``candidate_id`` matches the
+    selected candidate; the review result's ``candidate_id``/``result_id``
+    match the candidate and repair result; the review ``reviewer_head_sha``
+    equals the repair ``repair_head_sha``; prompt pins resolve to exact
+    released prompt hashes.
+    """
+    if not runs_dir.is_dir():
+        errors.append(f"runs: directory not found: {runs_dir}")
+        return
+    run_dirs = sorted(p for p in runs_dir.iterdir() if p.is_dir())
+    if not run_dirs:
+        return
+    for run_dir in run_dirs:
+        where = f"runs/{run_dir.name}"
+        manifest_path = _find_artifact(run_dir, "run-manifest")
+        candidate_path = _find_artifact(run_dir, "repair-candidate")
+        result_path = _find_artifact(run_dir, "repair-result")
+        review_path = _find_artifact(run_dir, "review-result")
+        if not any((manifest_path, candidate_path, result_path, review_path)):
+            errors.append(f"{where}: directory contains no recognized run artifacts")
+            continue
+
+        manifest = _load_if_valid(manifest_path, schemas_dir, repo_root, errors, registry)
+        candidate = _load_if_valid(candidate_path, schemas_dir, repo_root, errors, registry)
+        result = _load_if_valid(result_path, schemas_dir, repo_root, errors, registry)
+        review = _load_if_valid(review_path, schemas_dir, repo_root, errors, registry)
+
+        # Same run_id across all present artifacts.
+        run_ids: dict[str, str] = {}
+        for label, doc in (("manifest", manifest), ("candidate", candidate),
+                           ("result", result), ("review", review)):
+            if doc is None:
+                continue
+            rid = doc.get("run_id")
+            if isinstance(rid, str) and rid:
+                run_ids[label] = rid
+        if len(set(run_ids.values())) > 1:
+            errors.append(f"{where}: run_id mismatch across artifacts: {run_ids}")
+
+        # Target repository and baseline SHA agree with the manifest.
+        if manifest is not None:
+            for label, doc in (("candidate", candidate), ("result", result),
+                               ("review", review)):
+                if doc is None:
+                    continue
+                if doc.get("target_repository") != manifest.get("target_repository"):
+                    errors.append(
+                        f"{where}.{label}: target_repository does not match the run manifest"
+                    )
+                # baseline_sha is compared only where the artifact schema
+                # declares the field (candidate and repair result).
+                if "baseline_sha" in doc and doc.get("baseline_sha") != manifest.get("baseline_sha"):
+                    errors.append(f"{where}.{label}: baseline_sha does not match the run manifest")
+
+        # Repair result candidate_id matches the selected candidate.
+        if candidate is not None and result is not None:
+            if result.get("candidate_id") != candidate.get("candidate_id"):
+                errors.append(f"{where}: repair-result candidate_id does not match the candidate")
+
+        # Review result chains to the candidate and the repair result.
+        if review is not None:
+            if candidate is not None and review.get("candidate_id") != candidate.get("candidate_id"):
+                errors.append(f"{where}: review-result candidate_id does not match the candidate")
+            if result is not None and review.get("result_id") != result.get("result_id"):
+                errors.append(f"{where}: review-result result_id does not match the repair-result")
+            if result is not None and review.get("reviewer_head_sha") != result.get("repair_head_sha"):
+                errors.append(
+                    f"{where}: review-result reviewer_head_sha does not match "
+                    "repair-result repair_head_sha"
+                )
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────
 
 
@@ -371,6 +533,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--registry", default=None, help="Prompt registry path (default: prompts/registry.yaml).")
     parser.add_argument("--schemas-dir", default=None, help="Contracts directory (default: contracts/).")
     parser.add_argument("--examples-dir", default=None, help="Examples directory (default: examples/).")
+    parser.add_argument("--runs-dir", default=None, help="Runs directory (default: runs/).")
     parser.add_argument("--artifact", default=None, help="Validate a single artifact file (default: all examples).")
     parser.add_argument("--quiet", action="store_true", help="Only print failures.")
     args = parser.parse_args(argv)
@@ -387,6 +550,8 @@ def main(argv: list[str] | None = None) -> int:
     else:
         examples_dir = Path(args.examples_dir).resolve() if args.examples_dir else repo_root / "examples"
         validate_examples(examples_dir, schemas_dir, repo_root, errors, registry)
+        runs_dir = Path(args.runs_dir).resolve() if args.runs_dir else repo_root / "runs"
+        validate_run_bundles(runs_dir, schemas_dir, repo_root, errors, registry)
 
     if errors:
         if not args.quiet:
