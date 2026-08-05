@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/kimeisele/federation-hq/main/contracts/repair-result.schema.json",
+  "title": "Repair Result",
+  "description": "Record of the targeted repair: exact head SHA, branch and PR references, commands and outcomes, baseline versus newly introduced failures. Produced by repair@<version>; checked by review@<version>. Structural validation only.",
+  "type": "object",
+  "required": [
+    "kind",
+    "result_id",
+    "run_id",
+    "candidate_id",
+    "target_repository",
+    "baseline_sha",
+    "repair_head_sha",
+    "branch",
+    "commands",
+    "baseline_failures",
+    "newly_introduced_failures",
+    "created_at"
+  ],
+  "properties": {
+    "kind": {
+      "const": "federation_hq_repair_result"
+    },
+    "result_id": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "target_repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "baseline_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "repair_head_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "branch": {
+      "type": "string"
+    },
+    "pull_request": {
+      "type": "object",
+      "required": ["number", "url"],
+      "properties": {
+        "number": {
+          "type": "integer"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["command", "exit_code", "outcome"],
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "exit_code": {
+            "type": "integer"
+          },
+          "outcome": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "baseline_failures": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "newly_introduced_failures": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidence_locations": {
+      "description": "Relative artifact paths inside this run directory or the Federation HQ repository. Must not escape the repository.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "engineering_context_pack": {
+      "$ref": "#/$defs/context_pack"
+    },
+    "created_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "context_pack": {
+      "type": "object",
+      "required": ["name", "sha256"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

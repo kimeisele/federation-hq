@@ -1,0 +1,30 @@
+# Repair candidate — example
+#
+# The single candidate selected by `scout@0.1.0` for run
+# `run-20260805-widget-service-sorting`. Follows
+# `contracts/repair-candidate.schema.json`. `repository_checkout` is the local
+# path of the target checkout (external to this repository and not subject to
+# path-escape checks); `evidence_locations` are repo-relative artifact paths.
+
+kind: federation_hq_repair_candidate
+candidate_id: run-20260805-widget-service-sorting-c1
+run_id: run-20260805-widget-service-sorting
+target_repository: acme/widget-service
+baseline_sha: "9f2c1e8a4b7d3f6c5e2a9b8c7d6e5f4a3b2c1d0e"
+repository_checkout: /work/checkouts/widget-service
+defect_description: >
+  Widgets with equal priority are ordered non-deterministically in the
+  catalogue endpoint. In `src/catalogue/sort.go`, `sortWidgets` uses a
+  comparison that returns 0 for equal priorities without a stable tiebreak,
+  so API responses for identical inputs vary between requests. Observed by
+  running the repository's own test command `go test ./internal/catalogue -run
+  TestCatalogueOrdering` ten times against the baseline SHA: 3 of 10 runs
+  produced a different order for the same fixture.
+baseline_failures:
+  - "go test ./... : TestCatalogueOrdering (flaky ordering)"
+  - "ci/check-lint : unrelated pre-existing lint failure in legacy/import.go"
+evidence_locations:
+  - runs/run-20260805-widget-service-sorting/run-manifest.yaml
+  - runs/run-20260805-widget-service-sorting/scout-notes.txt
+selected_by: scout
+created_at: "2026-08-05T10:02:00Z"

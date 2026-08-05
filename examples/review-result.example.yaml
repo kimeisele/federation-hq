@@ -1,0 +1,24 @@
+# Independent review result — example
+#
+# The verdict recorded by `review@0.1.0` after independently checking the
+# exact remote head `1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d`. Follows
+# `contracts/review-result.schema.json`. A verdict is a claim backed by
+# evidence locations; it does not prove code correctness in general.
+
+kind: federation_hq_review_result
+review_id: run-20260805-widget-service-sorting-rev1
+run_id: run-20260805-widget-service-sorting
+candidate_id: run-20260805-widget-service-sorting-c1
+result_id: run-20260805-widget-service-sorting-r1
+target_repository: acme/widget-service
+reviewer_head_sha: "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d"
+verdict: approved
+baseline_failures_checked:
+  - "go test ./... : TestCatalogueOrdering (flaky ordering)"
+newly_introduced_failures_checked: []
+blockers: []
+evidence_checked:
+  - "git ls-remote origin refs/heads/fix/widget-sorting-stable-tiebreak (head matches reviewer_head_sha)"
+  - "runs/run-20260805-widget-service-sorting/head-test-output.txt"
+  - "https://github.com/acme/widget-service/pull/482 (CI green at head; pre-existing lint failure unchanged)"
+created_at: "2026-08-05T16:55:00Z"

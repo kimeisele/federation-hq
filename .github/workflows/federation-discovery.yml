@@ -1,12 +1,17 @@
 name: Federation Discovery
 
+# Federation HQ posture (v0.1.0): read-only scheduled health check. Discovers
+# federation peers and verifies their authority feeds on a schedule and on
+# demand. No commit or push step: nothing is written to any branch, no bypass
+# actor, no automatic pull-request creation, no persistence service.
+
 on:
   schedule:
     - cron: "0 6 * * 1"       # weekly on Monday at 06:00 UTC
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   discover-peers:
@@ -26,12 +31,3 @@ jobs:
           if [ -f .federation/peers.json ]; then
             python scripts/fetch_peer_authority.py --peers .federation/peers.json --output-dir .federation/peer-feeds
           fi
-
-      - name: Commit discovery results
-        run: |
-          git config user.name "federation-bot"
-          git config user.email "bot@federation"
-          git add .federation/peers.json
-          if git diff --cached --quiet; then exit 0; fi
-          git commit -m "[skip ci] Update federation peer registry"
-          git push origin HEAD:${GITHUB_REF_NAME}

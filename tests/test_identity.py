@@ -8,6 +8,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
@@ -1367,12 +1368,25 @@ class TestSetupOutcomeExitCodes:
     """Blocker 1: SetupOutcome.exit_code reflects topic + governance."""
 
     def _patch_apply_config_flow(self, monkeypatch, topic_result, governance,
-                                  allow_remote=True):
+                                  allow_remote=True, repo_root=None):
         """Patch _register_federation_topic to return a controlled result."""
         from setup_node import (
             TopicRegistration, TopicResult,
             IdentitySource, SetupContext,
         )
+
+        # Isolate every write apply_config performs (including the inline
+        # .federation-setup.json save and the peer-discovery subprocess,
+        # which are not covered by the per-writer mocks below) into a
+        # temporary root. Without this, tests that exercise the real
+        # apply_config would overwrite the committed checkout's
+        # .federation-setup.json with a test repository identity, which a
+        # later renderer/quickstart run then propagates into the generated
+        # .well-known descriptor (see tests/test_identity_isolation.py).
+        if repo_root is None:
+            repo_root = Path(tempfile.mkdtemp(prefix="fhq-setup-outcome-"))
+        monkeypatch.setattr(sys.modules["setup_node"], "REPO_ROOT", repo_root)
+
 
         reg = TopicRegistration(
             result=topic_result,

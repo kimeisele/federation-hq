@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/kimeisele/federation-hq/main/contracts/run-manifest.schema.json",
+  "title": "Run Manifest",
+  "description": "Pins one scoped repair run: target repository, baseline SHA, the original bounded maintenance request, exact prompt versions with content hashes, evidence references, and optional Engineering Encyclopedia context pack. Structural validation only; it does not prove semantic truth.",
+  "type": "object",
+  "required": [
+    "kind",
+    "run_id",
+    "target_repository",
+    "baseline_sha",
+    "maintenance_request",
+    "pipeline_state",
+    "prompt_pins",
+    "created_at"
+  ],
+  "properties": {
+    "kind": {
+      "const": "federation_hq_run_manifest"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "target_repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "baseline_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "maintenance_request": {
+      "description": "The durable original scope of the run. The Scout candidate may clarify it but may not replace or silently broaden it.",
+      "type": "object",
+      "required": ["text", "source", "created_at"],
+      "properties": {
+        "text": {
+          "type": "string"
+        },
+        "source": {
+          "description": "How the request entered the workflow.",
+          "enum": ["human_operator", "issue", "other"]
+        },
+        "created_at": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
+        },
+        "source_reference": {
+          "description": "Optional issue URL or other durable reference.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "pipeline_state": {
+      "enum": [
+        "requested",
+        "scouting",
+        "candidate_selected",
+        "repair_in_progress",
+        "repair_submitted",
+        "independent_review",
+        "approved",
+        "changes_requested",
+        "blocked",
+        "invalid_candidate"
+      ]
+    },
+    "prompt_pins": {
+      "type": "object",
+      "required": ["scout", "repair", "review"],
+      "properties": {
+        "scout": {
+          "$ref": "#/$defs/prompt_pin"
+        },
+        "repair": {
+          "$ref": "#/$defs/prompt_pin"
+        },
+        "review": {
+          "$ref": "#/$defs/prompt_pin"
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidence_ref"
+      }
+    },
+    "engineering_context_pack": {
+      "$ref": "#/$defs/context_pack"
+    },
+    "created_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "prompt_pin": {
+      "type": "object",
+      "required": ["id", "version", "sha256"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": ["scout", "repair", "review"]
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "sha256": {
+          "description": "SHA-256 of the exact UTF-8 prompt file bytes, as released in the prompt registry.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidence_ref": {
+      "type": "object",
+      "required": ["location"],
+      "properties": {
+        "kind": {
+          "enum": ["command", "test", "log", "patch", "report", "pr", "commit"]
+        },
+        "location": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "context_pack": {
+      "type": "object",
+      "required": ["name", "sha256"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

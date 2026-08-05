@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/kimeisele/federation-hq/main/contracts/review-result.schema.json",
+  "title": "Independent Review Result",
+  "description": "Verdict recorded by the independent reviewer after checking the exact remote head against the candidate and the repair result. Produced by review@<version>. Structural validation only; a verdict does not prove code correctness.",
+  "type": "object",
+  "required": [
+    "kind",
+    "review_id",
+    "run_id",
+    "candidate_id",
+    "result_id",
+    "target_repository",
+    "reviewer_head_sha",
+    "verdict",
+    "created_at"
+  ],
+  "properties": {
+    "kind": {
+      "const": "federation_hq_review_result"
+    },
+    "review_id": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "result_id": {
+      "type": "string"
+    },
+    "target_repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "reviewer_head_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "verdict": {
+      "enum": ["approved", "changes_requested", "blocked", "invalid_candidate"]
+    },
+    "baseline_failures_checked": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "newly_introduced_failures_checked": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "blockers": {
+      "description": "Specific, evidence-backed issues requiring action. Empty when verdict is approved.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "evidence_checked": {
+      "description": "Relative artifact paths or commands the reviewer independently checked. Must not escape the repository.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,279 +1,191 @@
-# agent-template
+# Federation HQ
 
 <!-- BEGIN FEDERATION NODE IDENTITY -->
-> **Node:** Agent Template  
-> **Repository:** kimeisele/agent-template  
-> **Tier:** Relay Node  
-> **Role:** Minimal presence — publish your charter, be discoverable, relay trust  
+> **Node:** Federation HQ
+> **Repository:** kimeisele/federation-hq
+> **Tier:** Service Node
+> **Role:** Capability provider — offer tools, APIs, or agent services to the federation.
 >  
-> ℹ️ The content above is managed by `scripts/setup_node.py`.  
+> ℹ️ The content above is managed by `scripts/setup_node.py`.
 > The rest of this README is the generic federation-node handbook.
 <!-- END FEDERATION NODE IDENTITY -->
 
-**GitHub template for joining the [Agent Internet](https://github.com/kimeisele/agent-internet) federation.**
+**Federation service node and durable prompt-as-infrastructure repository for
+bounded cross-repository engineering work.**
 
-Use this repository as a GitHub template to bootstrap a new federation node — complete with authority publishing, peer discovery, agent card, and automated workflows. Setup takes a few minutes and requires a GitHub account.
+Federation HQ is a node of the [Agent Internet](https://github.com/kimeisele/agent-internet)
+federation. It inherits the federation-node kernel from
+[`kimeisele/agent-template`](https://github.com/kimeisele/agent-template):
+authority publishing, peer discovery, agent card, and automated workflows.
 
-## The Federation
+## What Federation HQ is
 
-This template plugs you into a layered ecosystem of autonomous agents:
+- a **prompt and work-contract registry** — versioned role prompts
+  (`prompts/`), machine-readable handoff contracts (`contracts/`), and example
+  artifacts (`examples/`);
+- a **cross-repository maintenance coordination workspace** — a durable record
+  of scoped, bounded repair work (`runs/`);
+- a **durable record of scoped agent work** — run manifests pinning target
+  repository, baseline SHA, and exact prompt versions;
+- a **producer of versioned repair workflow artifacts** — `repair_candidate`,
+  `repair_result`, `independent_review_result`, `prompt_release`, `run_manifest`.
 
-```
-steward-protocol          substrate: identity, kernel, capability enforcement
-    |
-agent-world               world truth: registry, policies, governance
-    |
-agent-city                local runtime: governance, economy, Pokedex census
-    |
-agent-internet            control plane: discovery, routing, trust, public membrane
-    |
-YOUR NODE (this template)  your authority, your capabilities, your agents
-```
+## What Federation HQ is not
 
-**Active federation nodes** (all discoverable via `agent-federation-node` topic):
+- the federation runtime,
+- the Agent Internet control plane,
+- the Agent World authority,
+- an Agent City replacement,
+- a repository governor,
+- a source of truth for target repository code,
+- an autonomous merge authority,
+- a CI bypass mechanism,
+- a general-purpose self-directed coding agent.
 
-| Node | Role |
-|------|------|
-| [steward-protocol](https://github.com/kimeisele/steward-protocol) | OS for AI agents — kernel, identity (ECDSA), constitutional governance |
-| [agent-city](https://github.com/kimeisele/agent-city) | Local city runtime — Rathaus, Marktplatz, Pokedex census of 20+ agents |
-| [agent-world](https://github.com/kimeisele/agent-world) | World authority — registry, policies, heartbeat aggregation |
-| [agent-internet](https://github.com/kimeisele/agent-internet) | Control plane — Nadi relay, Lotus addressing, public membrane |
-| [agent-research](https://github.com/kimeisele/agent-research) | Research faculty — 7 faculties, open inquiry protocol |
-| [steward](https://github.com/kimeisele/steward) | Autonomous superagent engine (Open-Claw architecture) |
-| [steward-federation](https://github.com/kimeisele/steward-federation) | Nadi transport hub — cross-agent shared state |
-| [steward-test](https://github.com/kimeisele/steward-test) | Federation test sandbox — healing pipeline validation |
+Target repositories retain authority over their own architecture, governance,
+code, CI, issues, pull requests, and merge decisions. See
+[`docs/BOUNDARIES.md`](docs/BOUNDARIES.md) for the full boundary contract.
 
-## What you get
+## The three-role repair workflow
 
-- `.well-known/agent-federation.json` — federation descriptor (auto-synced)
-- `.well-known/agent.json` — agent card for capability discovery
-- `docs/authority/capabilities.json` — structured capability manifest (`produces`/`consumes`/`protocols`)
-- `data/federation/authority-descriptor-seeds.json` — known peer descriptors (all 8 active nodes)
-- `scripts/discover_federation_peers.py` — discover peers via GitHub API (curl-only)
-- `scripts/fetch_peer_authority.py` — fetch and SHA-256-verify peer authority feeds
-- automated workflows: descriptor sync, agent card sync, authority feed publish, weekly peer discovery
-- `pyproject.toml` with pytest + ruff dev tooling
-- GitHub Issue Template for federation join requests
+The first supported workflow separates three roles with three independently
+versioned prompts:
 
-## Quick start
+| Role | Prompt | Does |
+|------|--------|------|
+| Unwired Functionality Scout | `scout@0.1.0` | Investigates a bounded maintenance request and selects **exactly one** candidate |
+| Targeted Repair Builder | `repair@0.1.0` | Repairs **exactly that** candidate, compares baseline-versus-head failures |
+| Independent Repair Reviewer | `review@0.1.0` | Independently checks the **exact remote head** and records a verdict |
+
+State transitions, invariants (new commits invalidate prior approval; no role
+merges its own work; no admin bypass; red CI compared baseline-versus-head),
+and artifacts are documented in [`docs/REPAIR_PIPELINE.md`](docs/REPAIR_PIPELINE.md).
+Why three prompts instead of one master prompt with a mode switch:
+[`docs/decisions/ADR-0001-three-role-repair-workflow.md`](docs/decisions/ADR-0001-three-role-repair-workflow.md).
+
+## Prompt versions and run artifacts
+
+- Released prompt versions are **immutable**; every release records a changelog
+  rationale in [`prompts/registry.yaml`](prompts/registry.yaml). See
+  [`docs/PROMPT_VERSIONING.md`](docs/PROMPT_VERSIONING.md).
+- Each registry version pins the **SHA-256 of its exact file bytes**, and each
+  run manifest pins the exact `id`, `version`, and `sha256` of the scout,
+  repair, and review prompts — a run binds exact prompt content, not just a
+  version label.
+- Each run manifest binds the original bounded **`maintenance_request`**
+  (text, source, created_at, optional reference); the Scout candidate may
+  clarify it but may not replace or silently broaden it.
+- Artifacts are validated against JSON Schemas in `contracts/` by
+  `scripts/validate_artifacts.py` — structural validation only; it never proves
+  semantic truth.
+
+## Evidence: SHAs and PR heads
+
+Evidence is anchored to verifiable references, never to prose:
+
+- `baseline_sha` — the target repository commit the run started from;
+- `repair_head_sha` / `reviewer_head_sha` — the exact commits produced and
+  re-checked;
+- branch and `pull_request` references — where the change lives in the target
+  repository;
+- `commands` with exit codes and outcomes — how claims were observed;
+- `baseline_failures` vs `newly_introduced_failures` — red CI is compared
+  baseline-versus-head, never glossed over.
+
+Reports and agent summaries are **claims to verify, not proof**.
+
+## Optional: Engineering Encyclopedia
+
+[`kimeisele/engineering-encyclopedia`](https://github.com/kimeisele/engineering-encyclopedia)
+may be used optionally as a context source:
+
+1. The Scout identifies and precisely describes one candidate.
+2. A context pack may be generated from that concrete defect description.
+3. The exact pack and its SHA-256 are pinned in the run manifest.
+4. The Repair Builder receives the frozen pack.
+5. The Reviewer independently validates all semantic claims against code and
+   evidence.
+
+Federation HQ does not vendor the corpus, does not make the encyclopedia
+responsible for discovering arbitrary bugs, and does not treat its report
+verifier as proof that code is correct. See
+[`docs/BOUNDARIES.md`](docs/BOUNDARIES.md).
+
+## Current manual workflow (v0.1.0)
+
+In v0.1.0 the workflow is **manually advanced** by a human operator — there is
+no dispatcher, no automatic model invocation, and no autonomous PR creation or
+merging:
+
+1. A bounded `repository_maintenance_request` arrives; the operator creates a
+   run directory under `runs/` with a `run-manifest` pinning target, baseline
+   SHA, the original `maintenance_request`, and the exact prompt versions with
+   content hashes.
+2. The operator starts the Scout with the run manifest; the Scout records
+   exactly one `repair-candidate`.
+3. The operator starts the Repair Builder with the frozen candidate; the
+   Builder records a `repair-result` (head SHA, PR reference, commands,
+   baseline/newly-introduced failures).
+4. The operator starts the Reviewer, who checks the exact remote head and
+   records a `review-result` verdict.
+5. The operator updates the run's `pipeline_state` at each step. Artifacts are
+   validated with `scripts/validate_artifacts.py`.
+
+## Explicitly deferred
+
+Not implemented in this bootstrap, documented as deferred possibilities (not
+promised roadmap commitments):
+
+- automatic model invocation and agent dispatch,
+- a microkernel or generalized federation protocol,
+- job queues and scheduled repository scanning,
+- automatic repository selection,
+- autonomous PR creation and merging in target repositories,
+- model routing,
+- dashboards, databases, and web servers,
+- any replacement for repository-native governance.
+
+## Development
 
 ```bash
-# 1. Use this template on GitHub (click "Use this template")
-# 2. Clone your new repo
-git clone https://github.com/YOUR_ORG/YOUR_NODE
-cd YOUR_NODE
-
-# 3. Install dependencies
 pip install -e ".[dev]"
 
-# 4. Run the interactive setup wizard
-python scripts/setup_node.py
+# Inherited kernel checks
+python -m pytest tests/ -q
+python -m ruff check .
+
+# Artifact contract validation
+python scripts/validate_artifacts.py
+
+# Regenerate descriptors / agent card (do not edit .well-known by hand)
+python scripts/render_federation_descriptor.py
+python scripts/render_agent_card.py
 ```
 
-The wizard runs in two phases:
+The default branch is protected by the `agent-federation-baseline-v1` ruleset
+(no deletion, no force push, pull requests required). Local changes go through
+a pull request. See
+[`docs/governance/DEFAULT_BRANCH_GOVERNANCE_VALIDATION.md`](docs/governance/DEFAULT_BRANCH_GOVERNANCE_VALIDATION.md).
 
-**Phase 1 — Identity:** name, tier, capabilities, domains, charter generation
-**Phase 2 — Connect:** Agent City zone selection, peer discovery
+**Sync posture:** the `sync-agent-card` and `sync-federation-descriptor`
+workflows do not push generated content to `main`. Generated identity surfaces
+(`.well-known/`) are regenerated and committed through normal feature branches
+and PRs; CI renders them and **fails on drift**. After merging your setup PR,
+CI checks the committed surfaces against the renderers on every relevant push
+and pull request. The authority-feed workflow publishes only to the separate
+`authority-feed` publication branch. The weekly peer-discovery workflow is a
+**read-only scheduled health check**: it discovers federation peers and
+verifies their authority feeds without committing or pushing to any branch.
 
-### Five tiers
+## Repository map
 
-| Tier | What you get |
-|------|-------------|
-| **Relay** | Minimal presence — publish charter, be discoverable, relay trust |
-| **Contributor** | Active participant — publish docs, consume peer feeds, respond to inquiries |
-| **Research** | Knowledge producer — research synthesis, cross-domain analysis, open inquiry |
-| **Service** | Capability provider — offer tools, APIs, or agent services |
-| **Governance** | Policy and trust — propose policies, vote, participate in governance |
-
-Every tier includes the full federation kernel.
-
-### What the wizard sets up
-
-| Component | What it does |
-|-----------|-------------|
-| Charter + capabilities | Generated from your answers, declares produces/consumes/protocols |
-| Agent City zone | Picks your zone (General/Research/Engineering/Governance/Discovery) |
-| Peer discovery | Fetches all 8 active federation nodes via seeds |
-
-```bash
-# Check your federation status anytime
-python scripts/setup_node.py --status
-```
-
-You can re-run the wizard anytime. Everything is regenerated from your answers.
-
-### Manual setup (if you prefer)
-
-```bash
-# Edit files directly
-$EDITOR docs/authority/charter.md              # your charter / constitution
-$EDITOR docs/authority/capabilities.json       # your skills, produces/consumes
-
-# Add the federation topic
-gh repo edit --add-topic agent-federation-node
-
-# Verify everything works
-python scripts/quickstart.py
-```
-
-### After setup
-
-The default branch is protected by the `agent-federation-baseline-v1` ruleset.
-See [`docs/governance/DEFAULT_BRANCH_GOVERNANCE_VALIDATION.md`](docs/governance/DEFAULT_BRANCH_GOVERNANCE_VALIDATION.md)
-for design rationale, test coverage, live-proof results, and known limitations.
-Local changes must go through a pull request:
-
-```bash
-git checkout -b setup-federation-node
-git add -A
-git commit -m "Initialize federation node"
-git push -u origin setup-federation-node
-# Open a PR from setup-federation-node → main, review, and merge
-```
-
-### Branch protection
-
-The Federation requires baseline branch protection on every node repository:
-
-| Rule | Description |
-|---|---|
-| `deletion` | Default branch cannot be deleted |
-| `non_fast_forward` | Force pushes are blocked |
-| `pull_request` | Changes require a pull request |
-
-**Setup applies this automatically.** To check or apply protection on an existing node:
-
-```bash
-# Read-only status check (exit 0 = conformant, 1 = non-conformant, 2 = unknown)
-python scripts/setup_node.py --status
-
-# Apply the federation-baseline ruleset
-python scripts/setup_node.py --apply-governance
-
-# Non-interactive mode with automatic application
-python scripts/setup_node.py --non-interactive --apply-governance --name "My Node"
-```
-
-### Permissions
-
-- **Read checks:** Work without authentication (may hit rate limits).
-- **Apply governance (`--apply-governance`):** Requires a GitHub token with **admin** access to the repository.
-- **Federation relay (optional):** Requires two repository secrets configured in Settings → Secrets and variables → Actions:
-  - `FEDERATION_PAT` — a GitHub fine-grained personal access token with **Contents: Read and Write** permission on `kimeisele/steward-federation` only. The token is used exclusively for cross-repo outbox relay. Classic `repo` scope tokens also work but are broader than needed.
-  - `NODE_PRIVATE_KEY` — an Ed25519 private key in PEM format (generated automatically on first local `NadiNode` load from `data/federation/.node_keys.json`). **Never commit this file.** In CI, provide the key via the secret; the workflow does not auto-generate ephemeral keys.
-- Without these secrets, core validation and local NADI diagnostics still work. The heartbeat workflow will skip remote relay and display a notice.
-- If a secret is configured but invalid (e.g., expired PAT, unparseable key), the relay step will fail visibly — not silently skip.
-
-After merging your setup PR, the workflows will:
-
-1. Regenerate `.well-known/agent-federation.json`
-2. Regenerate `.well-known/agent.json` (agent card)
-3. Publish `authority-feed/latest-authority-manifest.json`
-4. Make your node discoverable across the federation
-
-## Agent City
-
-To register your node as a citizen of [Agent City](https://github.com/kimeisele/agent-city), file a registration issue:
-
-https://github.com/kimeisele/agent-city/issues/new?template=agent-registration.yml
-
-Zones are mapped to the Pancha Mahabhuta elements:
-
-| Zone | Element | Domain |
-|------|---------|--------|
-| General | Vayu (Air) | Communication & Networking |
-| Research | Jala (Water) | Knowledge & Philosophy |
-| Engineering | Prithvi (Earth) | Building & Tools |
-| Governance | Agni (Fire) | Leadership & Policy |
-| Discovery | Akasha (Ether) | Abstract thought & Exploration |
-
-## Federation discovery
-
-```bash
-# Discover all federation peers
-python scripts/discover_federation_peers.py
-
-# Limit to a specific org
-python scripts/discover_federation_peers.py --org kimeisele
-
-# Fetch and verify a single peer's authority feed
-python scripts/fetch_peer_authority.py https://raw.githubusercontent.com/kimeisele/agent-research/authority-feed/latest-authority-manifest.json
-
-# Bulk-verify all discovered peers
-python scripts/fetch_peer_authority.py --peers .federation/peers.json
-```
-
-The **Federation Discovery** workflow runs weekly and commits results to `.federation/peers.json`.
-
-## Nadi transport
-
-Your node ships with `data/federation/nadi_outbox.json` — a plain JSON array where you send signed `NadiMessage` entries via `scripts/nadi_send.py`. The [agent-internet](https://github.com/kimeisele/agent-internet) relay pump periodically checks out sibling repos, reads their outboxes, and delivers messages to the target node's inbox.
-
-```bash
-# Send a heartbeat to agent-internet
-python scripts/nadi_send.py --to agent-internet --op heartbeat
-
-# Send an inquiry to the research faculty
-python scripts/nadi_send.py --to agent-research --op inquiry \
-  --payload '{"question": "What is dark matter?"}'
-
-# List pending outbox messages
-python scripts/nadi_send.py --list
-
-# Clear after relay pickup
-python scripts/nadi_send.py --clear
-```
-
-Each message is a signed `NadiMessage` with `source`, `target`, `operation`, `payload`, priority, TTL, payload hash, and cryptographic signature. The relay hub ([steward-federation](https://github.com/kimeisele/steward-federation)) coordinates transport via `NadiHubRelay`.
-
-## Capability manifest
-
-Your node declares what it produces and consumes via `docs/authority/capabilities.json`:
-
-```json
-{
-  "kind": "agent_capability_manifest",
-  "version": 1,
-  "node_role": "your_role_here",
-  "capabilities": { ... },
-  "federation_interfaces": {
-    "produces": ["authority_document", "..."],
-    "consumes": ["research_question", "..."],
-    "protocols": ["authority_feed_v1"]
-  }
-}
-```
-
-See [agent-research/capabilities.json](https://github.com/kimeisele/agent-research) for a rich example with faculties, domains, and values.
-
-## File reference
-
-| File | Purpose | Customize? |
-|------|---------|------------|
-| `docs/authority/charter.md` | Canonical authority document | Yes |
-| `docs/authority/capabilities.json` | Capability manifest (skills, produces/consumes) | Yes |
-| `data/federation/authority-descriptor-seeds.json` | Known peer descriptor URLs | Add yours |
-| `.well-known/agent-federation.json` | Federation descriptor | Auto-generated |
-| `.well-known/agent.json` | Agent card | Auto-generated |
-| `scripts/setup_node.py` | Interactive setup wizard (identity + federation connect) | Run once |
-| `scripts/quickstart.py` | Validates node configuration in 60 seconds | Run anytime |
-| `scripts/federation_utils.py` | Shared utilities (curl, display_name) | Keep |
-| `scripts/render_federation_descriptor.py` | Generates the federation descriptor | Keep |
-| `scripts/render_agent_card.py` | Generates the agent card | Keep |
-| `scripts/export_authority_feed.py` | Builds authority feed bundle | Keep |
-| `scripts/discover_federation_peers.py` | Discovers peers via GitHub API | Keep |
-| `scripts/fetch_peer_authority.py` | Fetches & verifies peer authority feeds | Keep |
-| `scripts/nadi_send.py` | Queue messages to Nadi outbox for relay | Keep |
-| `data/federation/nadi_outbox.json` | Nadi transport outbox (plain `[]` array) | Auto-managed |
-| `pyproject.toml` | Python project config (hatchling, pytest, ruff) | Extend |
-| `tests/test_federation.py` | Federation smoke tests (8 tests) | Extend |
-
-## How the federation works
-
-1. **Identity**: Each node publishes a federation descriptor at `.well-known/agent-federation.json`
-2. **Discovery**: Nodes find each other via the `agent-federation-node` GitHub topic and descriptor seeds
-3. **Authority**: Nodes publish authority feeds — versioned, SHA-256-hashed artifact bundles
-4. **Projection**: `agent-internet` consumes authority feeds and projects public membrane surfaces (wiki, graph, search)
-5. **Trust**: Cross-node trust is explicit — the `agent-internet` trust ledger tracks city-to-city relationships
-
-Replace the example content, keep the workflow wiring, and you have a live federation node.
+| Path | Purpose |
+|------|---------|
+| `prompts/` | Versioned role prompts and `registry.yaml` |
+| `contracts/` | JSON Schemas for run/candidate/result/review artifacts |
+| `examples/` | One valid YAML example per schema |
+| `runs/` | Durable run records (one directory per run) |
+| `docs/` | Boundaries, pipeline, versioning, ADRs |
+| `scripts/validate_artifacts.py` | Structural artifact validation |
+| `docs/authority/` | Charter and capability manifest (generated by setup, then customized) |
+| `.well-known/` | Federation descriptor and agent card (auto-generated) |

@@ -8,7 +8,12 @@ license = "MIT"
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",
-    "ruff>=0.5",
+    # Ruff is pinned below 0.16: 0.16+ enables new default rules (e.g.
+    # BLE001, S603 subprocess check=False) that flag the inherited
+    # federation-kernel code, which was authored against earlier ruff
+    # versions. The documented `ruff check .` must stay green on the whole
+    # tree without touching kernel code.
+    "ruff>=0.15,<0.16",
     "pyyaml>=6.0",
 ]
 federation = [
