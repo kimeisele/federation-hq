@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/kimeisele/federation-hq/main/contracts/run-manifest.schema.json",
+  "title": "Run Manifest",
+  "description": "Pins one scoped repair run: target repository, baseline SHA, exact prompt versions, evidence references, and optional Engineering Encyclopedia context pack. Structural validation only; it does not prove semantic truth.",
+  "type": "object",
+  "required": [
+    "kind",
+    "run_id",
+    "target_repository",
+    "baseline_sha",
+    "prompt_pins",
+    "created_at"
+  ],
+  "properties": {
+    "kind": {
+      "const": "federation_hq_run_manifest"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "target_repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "baseline_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "pipeline_state": {
+      "enum": [
+        "requested",
+        "scouting",
+        "candidate_selected",
+        "repair_in_progress",
+        "repair_submitted",
+        "independent_review",
+        "approved",
+        "changes_requested",
+        "blocked",
+        "invalid_candidate"
+      ]
+    },
+    "prompt_pins": {
+      "type": "object",
+      "required": ["scout", "repair", "review"],
+      "properties": {
+        "scout": {
+          "$ref": "#/$defs/prompt_pin"
+        },
+        "repair": {
+          "$ref": "#/$defs/prompt_pin"
+        },
+        "review": {
+          "$ref": "#/$defs/prompt_pin"
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidence_ref"
+      }
+    },
+    "engineering_context_pack": {
+      "$ref": "#/$defs/context_pack"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "prompt_pin": {
+      "type": "object",
+      "required": ["id", "version"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "enum": ["scout", "repair", "review"]
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidence_ref": {
+      "type": "object",
+      "required": ["location"],
+      "properties": {
+        "kind": {
+          "enum": ["command", "test", "log", "patch", "report", "pr", "commit"]
+        },
+        "location": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "context_pack": {
+      "type": "object",
+      "required": ["name", "sha256"],
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "source": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

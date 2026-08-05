@@ -1,0 +1,95 @@
+# Repair Pipeline (v0.1.0)
+
+This document defines the initial three-role repair workflow implemented by
+Federation HQ. In v0.1.0 the workflow is **manually advanced** by a human
+operator: no dispatcher, no automatic model invocation, no autonomous PR
+creation, no autonomous merging.
+
+## Roles
+
+| Role | Prompt | Responsibility |
+|------|--------|----------------|
+| Unwired Functionality Scout | `prompts/scout/v0.1.0.md` (`scout@0.1.0`) | Investigate a bounded functionality gap and select exactly one candidate |
+| Targeted Repair Builder | `prompts/repair/v0.1.0.md` (`repair@0.1.0`) | Repair exactly the selected candidate in the target repository |
+| Independent Repair Reviewer | `prompts/review/v0.1.0.md` (`review@0.1.0`) | Independently check the exact remote head and record a verdict |
+
+The three prompts are released versions pinned by each run manifest. A run
+never mixes prompt versions: all three roles in a run use the versions pinned
+at run creation.
+
+## State machine
+
+```text
+requested
+→ scouting
+→ candidate_selected
+→ repair_in_progress
+→ repair_submitted
+→ independent_review
+→ approved | changes_requested | blocked | invalid_candidate
+```
+
+| State | Meaning | Advanced by |
+|-------|---------|-------------|
+| `requested` | A bounded maintenance request exists; no work started | Operator creates the run |
+| `scouting` | Scout investigating the target repository | Operator starts the scout |
+| `candidate_selected` | Scout recorded exactly one candidate | Operator records `repair-candidate` artifact |
+| `repair_in_progress` | Repair Builder working the selected candidate | Operator starts the repair |
+| `repair_submitted` | Repair result and PR/branch evidence recorded | Operator records `repair-result` artifact |
+| `independent_review` | Reviewer checking the exact remote head | Operator starts the review |
+| `approved` | Verdict: reviewer approved the exact reviewed head | Operator records `review-result` |
+| `changes_requested` | Verdict: reviewer requires changes | Operator records `review-result`; repair may resume |
+| `blocked` | Verdict: work cannot proceed (missing evidence, unreachable state, external dependency) | Operator records `review-result` |
+| `invalid_candidate` | Verdict: the candidate was not a real defect or was out of scope | Operator records `review-result` |
+
+Transitions are recorded by writing the corresponding artifact into the run's
+directory under `runs/` and updating the run manifest's `pipeline_state`.
+Transition history is retained in the run manifest notes; a simple monotonic
+append is sufficient in v0.1.0.
+
+## Invariants
+
+1. **Scout selects exactly one candidate.** The scout prompt produces a single
+   `repair_candidate` artifact. Multiple candidates may be investigated; exactly
+   one is selected and recorded.
+2. **Repair Builder may repair only that candidate.** The repair prompt receives
+   the frozen candidate and may not expand scope to adjacent defects, refactors,
+   or unrelated cleanup.
+3. **Reviewer independently checks the exact remote head.** The reviewer must
+   fetch the target repository and check the exact `reviewer_head_sha` recorded
+   in the run — not a local diff the builder describes, not a summary.
+4. **New commits invalidate previous approval.** Approval is scoped to the exact
+   reviewed head SHA. Any new commit on the reviewed branch or PR invalidates
+   the previous `approved` verdict and requires a fresh review.
+5. **No role merges its own work.** A role that authored content never merges,
+   pushes to the protected target branch, or approves its own output.
+6. **Existing red CI is compared baseline-versus-head.** Red CI that existed at
+   the baseline SHA is recorded as `baseline_failures`; failures not present at
+   baseline are recorded as `newly_introduced_failures`. The repair result must
+   contain both lists and the reviewer must verify both against the exact head.
+7. **No admin bypass is permitted.** Neither Federation HQ operators nor any
+   role may use administrative merge bypass, force-push to protected branches,
+   or direct pushes where a pull request is required — in either Federation HQ
+   or target repositories.
+
+## Artifacts per run
+
+A run lives in `runs/run-<date>-<slug>/` and accumulates:
+
+1. `run-manifest.yaml` (or `.json`) — pins target, baseline SHA, prompt versions.
+2. `repair-candidate.<ext>` — the single selected candidate.
+3. `repair-result.<ext>` — head SHA, PR reference, commands and outcomes,
+   baseline/newly-introduced failure lists.
+4. `review-result.<ext>` — reviewer head SHA and verdict.
+
+All artifacts are validated against the schemas in `contracts/` by
+`scripts/validate_artifacts.py`. See `runs/README.md` for naming and layout.
+
+## Deferred
+
+- Automatic state advancement (event-driven transitions).
+- Automatic dispatch of role agents.
+- Autonomous PR creation or merging in target repositories.
+- Scheduled scanning or automatic candidate selection.
+
+These are documented as deferred possibilities, not promised commitments.

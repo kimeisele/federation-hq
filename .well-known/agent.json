@@ -3,25 +3,35 @@
     "pushNotifications": false,
     "streaming": false
   },
-  "description": "Agent Template \u2014 a federation node",
+  "description": "Bounded cross-repository engineering workflow and prompt infrastructure",
   "federation": {
     "authority_feed_branch": "authority-feed",
     "descriptor_path": ".well-known/agent-federation.json",
     "interfaces": {
-      "consumes": [],
+      "consumes": [
+        "engineering_context_pack",
+        "repository_evidence",
+        "repository_maintenance_request"
+      ],
       "produces": [
         "authority_document",
-        "canonical_surface"
+        "canonical_surface",
+        "independent_review_result",
+        "prompt_release",
+        "repair_candidate",
+        "repair_result",
+        "run_manifest"
       ],
       "protocols": [
-        "authority_feed_v1"
+        "authority_feed_v1",
+        "service_discovery_v1"
       ]
     },
-    "node_role": "agent_template_relay",
+    "node_role": "federation_hq_service",
     "node_topic": "agent-federation-node",
     "peer_discovery": true
   },
-  "name": "Agent Template",
+  "name": "Federation HQ",
   "provider": {
     "organization": "kimeisele"
   },
@@ -30,6 +40,31 @@
       "description": "Authority Publishing capability.",
       "id": "authority-publishing",
       "name": "Authority Publishing"
+    },
+    {
+      "description": "Service Provider capability.",
+      "id": "service-provider",
+      "name": "Service Provider"
+    },
+    {
+      "description": "Bounded defect scouting and single-candidate selection.",
+      "id": "repair-scouting",
+      "name": "Repair Scouting"
+    },
+    {
+      "description": "Targeted repair of exactly one selected candidate.",
+      "id": "targeted-repair",
+      "name": "Targeted Repair"
+    },
+    {
+      "description": "Independent verification of the exact remote head.",
+      "id": "independent-review",
+      "name": "Independent Review"
+    },
+    {
+      "description": "Validation of run, candidate, result and review artifacts against JSON Schemas.",
+      "id": "artifact-validation",
+      "name": "Artifact Validation"
     }
   ],
   "url": "https://github.com/kimeisele/federation-hq",

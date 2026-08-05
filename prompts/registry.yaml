@@ -1,0 +1,44 @@
+# Federation HQ Prompt Registry
+#
+# Versioned role prompts for the three-role repair workflow.
+#
+# Schema and rules: see `docs/PROMPT_VERSIONING.md`. Released versions are
+# immutable; every release requires a changelog rationale. Validated by
+# `scripts/validate_artifacts.py` (unique ids, unique versions, referenced
+# files exist, changelog present).
+
+schema_version: 1
+prompts:
+  - id: scout
+    name: Unwired Functionality Scout
+    description: Investigates a bounded maintenance request and selects exactly one repair candidate.
+    versions:
+      - version: 0.1.0
+        file: scout/v0.1.0.md
+        released: "2026-08-05"
+        changelog: >
+          Initial release for the three-role repair workflow: bounded
+          investigation, single-candidate selection, evidence-anchored output.
+
+  - id: repair
+    name: Targeted Repair Builder
+    description: Repairs exactly the selected candidate and records a verifiable repair result.
+    versions:
+      - version: 0.1.0
+        file: repair/v0.1.0.md
+        released: "2026-08-05"
+        changelog: >
+          Initial release for the three-role repair workflow: single-candidate
+          scope, baseline-versus-head failure comparison, no admin bypass.
+
+  - id: review
+    name: Independent Repair Reviewer
+    description: Independently verifies the exact remote head and records a verdict.
+    versions:
+      - version: 0.1.0
+        file: review/v0.1.0.md
+        released: "2026-08-05"
+        changelog: >
+          Initial release for the three-role repair workflow: exact-head
+          re-verification, claim-to-evidence checking, four verdicts,
+          approval invalidated by new commits.

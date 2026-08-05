@@ -1,24 +1,34 @@
 {
   "capabilities": {},
   "city": {
-    "element": "Vayu (Air)",
-    "zone": "general"
+    "element": "Prithvi (Earth)",
+    "zone": "engineering"
   },
-  "description": "Agent Template \u2014 a federation node",
-  "display_name": "Agent Template",
+  "description": "Bounded cross-repository engineering workflow and prompt infrastructure",
+  "display_name": "Federation HQ",
   "federation_interfaces": {
-    "consumes": [],
+    "consumes": [
+      "engineering_context_pack",
+      "repository_evidence",
+      "repository_maintenance_request"
+    ],
     "produces": [
       "authority_document",
-      "canonical_surface"
+      "canonical_surface",
+      "independent_review_result",
+      "prompt_release",
+      "repair_candidate",
+      "repair_result",
+      "run_manifest"
     ],
     "protocols": [
-      "authority_feed_v1"
+      "authority_feed_v1",
+      "service_discovery_v1"
     ]
   },
   "kind": "agent_capability_manifest",
-  "node_id": "agent-template",
-  "node_role": "agent_template_relay",
+  "node_id": "federation-hq",
+  "node_role": "federation_hq_service",
   "protocols": [
     {
       "descriptor": ".well-known/agent-federation.json",
@@ -36,6 +46,31 @@
       "description": "Authority Publishing capability.",
       "id": "authority-publishing",
       "name": "Authority Publishing"
+    },
+    {
+      "description": "Service Provider capability.",
+      "id": "service-provider",
+      "name": "Service Provider"
+    },
+    {
+      "description": "Bounded defect scouting and single-candidate selection.",
+      "id": "repair-scouting",
+      "name": "Repair Scouting"
+    },
+    {
+      "description": "Targeted repair of exactly one selected candidate.",
+      "id": "targeted-repair",
+      "name": "Targeted Repair"
+    },
+    {
+      "description": "Independent verification of the exact remote head.",
+      "id": "independent-review",
+      "name": "Independent Review"
+    },
+    {
+      "description": "Validation of run, candidate, result and review artifacts against JSON Schemas.",
+      "id": "artifact-validation",
+      "name": "Artifact Validation"
     }
   ],
   "version": 1

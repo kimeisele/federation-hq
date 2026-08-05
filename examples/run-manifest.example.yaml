@@ -1,0 +1,39 @@
+# Run manifest — example
+#
+# A complete, internally consistent example run for the fictional target
+# repository `acme/widget-service`. Fields follow
+# `contracts/run-manifest.schema.json`. The manifest pins the exact prompt
+# versions and the baseline SHA; it does not prove semantic truth.
+
+kind: federation_hq_run_manifest
+run_id: run-20260805-widget-service-sorting
+target_repository: acme/widget-service
+baseline_sha: "9f2c1e8a4b7d3f6c5e2a9b8c7d6e5f4a3b2c1d0e"
+pipeline_state: independent_review
+prompt_pins:
+  scout:
+    id: scout
+    version: 0.1.0
+  repair:
+    id: repair
+    version: 0.1.0
+  review:
+    id: review
+    version: 0.1.0
+evidence:
+  - kind: commit
+    location: runs/run-20260805-widget-service-sorting/repair-result.yaml
+    description: Repair result recording the exact repair head SHA and PR reference.
+  - kind: pr
+    location: https://github.com/acme/widget-service/pull/482
+    description: Pull request opened by the target repository maintainers from the repair branch.
+engineering_context_pack:
+  name: widget-sorting-defect-pack-v3
+  sha256: "4fefd629922d16c627396bc185ac375a805a015081abe4a225a3849ceaacd9a4"
+  source: kimeisele/engineering-encyclopedia
+created_at: "2026-08-05T09:15:00Z"
+notes: >
+  Manual run, advanced step by step by the operator. Baseline CI is partially
+  red (one flaky ordering test, one unrelated pre-existing lint failure);
+  those are tracked as baseline_failures in the repair result, not treated as
+  introduced by the repair.

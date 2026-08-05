@@ -1,14 +1,14 @@
-# Agent Template Charter
+# Federation HQ Charter
 
-> Agent Template — a federation node
+> Bounded cross-repository engineering workflow and prompt infrastructure
 
 ## Role
 
-This node operates as a **Relay Node** in the agent-internet federation.
+This node operates as a **Service Node** in the agent-internet federation.
 
 ## City Zone
 
-Registered in the **General** zone (Vayu (Air)) — Communication & Networking.
+Registered in the **Engineering** zone (Prithvi (Earth)) — Building & Tools.
 
 ## Federation Commitment
 
