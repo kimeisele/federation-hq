@@ -203,7 +203,11 @@ def registry_releases(registry: dict) -> set[tuple[str, str]]:
 
 
 def registry_release_hashes(registry: dict) -> dict[tuple[str, str], str]:
-    """Return {(id, version): sha256} for every version in the registry."""
+    """Return {(id, version): sha256} for every **released** version.
+
+    Only entries whose status is exactly ``released`` are pinnable by run
+    manifests; ``unreleased_bootstrap`` and any other status are excluded.
+    """
     hashes: dict[tuple[str, str], str] = {}
     prompts = registry.get("prompts", []) if isinstance(registry, dict) else []
     for entry in prompts:
@@ -211,11 +215,14 @@ def registry_release_hashes(registry: dict) -> dict[tuple[str, str], str]:
             continue
         pid = entry.get("id")
         for ver in entry.get("versions", []):
-            if isinstance(ver, dict) and isinstance(pid, str):
-                version = ver.get("version")
-                sha = ver.get("sha256")
-                if isinstance(version, str) and isinstance(sha, str):
-                    hashes[(pid, version)] = sha.lower()
+            if not isinstance(ver, dict) or not isinstance(pid, str):
+                continue
+            if ver.get("status") != "released":
+                continue
+            version = ver.get("version")
+            sha = ver.get("sha256")
+            if isinstance(version, str) and isinstance(sha, str):
+                hashes[(pid, version)] = sha.lower()
     return hashes
 
 
@@ -412,16 +419,37 @@ RUN_ARTIFACT_PREFIXES = (
 )
 
 
-def _find_artifact(run_dir: Path, prefix: str) -> Path | None:
-    """Return the first artifact file in *run_dir* with the given prefix."""
-    for path in sorted(run_dir.iterdir()):
+def _find_artifacts(run_dir: Path, prefix: str) -> list[Path]:
+    """Return every artifact file in *run_dir* with the given prefix."""
+    return [
+        path
+        for path in sorted(run_dir.iterdir())
         if (
             path.is_file()
             and path.name.startswith(prefix)
             and path.suffix.lower() in (".yaml", ".yml", ".json")
-        ):
-            return path
-    return None
+        )
+    ]
+
+
+def _resolve_single(
+    run_dir: Path,
+    prefix: str,
+    where: str,
+    errors: list[str],
+) -> Path | None:
+    """Resolve zero-or-one artifact of *prefix*; reject duplicates.
+
+    Returns the single artifact path, or ``None`` when absent. More than one
+    artifact of a recognized type is an error (the directory is ambiguous).
+    """
+    matches = _find_artifacts(run_dir, prefix)
+    if len(matches) > 1:
+        errors.append(
+            f"{where}: duplicate {prefix} artifacts: "
+            + ", ".join(p.name for p in matches)
+        )
+    return matches[0] if matches else None
 
 
 def _load_if_valid(path: Path | None, schemas_dir: Path, repo_root: Path,
@@ -450,13 +478,17 @@ def validate_run_bundles(
 ) -> None:
     """Validate every committed run bundle below *runs_dir* and cross-check it.
 
-    Per run directory: all artifacts parse and satisfy their schemas; all
-    artifacts carry the same ``run_id``; target repository and baseline SHA
-    agree with the manifest; the repair result's ``candidate_id`` matches the
-    selected candidate; the review result's ``candidate_id``/``result_id``
-    match the candidate and repair result; the review ``reviewer_head_sha``
-    equals the repair ``repair_head_sha``; prompt pins resolve to exact
-    released prompt hashes.
+    Per run directory: exactly one ``run-manifest`` artifact is required; zero
+    or one of each of ``repair-candidate``, ``repair-result``, and
+    ``review-result`` is allowed; duplicates of any recognized type are
+    rejected; incomplete in-progress runs (e.g. manifest-only or
+    manifest + candidate) remain permitted. For the artifacts that are
+    present: all parse and satisfy their schemas; all carry the same
+    ``run_id``; target repository and baseline SHA agree with the manifest;
+    the repair result's ``candidate_id`` matches the selected candidate; the
+    review result's ``candidate_id``/``result_id`` match the candidate and
+    repair result; the review ``reviewer_head_sha`` equals the repair
+    ``repair_head_sha``; prompt pins resolve to exact released prompt hashes.
     """
     if not runs_dir.is_dir():
         errors.append(f"runs: directory not found: {runs_dir}")
@@ -466,12 +498,15 @@ def validate_run_bundles(
         return
     for run_dir in run_dirs:
         where = f"runs/{run_dir.name}"
-        manifest_path = _find_artifact(run_dir, "run-manifest")
-        candidate_path = _find_artifact(run_dir, "repair-candidate")
-        result_path = _find_artifact(run_dir, "repair-result")
-        review_path = _find_artifact(run_dir, "review-result")
-        if not any((manifest_path, candidate_path, result_path, review_path)):
-            errors.append(f"{where}: directory contains no recognized run artifacts")
+        manifest_path = _resolve_single(run_dir, "run-manifest", where, errors)
+        candidate_path = _resolve_single(run_dir, "repair-candidate", where, errors)
+        result_path = _resolve_single(run_dir, "repair-result", where, errors)
+        review_path = _resolve_single(run_dir, "review-result", where, errors)
+        if manifest_path is None:
+            errors.append(f"{where}: missing required run-manifest artifact")
+            continue
+        if not any((candidate_path, result_path, review_path)):
+            # Manifest-only requested run: valid, nothing further to cross-check.
             continue
 
         manifest = _load_if_valid(manifest_path, schemas_dir, repo_root, errors, registry)

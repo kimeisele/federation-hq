@@ -16,8 +16,6 @@ The id is the role. The version is a semantic version (`MAJOR.MINOR.PATCH`).
 
 ## Rules
 
-## Rules
-
 1. **Released prompt versions are immutable.** Once a version is listed in
    `prompts/registry.yaml` with a release date, its file content never changes.
    Corrections and improvements are new versions, never edits to a released
@@ -43,8 +41,9 @@ The id is the role. The version is a semantic version (`MAJOR.MINOR.PATCH`).
 
 5. **Run manifests pin exact prompt versions.** A run manifest records the exact
    `id` and `version` of the scout, repair, and review prompts used in that run.
-   The validator rejects run manifests with missing or non-released prompt
-   versions.
+   The validator rejects run manifests with missing, unknown, or non-released
+   prompt versions: only entries whose status is exactly `released` are
+   pinnable, and a pin to an `unreleased_bootstrap` version fails validation.
 
 6. **Every version pins its content hash.** Each registry version records the
    SHA-256 of the exact UTF-8 bytes of its prompt file, and every run-manifest
@@ -60,17 +59,15 @@ The id is the role. The version is a semantic version (`MAJOR.MINOR.PATCH`).
    their original content. A registry entry for a superseded version remains
    present (possibly marked `superseded_by`) so the historical pin resolves.
 
-## Bootstrap treatment
+## Founding releases
 
-The `0.1.0` versions that ship with the founding repository merge are
-**unreleased bootstrap material** (`status: unreleased_bootstrap` in the
-registry). They are the repository's first release candidates: content
-corrections made inside the unmerged founding pull request amend the bootstrap
-material rather than creating a new version, because no run ever pinned the
-draft bytes and the registry has never been merged anywhere. The registry
-changelog records each such correction. At the repository's first merge the
-bootstrap versions become effective releases; after that, rule 1 applies
-normally and corrections require new versions.
+The `0.1.0` versions that ship with the repository's founding merge are
+**released** (`status: released`) from that point on. During the unmerged
+founding pull request their content was finalized and their content hashes
+fixed; the registry records the final hashes and changelog rationale. Release
+status is **never mutated automatically** by any merge, workflow, or script —
+it is only ever changed by an explicit, reviewed registry edit, and rule 1
+applies to the three `0.1.0` prompt files from the founding merge onward.
 
 ## Registry entry shape
 
@@ -89,8 +86,9 @@ prompts:
 
 `version` values are treated as strings (semver) and must be unique within a
 prompt id. Prompt ids must be unique across the registry. `sha256` must match
-the exact UTF-8 bytes of the referenced prompt file, and `status` must be
-`released` or `unreleased_bootstrap`.
+the exact UTF-8 bytes of the referenced prompt file. `status` must be
+`released` or `unreleased_bootstrap`; only `released` entries are pinnable by
+run manifests.
 
 ## Enforcement
 
@@ -98,8 +96,9 @@ the exact UTF-8 bytes of the referenced prompt file, and `status` must be
   prompt file exists inside the repository, rejects duplicate ids or duplicate
   versions, requires a changelog rationale and a `status`, and proves the
   `sha256` matches the referenced prompt file's bytes.
-- Run manifest validation rejects missing prompt versions, missing or
-  mismatched pin hashes, and versions not present in the registry.
+- Run manifest validation rejects missing prompt versions, unknown versions,
+  versions whose status is `unreleased_bootstrap`, and missing or mismatched
+  pin hashes.
 - Committed run bundles below `runs/` are discovered and cross-checked
   (run_id, repository/SHA agreement, candidate/result chains, review head,
   exact prompt hashes).

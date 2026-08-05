@@ -107,5 +107,8 @@ a test. Regression coverage lives in `tests/test_identity_isolation.py`.
   pull-request required; no bypass actors).
 - Sync workflows do not push to `main`; generated identity surfaces are
   regenerated and committed through normal PRs, and CI checks them for drift.
+- Federation discovery is a read-only scheduled health check: it discovers
+  peers and verifies authority feeds without committing or pushing to any
+  branch.
 - Bot identity `federation-bot` / `bot@federation` is used only by workflows
   that publish to non-default publication branches (e.g. authority feed).

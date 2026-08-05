@@ -6,12 +6,12 @@
 # immutable; every release requires a changelog rationale. Each version pins
 # the SHA-256 of its exact UTF-8 file bytes. Validated by
 # `scripts/validate_artifacts.py` (unique ids, unique versions, referenced
-# files exist, changelog present, hashes match file bytes).
+# files exist, changelog present, hashes match file bytes). Only entries with
+# `status: released` are pinnable by run manifests.
 #
-# Bootstrap note: the `0.1.0` versions below are bootstrap material finalized
-# in the founding pull request before the repository's first merge; no run
-# ever pinned the earlier draft bytes. They become released versions at merge
-# (`status: released` may then be recorded). See `docs/PROMPT_VERSIONING.md`.
+# The three `0.1.0` versions below are released with the repository's founding
+# merge (federation-hq/federation-hq PR #1); release status is never mutated
+# automatically.
 
 schema_version: 1
 prompts:
@@ -22,13 +22,12 @@ prompts:
       - version: 0.1.0
         file: scout/v0.1.0.md
         sha256: "6940ea39da9799fa6595809cfce6a948427bdc07edba2e48774418642fe6eb8a"
-        status: unreleased_bootstrap
+        status: released
         released: "2026-08-05"
         changelog: >
           Initial release for the three-role repair workflow: bounded
-          investigation, single-candidate selection, evidence-anchored output.
-          Bootstrap material: artifact-output contract clarified before the
-          repository's first merge (exactly one artifact, writable run-output
+          investigation, single-candidate selection, evidence-anchored output,
+          artifact-output contract (exactly one artifact, writable run-output
           directory only, never mutate Federation HQ).
 
   - id: repair
@@ -38,13 +37,12 @@ prompts:
       - version: 0.1.0
         file: repair/v0.1.0.md
         sha256: "0606d8ed7bec4501c10613d8e13b399325d6245b72f5d9212ea65e459f933f84"
-        status: unreleased_bootstrap
+        status: released
         released: "2026-08-05"
         changelog: >
           Initial release for the three-role repair workflow: single-candidate
-          scope, baseline-versus-head failure comparison, no admin bypass.
-          Bootstrap material: artifact-output contract clarified before the
-          repository's first merge (exactly one artifact, writable run-output
+          scope, baseline-versus-head failure comparison, no admin bypass,
+          artifact-output contract (exactly one artifact, writable run-output
           directory only, never mutate Federation HQ).
 
   - id: review
@@ -54,12 +52,11 @@ prompts:
       - version: 0.1.0
         file: review/v0.1.0.md
         sha256: "82b9cc37176304d418a934b261fa5efa2374d4e886c5afdec3789eaa264479e9"
-        status: unreleased_bootstrap
+        status: released
         released: "2026-08-05"
         changelog: >
           Initial release for the three-role repair workflow: exact-head
           re-verification, claim-to-evidence checking, four verdicts,
-          approval invalidated by new commits. Bootstrap material:
-          artifact-output contract clarified before the repository's first
-          merge (exactly one artifact, writable run-output directory only,
-          never mutate Federation HQ).
+          approval invalidated by new commits, artifact-output contract
+          (exactly one artifact, writable run-output directory only, never
+          mutate Federation HQ).

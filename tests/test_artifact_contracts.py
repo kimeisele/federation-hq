@@ -310,6 +310,58 @@ def test_rejects_mismatched_prompt_pin_hash() -> None:
     assert any("does not match registry release" in e for e in errors)
 
 
+def test_released_prompt_pin_accepted() -> None:
+    """Pins to released registry versions with matching hashes are accepted."""
+    doc = _load(EXAMPLE_FILES["run-manifest"])
+    registry = _load(REPO_ROOT / "prompts" / "registry.yaml")
+    errors: list[str] = []
+    validate_artifacts.check_prompt_pins(doc, registry, "run-manifest", errors)
+    assert errors == []
+
+
+def test_unreleased_bootstrap_prompt_rejected() -> None:
+    """Pins to unreleased_bootstrap registry versions fail validation."""
+    registry = {
+        "schema_version": 1,
+        "prompts": [
+            {
+                "id": "scout",
+                "versions": [
+                    {
+                        "version": "0.1.0",
+                        "file": "scout/v0.1.0.md",
+                        "sha256": "c" * 64,
+                        "status": "unreleased_bootstrap",
+                        "released": "2026-08-05",
+                        "changelog": "draft",
+                    }
+                ],
+            }
+        ],
+    }
+    doc = _load(EXAMPLE_FILES["run-manifest"])
+    errors: list[str] = []
+    validate_artifacts.check_prompt_pins(doc, registry, "run-manifest", errors)
+    assert any("no released prompt" in e for e in errors)
+
+
+def test_release_resolution_excludes_unreleased_status() -> None:
+    """registry_release_hashes must include only status exactly 'released'."""
+    registry = {
+        "prompts": [
+            {"id": "scout", "versions": [
+                {"version": "0.1.0", "sha256": "a" * 64, "status": "released"},
+                {"version": "0.2.0", "sha256": "b" * 64, "status": "unreleased_bootstrap"},
+                {"version": "0.3.0", "sha256": "c" * 64, "status": "draft"},
+            ]},
+        ]
+    }
+    hashes = validate_artifacts.registry_release_hashes(registry)
+    assert ("scout", "0.1.0") in hashes
+    assert ("scout", "0.2.0") not in hashes
+    assert ("scout", "0.3.0") not in hashes
+
+
 # ── Negative: path escape ─────────────────────────────────────────────────
 
 
@@ -416,12 +468,18 @@ BUNDLE_FILES = {
 }
 
 
-def _write_bundle(root: Path, kind: str = "coherent") -> Path:
-    """Write a run bundle under *root*/runs/run-1; return the runs dir."""
+def _write_bundle(root: Path, kind: str = "coherent",
+                  files: tuple[str, ...] = BUNDLE_FILES.keys()) -> Path:
+    """Write a run bundle under *root*/runs/run-1; return the runs dir.
+
+    *files* selects which artifact kinds to write (subset bundles model
+    incomplete in-progress runs); *kind* mutates a document to model a
+    specific coherence violation.
+    """
     run_dir = root / "runs" / "run-1"
     run_dir.mkdir(parents=True)
     docs: dict[str, dict] = {}
-    for kind_name, fname in BUNDLE_FILES.items():
+    for kind_name in files:
         docs[kind_name] = _load(EXAMPLE_FILES[kind_name])
     if kind == "bad_run_id":
         docs["repair-result"]["run_id"] = "run-999"
@@ -435,8 +493,10 @@ def _write_bundle(root: Path, kind: str = "coherent") -> Path:
         docs["repair-result"]["target_repository"] = "other-org/other-repo"
     elif kind == "bad_baseline":
         docs["repair-candidate"]["baseline_sha"] = "1" * 40
-    for kind_name, fname in BUNDLE_FILES.items():
-        (run_dir / fname).write_text(yaml.safe_dump(docs[kind_name], sort_keys=False))
+    for kind_name in files:
+        (run_dir / BUNDLE_FILES[kind_name]).write_text(
+            yaml.safe_dump(docs[kind_name], sort_keys=False)
+        )
     return root / "runs"
 
 
@@ -451,6 +511,41 @@ def _bundle_errors(runs_dir: Path, root: Path) -> list[str]:
 
 def test_coherent_run_bundle_validates(tmp_path: Path) -> None:
     runs_dir = _write_bundle(tmp_path, "coherent")
+    assert _bundle_errors(runs_dir, tmp_path) == []
+
+
+def test_bundle_requires_manifest(tmp_path: Path) -> None:
+    runs_dir = _write_bundle(
+        tmp_path, "coherent", files=("repair-candidate", "repair-result")
+    )
+    assert any("missing required run-manifest" in e for e in _bundle_errors(runs_dir, tmp_path))
+
+
+def test_bundle_rejects_duplicate_manifest(tmp_path: Path) -> None:
+    runs_dir = _write_bundle(tmp_path, "coherent")
+    (runs_dir / "run-1" / "run-manifest.json").write_text(
+        yaml.safe_dump(_load(EXAMPLE_FILES["run-manifest"]), sort_keys=False)
+    )
+    assert any("duplicate run-manifest" in e for e in _bundle_errors(runs_dir, tmp_path))
+
+
+def test_bundle_rejects_duplicate_candidate(tmp_path: Path) -> None:
+    runs_dir = _write_bundle(tmp_path, "coherent")
+    (runs_dir / "run-1" / "repair-candidate.json").write_text(
+        yaml.safe_dump(_load(EXAMPLE_FILES["repair-candidate"]), sort_keys=False)
+    )
+    assert any("duplicate repair-candidate" in e for e in _bundle_errors(runs_dir, tmp_path))
+
+
+def test_bundle_manifest_only_requested_run_accepted(tmp_path: Path) -> None:
+    runs_dir = _write_bundle(tmp_path, "coherent", files=("run-manifest",))
+    assert _bundle_errors(runs_dir, tmp_path) == []
+
+
+def test_bundle_manifest_plus_candidate_accepted(tmp_path: Path) -> None:
+    runs_dir = _write_bundle(
+        tmp_path, "coherent", files=("run-manifest", "repair-candidate")
+    )
     assert _bundle_errors(runs_dir, tmp_path) == []
 
 

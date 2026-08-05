@@ -173,10 +173,9 @@ workflows do not push generated content to `main`. Generated identity surfaces
 and PRs; CI renders them and **fails on drift**. After merging your setup PR,
 CI checks the committed surfaces against the renderers on every relevant push
 and pull request. The authority-feed workflow publishes only to the separate
-`authority-feed` publication branch. The weekly peer-discovery workflow still
-targets `HEAD:${GITHUB_REF_NAME}` and is expected to fail on scheduled runs
-until the target repository's governance permits that push — peer data is not
-identity content and is out of scope for the sync posture.
+`authority-feed` publication branch. The weekly peer-discovery workflow is a
+**read-only scheduled health check**: it discovers federation peers and
+verifies their authority feeds without committing or pushing to any branch.
 
 ## Repository map
 
