@@ -1,0 +1,29 @@
+# Repair notes — run-20260806-agent-city-brain-tier-drift
+
+## Change (single line)
+
+`city/brain.py` — `_KIND_TIER` gains `"social_strategy": ModelTier.STANDARD`.
+
+## Head
+
+- repair_head_sha: 9eb7f461a2859de5367812115f3a106926c47761
+- branch: fix/brain-social-strategy-tier
+- target PR: https://github.com/kimeisele/agent-city/pull/2712
+
+## Verification evidence
+
+- Focused: 1 passed.
+- Brain batch: 76 passed (baseline 1 failed / 75 passed; tier test was the
+  only baseline failure).
+- ruff city/brain.py: clean. ruff tests/test_brain.py: 2 E501 pre-existing,
+  identical at baseline (verified by checking out baseline and re-running).
+- compileall: OK. git diff --check: OK. Head diff = city/brain.py +1 line.
+- Full suite head vs baseline: both 6 pre-existing collection errors
+  (untracked federation_v1/keys fixtures) — no new failure node.
+
+## Non-goals honored
+
+- No provider/model activation; ProviderChamber/OpenRouter untouched.
+- No Brain redesign; no ActionVerb or action-cardinality change.
+- No Federation/NADI/Worker/Scheduler/Mission/governance/workflow changes.
+- No unrelated test repairs, cleanup or formatting.

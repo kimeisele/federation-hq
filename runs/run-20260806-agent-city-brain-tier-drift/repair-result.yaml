@@ -1,0 +1,45 @@
+kind: federation_hq_repair_result
+result_id: run-20260806-agent-city-brain-tier-drift-r1
+run_id: run-20260806-agent-city-brain-tier-drift
+candidate_id: run-20260806-agent-city-brain-tier-drift-c1
+target_repository: kimeisele/agent-city
+baseline_sha: "8694d81e545d41de1c113519b9cf54f47846dd9a"
+repair_head_sha: "9eb7f461a2859de5367812115f3a106926c47761"
+branch: fix/brain-social-strategy-tier
+pull_request:
+  number: 2712
+  url: https://github.com/kimeisele/agent-city/pull/2712
+commands:
+  - command: "python -m pytest tests/test_brain.py::TestModelTier::test_all_thought_kinds_have_tier -q"
+    exit_code: 0
+    outcome: "1 passed — focused contract test passes at repair head."
+  - command: "python -m pytest tests/test_brain.py -q"
+    exit_code: 0
+    outcome: "76 passed — full brain test batch green at head (baseline: 1 failed, 75 passed; the tier test was the only failure)."
+  - command: "python -m ruff check city/brain.py"
+    exit_code: 0
+    outcome: "clean — the modified file passes lint."
+  - command: "python -m ruff check tests/test_brain.py"
+    exit_code: 1
+    outcome: "2 pre-existing E501 (lines 763, 1004) — byte-identical to the baseline run; not introduced by this repair."
+  - command: "python -m compileall city/brain.py tests/test_brain.py"
+    exit_code: 0
+    outcome: "compiles clean."
+  - command: "git diff --check"
+    exit_code: 0
+    outcome: "no whitespace errors; head diff is exactly city/brain.py +1 line."
+  - command: "python -m pytest tests/ -q (head)"
+    exit_code: 1
+    outcome: "6 pre-existing collection errors (untracked tests/fixtures/federation_v1/keys fixtures) — identical to baseline."
+  - command: "python -m pytest tests/ -q (baseline 8694d81e)"
+    exit_code: 1
+    outcome: "6 pre-existing collection errors — identical to head; no new failure node introduced."
+baseline_failures:
+  - "tests/test_brain.py::TestModelTier::test_all_thought_kinds_have_tier (only failure in the baseline brain batch: 1 failed, 75 passed)"
+  - "pre-existing: ruff E501 x2 in tests/test_brain.py (lines 763, 1004), identical at baseline"
+  - "pre-existing: 6 pytest collection errors from untracked tests/fixtures/federation_v1/keys fixtures, identical at baseline"
+newly_introduced_failures: []
+evidence_locations:
+  - runs/run-20260806-agent-city-brain-tier-drift/repair-result.yaml
+  - runs/run-20260806-agent-city-brain-tier-drift/repair-notes.txt
+created_at: "2026-08-06T16:45:00Z"
