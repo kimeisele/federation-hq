@@ -1,0 +1,48 @@
+# Scout notes — run-20260806-agent-city-brain-tier-drift
+
+Evidence for the selected candidate (exact baseline 8694d81e545d41de1c113519b9cf54f47846dd9a).
+
+## Failure reproduction (exact baseline)
+
+`python -m pytest tests/test_brain.py::TestModelTier::test_all_thought_kinds_have_tier -q`
+
+```
+E   AssertionError: ThoughtKind 'social_strategy' has no tier mapping
+E   assert 'social_strategy' in {'comprehension': <ModelTier.STANDARD: 'standard'>, ...}
+tests/test_brain.py:910: AssertionError
+1 failed
+```
+
+## Repository evidence
+
+1. city/brain.py:50 — `SOCIAL_STRATEGY = "social_strategy"  # Organic social engagement` (declared enum member).
+2. city/brain.py:77-85 — `_KIND_TIER` lacks `"social_strategy"`; runtime falls back silently at brain.py:477 (`_KIND_TIER.get(kind, ModelTier.STANDARD)`).
+3. city/brain.py:638 — `Brain.evaluate_social_strategy()`: dedicated method, purpose-built prompt override, routes `"social_strategy"` through `_think()`.
+4. city/moltbook_assistant.py:179 — live production call site (DHARMA organic social engagement, confidence gate >= 0.85).
+5. Feature commit 2e5a50f ("feat: implement step 8 dynamic social cognition with confidence gate") introduced the enum member, method and call path but did NOT touch `_KIND_TIER` (0 occurrences) — the tier entry was omitted at introduction.
+6. config/llm.yaml — all tiers currently resolve to deepseek/deepseek-v3.2; STANDARD is the cheap workhorse. Adding the entry activates no provider and changes no model.
+7. Baseline broader selection `python -m pytest tests/test_brain.py -q`: 1 failed, 75 passed — the focused tier test is the only failure.
+
+## Contract determination
+
+SOCIAL_STRATEGY is ACTIVE and INTENDED (enum + dedicated method + production
+call site + feature-commit intent). Retiring it would be a larger breaking
+change. The smallest coherent correction: add
+`"social_strategy": ModelTier.STANDARD` to `_KIND_TIER`.
+
+## Verification commands (repair)
+
+```
+python -m pytest tests/test_brain.py::TestModelTier::test_all_thought_kinds_have_tier -q
+python -m pytest tests/test_brain.py -q
+python -m ruff check city/brain.py tests/test_brain.py
+python -m compileall city/brain.py tests/test_brain.py
+git diff --check
+```
+
+## Non-goals (explicit)
+
+- No provider/model activation; no ProviderChamber/OpenRouter changes.
+- No Brain redesign; no ActionVerb or action-cardinality changes.
+- No Federation/NADI/Worker/Scheduler/Mission/governance changes.
+- No unrelated test repairs, cleanup or formatting.
