@@ -27,6 +27,19 @@ def cmd_setup_app(args: argparse.Namespace) -> int:
         )
         print("Run: python -m federation_hq_gate doctor")
         return 0
+    if args.finalize_install:
+        from .auth import AuthError, finalize_installation
+        from .config import GateConfigError, load_config, persist_installation_id
+        try:
+            cfg = load_config(require_installation=False)
+            discovered = finalize_installation(cfg)
+            persist_installation_id(discovered, expected_app_id=cfg["app_id"])
+        except (GateConfigError, AuthError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        print(f"installation finalized: installation_id {discovered} persisted (mode 0600)")
+        print("Run: python -m federation_hq_gate doctor")
+        return 0
     try:
         credentials = app_setup.run_manifest_flow()
     except RuntimeError as exc:
@@ -37,11 +50,14 @@ def cmd_setup_app(args: argparse.Namespace) -> int:
         str(credentials["id"]), credentials["pem"],
         credentials.get("webhook_secret"), credentials.get("slug", app_setup.MANIFEST_NAME),
     )
+    app_setup.cleanup_temporary_manifest()
     print(f"App credentials stored outside the repository at {key_path.parent}")
     print("Private key permissions set to owner-read/write only (0600).")
     print("Next: install the app on personal account kimeisele with 'All repositories':")
     print("  https://github.com/apps/federation-hq-review-gate/installations/new")
-    print("Then run: python -m federation_hq_gate doctor")
+    print("Then finalize and verify:")
+    print("  python -m federation_hq_gate setup-app --finalize-install")
+    print("  python -m federation_hq_gate doctor")
     return 0
 
 
@@ -169,6 +185,8 @@ def build_parser() -> argparse.ArgumentParser:
                          help="print exact fields the owner must enter (fallback)")
     p_setup.add_argument("--manual-store", action="store_true",
                          help="store manually provided credentials")
+    p_setup.add_argument("--finalize-install", action="store_true",
+                         help="discover and persist the installation ID after the owner installs the App")
     p_setup.add_argument("--app-id")
     p_setup.add_argument("--installation-id")
     p_setup.add_argument("--pem-path")

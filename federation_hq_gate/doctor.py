@@ -85,7 +85,10 @@ def run_doctor(cfg: dict | None = None) -> DoctorReport:
     missing = [k for k, v in REQUIRED_PERMISSIONS.items() if perms.get(k) != v]
     report.add("effective-permissions", not missing,
                "permissions OK" if not missing else f"missing: {sorted(missing)}")
-    forbidden = sorted(k for k in FORBIDDEN_PERMISSIONS if perms.get(k) and perms[k] != "none")
+    forbidden = sorted(
+        k for k in FORBIDDEN_PERMISSIONS
+        if perms.get(k) not in (None, "none") and (k != "contents" or perms[k] == "write")
+    )
     report.add("forbidden-permissions-absent", not forbidden,
                "no forbidden permissions" if not forbidden else f"forbidden: {forbidden}")
 

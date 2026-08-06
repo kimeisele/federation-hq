@@ -12,15 +12,42 @@ verdict, never merges, never pushes, and never modifies branch protection.
 
 ## 1. One-time app creation and installation (owner action)
 
+**Step A — App registration (creates the private App, no installation yet):**
+
 ```bash
 python -m federation_hq_gate setup-app
 ```
 
-This runs the GitHub App Manifest flow: it opens the app-creation URL, listens
-only on `127.0.0.1` for the callback code, exchanges it for the App ID,
-private key and webhook secret, and stores credentials outside the repository
-under `~/.config/federation-hq-gate/`. The private key is written with
-owner-read/write-only permissions and is never printed or committed.
+This runs the documented GitHub App Manifest browser flow: it generates an
+unguessable callback `state`, starts a server bound only to `127.0.0.1` on an
+ephemeral port, serves a one-time local page whose form posts the manifest
+(hidden field `manifest`, HTML-escaped JSON) to GitHub's authenticated
+settings page, opens that page in the owner's browser, validates the returned
+`state` (missing, mismatched and replayed states are rejected), exchanges the
+`code` for the App ID, private key and webhook secret, and stores credentials
+outside the repository under `~/.config/federation-hq-gate/` with the private
+key at owner-read/write-only (0600). Temporary manifest material is removed
+after completion. The command prints the installation URL.
+
+**Step B — App installation (owner browser action):** install the App on
+account `kimeisele` with **All repositories**:
+`https://github.com/apps/federation-hq-review-gate/installations/new`
+
+**Step C — Installation finalization (resumes from a clean machine):**
+
+```bash
+python -m federation_hq_gate setup-app --finalize-install
+```
+
+This loads the partial configuration (App ID + private key, no installation
+ID required), generates an App JWT, discovers installations belonging to this
+App, requires exactly one active installation for account `kimeisele` with
+`repository_selection == "all"`, verifies the effective permissions are
+compatible with the runtime minimum (required present, forbidden and
+unexpected permissions rejected), persists the installation ID into the
+external config file (mode 0600 preserved, private key untouched), is
+idempotent, and refuses to silently switch away from a stored installation
+ID.
 
 If the browser flow is not usable, use the deterministic fallback:
 
@@ -28,10 +55,6 @@ If the browser flow is not usable, use the deterministic fallback:
 python -m federation_hq_gate setup-app --manual          # prints exact fields to enter
 python -m federation_hq_gate setup-app --manual-store --app-id <ID> --installation-id <ID> --pem-path <PEM>
 ```
-
-After creation, install the app on account `kimeisele` with **All
-repositories**:
-`https://github.com/apps/federation-hq-review-gate/installations/new`
 
 The App's default permissions are exactly:
 
@@ -47,11 +70,19 @@ Forbidden (never granted): `administration: write`, `contents: write`,
 
 ## 2. Command to run afterward
 
+The normal sequence from a clean machine is exactly:
+
 ```bash
+python -m federation_hq_gate setup-app
+# owner installs the App on kimeisele with 'All repositories'
+python -m federation_hq_gate setup-app --finalize-install
 python -m federation_hq_gate doctor
 ```
 
-Must report all checks `ok` before any publication or policy step.
+`doctor` must report all checks `ok` before any publication or policy step.
+App registration (Step A) and App installation (Step B/C) are distinct: no
+environment variable or manual copying of an installation ID is needed in the
+normal flow.
 
 ## 3. Credential location and permissions
 

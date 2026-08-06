@@ -75,11 +75,17 @@ def discover_installations(jwt: str, account_login: str) -> dict | None:
 
 
 def _validate_installation_permissions(installation: dict) -> None:
-    """Reject installations granting forbidden permissions."""
+    """Reject installations granting forbidden permission levels.
+
+    ``contents`` is required at ``read`` and forbidden only at ``write``;
+    administration/actions/workflows/members/secrets are forbidden at any
+    grant level.
+    """
     perms = installation.get("permissions") or {}
     forbidden_granted = sorted(
-        key for key in FORBIDDEN_PERMISSIONS
-        if perms.get(key) and perms[key] != "none"
+        key for key, forbidden_level in FORBIDDEN_PERMISSIONS.items()
+        if perms.get(key) not in (None, "none")
+        and (key != "contents" or perms[key] == "write")
     )
     if forbidden_granted:
         raise AuthError(
@@ -149,3 +155,52 @@ def installation_token(cfg: dict, *, owner: str | None = None, repo: str | None 
         jwt, str(installation["id"]), owner=owner, repo=repo
     )
     return token
+
+
+def finalize_installation(cfg: dict, account_login: str = "kimeisele") -> str:
+    """Discover and validate the exactly-one matching installation.
+
+    Returns the installation ID. Requires exactly one active matching
+    installation, ``repository_selection == "all"``, permissions compatible
+    with the runtime minimum (required present, no forbidden permissions, no
+    unexpected extras). Idempotent by design; switching away from a stored
+    installation ID is refused by the caller's persistence step.
+    """
+    jwt = create_app_jwt(cfg["app_id"], cfg["private_key_path"])
+    data = request("GET", "/app/installations", token=jwt)
+    if not isinstance(data, list):
+        raise AuthError("unexpected response from /app/installations")
+    matches = [
+        inst for inst in data
+        if isinstance(inst, dict)
+        and (inst.get("account") or {}).get("login") == account_login
+        and inst.get("active", True)
+    ]
+    if not matches:
+        raise AuthError(
+            f"no active installation for account {account_login}; "
+            "install the App with 'All repositories' first"
+        )
+    if len(matches) > 1:
+        raise AuthError(
+            f"multiple installations for account {account_login}; "
+            "refusing ambiguous finalize"
+        )
+    installation = matches[0]
+    if installation.get("repository_selection") != "all":
+        raise AuthError(
+            "installation is not 'All repositories'; refusing finalize"
+        )
+    _validate_installation_permissions(installation)
+    perms = installation.get("permissions") or {}
+    from . import OPTIONAL_PERMISSIONS
+    allowed = {**REQUIRED_PERMISSIONS, **OPTIONAL_PERMISSIONS}
+    unexpected = sorted(
+        k for k, level in perms.items()
+        if level not in (None, "none") and allowed.get(k) != level
+    )
+    if unexpected:
+        raise AuthError(
+            "installation grants unexpected permission(s): " + ", ".join(unexpected)
+        )
+    return str(installation["id"])

@@ -57,8 +57,13 @@ def _read_config_file() -> dict:
     return data
 
 
-def load_config() -> dict:
-    """Return resolved app configuration without secrets in error text."""
+def load_config(require_installation: bool = True) -> dict:
+    """Return resolved app configuration without secrets in error text.
+
+    *require_installation* is False only for the explicit finalization path
+    (setup-app --finalize-install), which discovers and persists the
+    installation ID. Ordinary runtime commands always require it.
+    """
     file_cfg = _read_config_file()
 
     app_id = os.environ.get(APP_ID_ENV) or file_cfg.get("app_id")
@@ -68,7 +73,7 @@ def load_config() -> dict:
     missing = []
     if not app_id:
         missing.append(APP_ID_ENV)
-    if not installation_id:
+    if require_installation and not installation_id:
         missing.append(INSTALLATION_ID_ENV)
     if missing:
         raise GateConfigError(
@@ -82,11 +87,37 @@ def load_config() -> dict:
     if not key.is_file():
         raise GateConfigError(f"private key path is not a file: {key}")
 
-    return {
+    cfg = {
         "app_id": str(app_id),
-        "installation_id": str(installation_id),
         "private_key_path": str(key),
     }
+    if installation_id:
+        cfg["installation_id"] = str(installation_id)
+    return cfg
+
+
+def persist_installation_id(installation_id: str, *, expected_app_id: str | None = None,
+                            allow_replace: bool = False) -> None:
+    """Persist the discovered installation ID into the external config file.
+
+    Preserves mode 0600 and never touches the private key. By default
+    refuses to replace a different stored installation ID.
+    """
+    path = config_file_path()
+    file_cfg = _read_config_file()
+    existing = file_cfg.get("installation_id")
+    if existing and str(existing) != str(installation_id) and not allow_replace:
+        raise GateConfigError(
+            "refusing to silently switch installations: stored installation_id "
+            f"{existing} differs from discovered {installation_id}"
+        )
+    if expected_app_id is not None and str(file_cfg.get("app_id")) != str(expected_app_id):
+        raise GateConfigError(
+            "refusing to persist installation for a different app id"
+        )
+    file_cfg["installation_id"] = str(installation_id)
+    path.write_text(json.dumps(file_cfg, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    os.chmod(path, 0o600)
 
 
 def check_key_permissions(key_path: Path) -> list[str]:
