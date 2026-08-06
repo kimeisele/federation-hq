@@ -1,0 +1,49 @@
+# Run manifest — run-20260806-agent-city-brain-tier-drift
+#
+# Federation HQ Operator Coordination Protocol v0.1 pilot run 01.
+# Target: kimeisele/agent-city, Brain model-tier contract drift.
+
+kind: federation_hq_run_manifest
+run_id: run-20260806-agent-city-brain-tier-drift
+target_repository: kimeisele/agent-city
+baseline_sha: "8694d81e545d41de1c113519b9cf54f47846dd9a"
+maintenance_request:
+  text: >
+    Investigate and, if confirmed, repair the Agent City Brain model-tier
+    contract drift represented by
+    tests/test_brain.py::TestModelTier::test_all_thought_kinds_have_tier.
+    ThoughtKind.SOCIAL_STRATEGY exists in city/brain.py while _KIND_TIER has
+    no corresponding routing entry. Determine whether SOCIAL_STRATEGY is an
+    active and intended ThoughtKind requiring an explicit ModelTier, or
+    obsolete and to be retired through the smallest coherent contract
+    correction. Select and repair exactly one candidate: the model-tier
+    contract mismatch.
+  source: human_operator
+  created_at: "2026-08-06T16:08:27Z"
+  source_reference: "Federation HQ Pilot Run 01 instruction (protocol 0.1.0)"
+coordination:
+  protocol_version: 0.1.0
+  issue_number: 4
+  issue_url: https://github.com/kimeisele/federation-hq/issues/4
+pipeline_state: requested
+prompt_pins:
+  operator:
+    id: operator
+    version: 0.1.0
+    sha256: "17cd6f0e046dd75dd9393aabec80f409c5fc50ed8bfdb1097357f6069ff45a2c"
+  scout:
+    id: scout
+    version: 0.1.0
+    sha256: "6940ea39da9799fa6595809cfce6a948427bdc07edba2e48774418642fe6eb8a"
+  repair:
+    id: repair
+    version: 0.1.0
+    sha256: "0606d8ed7bec4501c10613d8e13b399325d6245b72f5d9212ea65e459f933f84"
+  review:
+    id: review
+    version: 0.1.0
+    sha256: "82b9cc37176304d418a934b261fa5efa2374d4e886c5afdec3789eaa264479e9"
+created_at: "2026-08-06T16:08:27Z"
+notes: >
+  Operator Coordination Protocol v0.1 pilot run 01. Target main verified to
+  resolve to the pinned baseline SHA at run opening (2026-08-06T16:08Z).
