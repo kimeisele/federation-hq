@@ -1,0 +1,24 @@
+kind: federation_hq_review_result
+review_id: run-20260806-agent-city-brain-tier-drift-rev1
+run_id: run-20260806-agent-city-brain-tier-drift
+candidate_id: run-20260806-agent-city-brain-tier-drift-c1
+result_id: run-20260806-agent-city-brain-tier-drift-r1
+target_repository: kimeisele/agent-city
+reviewer_head_sha: "9eb7f461a2859de5367812115f3a106926c47761"
+verdict: approved
+baseline_failures_checked:
+  - "tests/test_brain.py::TestModelTier::test_all_thought_kinds_have_tier (baseline 1 failed / 75 passed; head 0 failed / 76 passed)"
+  - "pre-existing ruff E501 x2 in tests/test_brain.py (verified identical at baseline)"
+  - "pre-existing 6 full-suite collection errors from untracked federation_v1/keys fixtures (verified identical at baseline)"
+newly_introduced_failures_checked: []
+blockers: []
+evidence_checked:
+  - "git ls-remote origin refs/heads/fix/brain-social-strategy-tier -> 9eb7f461a2859de5367812115f3a106926c47761 (exact head exists remotely; fresh independent checkout at that SHA)"
+  - "git diff 8694d81e..9eb7f461 --stat: exactly city/brain.py +1 line"
+  - "python -m pytest tests/test_brain.py::TestModelTier::test_all_thought_kinds_have_tier -q -> 1 passed"
+  - "python -m pytest tests/test_brain.py -q -> 76 passed"
+  - "python -m ruff check city/brain.py -> clean"
+  - "python -m compileall city/brain.py; git diff --check -> clean"
+  - "city/brain.py:50 SOCIAL_STRATEGY enum member; :85 explicit _KIND_TIER entry; :639 evaluate_social_strategy; :655 routing — contract now explicit"
+  - "candidate claim cross-check: entry matches selected tier (STANDARD), no provider/model change in diff"
+created_at: "2026-08-06T16:55:00Z"
