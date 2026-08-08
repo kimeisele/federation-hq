@@ -109,7 +109,7 @@ def _resolve_repository_id_via_gh(owner: str, repo: str) -> int:
     (which is valid only for /app endpoints). Failing to resolve fails closed.
     """
     result = subprocess.run(
-        ["gh", "api", "repos", f"{owner}/{repo}", "--jq", ".id"],
+        ["gh", "api", f"repos/{owner}/{repo}", "--jq", ".id"],
         capture_output=True,
         text=True,
         check=False,

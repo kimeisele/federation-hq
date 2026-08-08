@@ -182,3 +182,17 @@ def test_doctor_prints_no_token_or_secret(doctor_env, capsys):
     assert INSTALL_TOKEN not in output
     assert "fake-jwt" not in output
     assert "ghs_" not in output
+
+
+def test_repo_id_resolution_uses_single_path_argument(monkeypatch):
+    """gh api takes one path argument; the full path is a single arg."""
+    captured: list = []
+
+    def fake_run(args, **kwargs):
+        captured.append(args)
+        return _Completed("1324232895", 200)
+
+    monkeypatch.setattr("federation_hq_gate.auth.subprocess.run", fake_run)
+    repo_id = auth._resolve_repository_id_via_gh("kimeisele", "federation-hq")
+    assert repo_id == 1324232895
+    assert captured[0] == ["gh", "api", "repos/kimeisele/federation-hq", "--jq", ".id"]
