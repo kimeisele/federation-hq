@@ -75,6 +75,15 @@ class _Completed:
         self.returncode = 0
 
 
+class _Plain:
+    """A minimal completed-process stub without the status suffix."""
+
+    def __init__(self, *, returncode: int, stdout: str, stderr: str) -> None:
+        self.returncode = returncode
+        self.stdout = stdout
+        self.stderr = stderr
+
+
 def _installation() -> dict:
     return {
         "id": 152231415,
@@ -190,7 +199,7 @@ def test_repo_id_resolution_uses_single_path_argument(monkeypatch):
 
     def fake_run(args, **kwargs):
         captured.append(args)
-        return _Completed("1324232895", 200)
+        return _Plain(returncode=0, stdout="1324232895", stderr="")
 
     monkeypatch.setattr("federation_hq_gate.auth.subprocess.run", fake_run)
     repo_id = auth._resolve_repository_id_via_gh("kimeisele", "federation-hq")
