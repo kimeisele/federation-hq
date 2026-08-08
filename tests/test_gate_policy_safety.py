@@ -61,6 +61,9 @@ class Recorder:
 
     def gh_put(self, path: str, body: dict):
         self.puts.append((path, body))
+        # Mirror successful writes into the GET map so post-write remote
+        # verification observes the applied state.
+        self.gets[path] = body
         return body
 
     def gh_delete(self, path: str):
@@ -249,9 +252,14 @@ def test_rollback_restores_gate_ruleset_updated_by_apply(rec, tmp_path):
     backup = tmp_path / "b.json"
     backup.write_text(json.dumps({"kimeisele/federation-hq": before}))
     rec.gets["/repos/kimeisele/federation-hq/rulesets"] = [dict(GATE_RULESET)]
+    rec.gets["/repos/kimeisele/federation-hq/rulesets/900"] = dict(GATE_RULESET)
     report = policy.rollback(backup)
     assert any("ruleset-restored" in a for a in report["results"][0]["actions"])
-    assert rec.puts[0] == ("/repos/kimeisele/federation-hq/rulesets/900", before_gate)
+    # Blocker C: restore uses the normalized write-safe update payload, not
+    # the raw GET/list object (no id, no read-only fields).
+    expected = policy._normalize_ruleset_for_write(before_gate)
+    assert rec.puts[0] == ("/repos/kimeisele/federation-hq/rulesets/900", expected)
+    assert "id" not in rec.puts[0][1]
 
 
 def test_unrelated_rulesets_remain_untouched(rec, tmp_path):
@@ -286,8 +294,11 @@ def test_rollback_restores_classic_exactly(rec, tmp_path):
     rec.gets["/repos/kimeisele/federation-hq/rulesets"] = []
     rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = before_classic
     report = policy.rollback(backup)
+    # Blocker C: restore uses the normalized, write-safe payload (contexts
+    # become checks entries; read-only fields are absent).
+    expected = policy._normalize_classic_for_write(before_classic)
     assert rec.puts[0] == ("/repos/kimeisele/federation-hq/branches/main/protection",
-                           before_classic)
+                           expected)
     assert report["results"][0]["verification"]["ok"] is True
 
 

@@ -6,20 +6,33 @@ The Gate App is used only for the bootstrap check-run and the App-ID binding
 of the required check. No command mutates all repositories without the
 explicit plan-hash confirmation.
 
-Safety invariants enforced here:
+Safety invariants enforced here (including the review-fix pass):
 - bootstrap failure stops all protection mutation for that repository;
+- post-write remote verification failures are reported as ``failed`` (never
+  ``configured``) and the repository's before-state is restored, with the
+  rollback outcome reported explicitly;
+- the before-state backup is durably written (atomically) BEFORE the first
+  protection/ruleset mutation, so a process failure after any write still
+  leaves enough information for manual rollback;
+- snapshots are normalized, write-safe representations: raw GET/list
+  responses are never replayed as mutation payloads (ruleset list objects
+  are summaries; the Gate ruleset's full representation is fetched from the
+  individual endpoint; Classic responses are reduced to the writable
+  fields);
 - Classic required checks carry the exact Gate App ID and are never
   downgraded to unbound contexts;
 - ``--include`` limits the configurable plan to exactly the requested
   repositories (unknown, owner-mismatched, or contradictory includes fail);
 - rollback restores the mechanism actually changed (ruleset created ->
-  deleted, ruleset updated -> restored, classic created -> removed,
-  classic updated -> restored) and verifies the remote result.
+  deleted, ruleset updated -> restored from the normalized representation,
+  classic created -> removed, classic updated -> restored) and verifies the
+  remote result.
 """
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -73,6 +86,14 @@ def gh_delete(path: str) -> None:
         raise PolicyError(f"gh DELETE {path} failed: {(result.stderr or result.stdout)[:300]}")
 
 
+def _write_atomic(path: Path, data: dict) -> None:
+    """Persist data atomically (tmp file + rename) so a crash never leaves a
+    partial backup."""
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    os.replace(tmp, path)
+
+
 def plan_sha256(plan: dict) -> str:
     """Deterministic canonical form of the plan for hash confirmation.
 
@@ -85,19 +106,102 @@ def plan_sha256(plan: dict) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+# ── Normalized, write-safe representations ─────────────────────────────────
+
+
+def _normalize_classic_for_write(raw: dict | None) -> dict | None:
+    """Reduce a Classic Branch Protection GET response to the writable fields.
+
+    Raw responses carry read-only fields (``url`` and friends) that must
+    never be replayed as a mutation payload.
+    """
+    if raw is None:
+        return None
+    rsc = raw.get("required_status_checks") or {}
+    reviews = raw.get("required_pull_request_reviews") or {}
+    checks: list[dict] = []
+    for entry in rsc.get("checks") or []:
+        if isinstance(entry, dict) and isinstance(entry.get("context"), str):
+            preserved: dict = {"context": entry["context"]}
+            if entry.get("app_id"):
+                preserved["app_id"] = entry["app_id"]
+            checks.append(preserved)
+    for ctx in rsc.get("contexts") or []:
+        if isinstance(ctx, str):
+            checks.append({"context": ctx})
+    return {
+        "required_status_checks": {
+            "strict": bool(rsc.get("strict", True)),
+            "checks": checks,
+        },
+        "enforce_admins": bool(raw.get("enforce_admins", False)),
+        "required_pull_request_reviews": {
+            "required_approving_review_count": reviews.get(
+                "required_approving_review_count", 0
+            ),
+            "dismiss_stale_reviews": bool(reviews.get("dismiss_stale_reviews", False)),
+            "require_code_owner_reviews": bool(reviews.get("require_code_owner_reviews", False)),
+            "require_last_push_approval": bool(reviews.get("require_last_push_approval", False)),
+        },
+        "restrictions": raw.get("restrictions"),
+        "required_linear_history": bool(raw.get("required_linear_history", False)),
+        "allow_force_pushes": bool(raw.get("allow_force_pushes", False)),
+        "allow_deletions": bool(raw.get("allow_deletions", False)),
+        "required_conversation_resolution": bool(
+            raw.get("required_conversation_resolution", False)
+        ),
+    }
+
+
+def _normalize_ruleset_for_write(raw: dict) -> dict:
+    """Reduce a ruleset GET response to the documented update payload fields."""
+    return {
+        "name": raw.get("name"),
+        "target": raw.get("target", "branch"),
+        "enforcement": raw.get("enforcement", "active"),
+        "bypass_actors": raw.get("bypass_actors", []),
+        "conditions": raw.get("conditions"),
+        "rules": raw.get("rules", []),
+    }
+
+
 def _normalize_protection(repo: dict, default_branch: str) -> dict:
-    """Capture the protection facts needed for drift detection and backup."""
-    classic = None
+    """Capture normalized, write-safe protection facts for drift + backup.
+
+    Classic protection is reduced to its writable fields. Rulesets are stored
+    as summaries; when a Gate ruleset exists its FULL representation is
+    fetched from the individual ruleset endpoint and stored normalized so it
+    can be restored exactly.
+    """
+    classic_raw = None
     try:
-        classic = gh_get(f"/repos/{repo['full_name']}/branches/{default_branch}/protection")
+        classic_raw = gh_get(f"/repos/{repo['full_name']}/branches/{default_branch}/protection")
     except PolicyError:
-        classic = None
-    rulesets = None
+        classic_raw = None
+    rulesets_raw = None
     try:
-        rulesets = gh_get(f"/repos/{repo['full_name']}/rulesets")
+        rulesets_raw = gh_get(f"/repos/{repo['full_name']}/rulesets")
     except PolicyError:
-        rulesets = None
-    return {"classic": classic, "rulesets": rulesets if isinstance(rulesets, list) else None}
+        rulesets_raw = None
+
+    rulesets: list[dict] = []
+    for rs in rulesets_raw or []:
+        if not isinstance(rs, dict):
+            continue
+        summary: dict = {
+            "id": rs.get("id"),
+            "name": rs.get("name"),
+            "rules": rs.get("rules", []),
+        }
+        if rs.get("name") == GATE_RULESET_NAME and rs.get("id") is not None:
+            full = gh_get(f"/repos/{repo['full_name']}/rulesets/{rs['id']}")
+            if isinstance(full, dict):
+                summary["write_safe"] = _normalize_ruleset_for_write(full)
+        rulesets.append(summary)
+    return {
+        "classic": _normalize_classic_for_write(classic_raw),
+        "rulesets": rulesets,
+    }
 
 
 def discover_repositories(owner: str) -> list[dict]:
@@ -177,7 +281,7 @@ def build_plan(owner: str, exclusions: set[str], includes: set[str] | None = Non
         skip_reason = None
         if not perms.get("admin"):
             skip_reason = "insufficient owner admin permission for protection writes"
-        if skip_reason is None and protection["classic"] is None and protection["rulesets"] is None:
+        if skip_reason is None and protection["classic"] is None and protection["rulesets"] == []:
             skip_reason = "branch protection unavailable (plan/permissions limitation)"
         entries.append({
             "repository": full,
@@ -204,11 +308,7 @@ def build_plan(owner: str, exclusions: set[str], includes: set[str] | None = Non
 
 
 def _existing_required_checks(protection: dict) -> list[str]:
-    """Collect existing required checks preserving their App bindings.
-
-    Returns strings ``context`` or ``context@app_id`` so bindings survive
-    planning and are never silently dropped.
-    """
+    """Collect existing required checks preserving their App bindings."""
     checks: set[str] = set()
     classic = protection.get("classic")
     if isinstance(classic, dict):
@@ -217,12 +317,7 @@ def _existing_required_checks(protection: dict) -> list[str]:
             if isinstance(entry, dict) and isinstance(entry.get("context"), str):
                 ctx = entry["context"]
                 checks.add(f"{ctx}@{entry['app_id']}" if entry.get("app_id") else ctx)
-        for ctx in rsc.get("contexts") or []:
-            if isinstance(ctx, str):
-                checks.add(ctx)
     for rs in protection.get("rulesets") or []:
-        if not isinstance(rs, dict):
-            continue
         for rule in rs.get("rules") or []:
             if rule.get("type") == "required_status_checks":
                 for entry in rule.get("parameters", {}).get("checks") or []:
@@ -241,19 +336,43 @@ def _protection_changed(planned: dict, now: dict) -> bool:
     return False
 
 
+def _collect_backup(plan: dict) -> dict:
+    """Build the before-state backup from the drift-verified plan entries."""
+    backup: dict[str, dict] = {}
+    for entry in plan.get("repositories", []):
+        if entry.get("skip_reason"):
+            continue
+        backup[entry["repository"]] = {
+            "default_branch": entry["default_branch"],
+            "protection": entry["protection_snapshot"],
+        }
+    return backup
+
+
 def apply_plan(plan: dict, *, expected_sha256: str, app_installation_token_fn,
                dry_run: bool, app_id: str | None = None,
                backup_dir: Path | None = None) -> dict:
     """Apply the confirmed plan per repository; report per-repo outcomes.
 
     Safety: the hashed plan's repository list is the only scope apply may
-    touch; a bootstrap failure marks the repository failed and performs zero
-    protection writes; the Gate App ID is required for Classic App binding.
+    touch; the before-state backup is written atomically BEFORE any
+    mutation; a bootstrap failure marks the repository failed and performs
+    zero protection writes; a post-write verification failure is reported as
+    ``failed`` (never ``configured``) and the before-state is restored, with
+    the rollback outcome reported explicitly.
     """
     if plan_sha256(plan) != expected_sha256:
         raise PolicyError("plan SHA-256 does not match the confirmed hash; refusing to apply")
-    backup: dict[str, dict] = {}
+    backup = _collect_backup(plan)
     report = {"plan_sha256": expected_sha256, "dry_run": dry_run, "repositories": []}
+
+    # Blocker B: durable, atomic before-state backup BEFORE any mutation.
+    backup_path = None
+    if backup and not dry_run:
+        target_dir = backup_dir or Path.cwd()
+        backup_path = target_dir / f"policy-backup-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}.json"
+        _write_atomic(backup_path, backup)
+    report["backup_path"] = str(backup_path) if backup_path else None
 
     for entry in plan.get("repositories", []):
         full = entry["repository"]
@@ -270,15 +389,12 @@ def apply_plan(plan: dict, *, expected_sha256: str, app_installation_token_fn,
                     "reason": "repository state changed materially since planning",
                 })
                 continue
-            backup[full] = {"default_branch": entry["default_branch"],
-                            "protection": entry["protection_snapshot"]}
             if dry_run:
                 report["repositories"].append({
                     "repository": full, "status": "dry_run", "would_configure": True,
                 })
                 continue
 
-            # Defect 1: bootstrap MUST succeed before any protection write.
             bootstrap_ok, bootstrap_detail = _bootstrap_repo(
                 app_installation_token_fn, full, entry["default_branch"]
             )
@@ -295,11 +411,29 @@ def apply_plan(plan: dict, *, expected_sha256: str, app_installation_token_fn,
                     "reason": "Gate App ID unavailable; refusing protection write (fail closed)",
                 })
                 continue
-            protection_outcome = _configure_protection(full, entry, now, app_id)
+
+            _configure_protection(full, entry, now, app_id)
             verify = _verify_protection(full, entry["default_branch"], app_id)
+
+            # Blocker A: verification failure is NEVER reported as configured;
+            # the before-state is restored and the rollback outcome reported.
+            if not verify["ok"]:
+                restore = _rollback_repo(full, backup[full])
+                report["repositories"].append({
+                    "repository": full, "status": "failed",
+                    "reason": "remote verification failed after protection write; "
+                             f"rollback: {restore['status']}"
+                             + (f" ({restore.get('verification', {}).get('problems')})"
+                                if not restore["status"] == "ok" else ""),
+                    "verification": verify,
+                    "rollback": restore,
+                })
+                continue
+
             report["repositories"].append({
                 "repository": full, "status": "configured",
-                "bootstrap": bootstrap_detail, "protection": protection_outcome,
+                "bootstrap": bootstrap_detail,
+                "protection": "configured",
                 "verified": verify,
             })
         except PolicyError as exc:
@@ -307,13 +441,6 @@ def apply_plan(plan: dict, *, expected_sha256: str, app_installation_token_fn,
                 "repository": full, "status": "failed", "reason": str(exc),
             })
             continue  # bounded per-repository failure; do not corrupt the fleet
-
-    backup_path = None
-    if backup and not dry_run:
-        target_dir = backup_dir or Path.cwd()
-        backup_path = target_dir / f"policy-backup-{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}.json"
-        backup_path.write_text(json.dumps(backup, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    report["backup_path"] = str(backup_path) if backup_path else None
     return report
 
 
@@ -345,7 +472,7 @@ def _configure_protection(full: str, entry: dict, now: dict, app_id: str) -> str
     classic = protection.get("classic")
     rulesets = protection.get("rulesets") or []
     if rulesets:
-        return _configure_via_ruleset(full, default_branch, rulesets, app_id)
+        return _configure_via_ruleset(full, default_branch, app_id)
     return _configure_via_classic(full, default_branch, classic, app_id)
 
 
@@ -357,17 +484,12 @@ def _configure_via_classic(full: str, default_branch: str, existing: dict | None
     existing = existing or {}
     rsc = existing.get("required_status_checks") or {}
     checks: list[dict] = []
-    # Preserve existing checks with their original App bindings.
     for entry in rsc.get("checks") or []:
         if isinstance(entry, dict) and isinstance(entry.get("context"), str):
             preserved: dict = {"context": entry["context"]}
             if entry.get("app_id"):
                 preserved["app_id"] = entry["app_id"]
             checks.append(preserved)
-    for ctx in rsc.get("contexts") or []:
-        if isinstance(ctx, str):
-            checks.append({"context": ctx})
-    # Add or refresh the Gate check with the exact App ID.
     gate_entries = [c for c in checks if c["context"] == CHECK_RUN_NAME]
     for entry in gate_entries:
         entry["app_id"] = int(app_id)
@@ -399,9 +521,9 @@ def _configure_via_classic(full: str, default_branch: str, existing: dict | None
     return "classic-configured"
 
 
-def _configure_via_ruleset(full: str, default_branch: str, rulesets: list,
-                           app_id: str) -> str:
+def _configure_via_ruleset(full: str, default_branch: str, app_id: str) -> str:
     """Add/update the review-gate ruleset, App-bound, without touching others."""
+    rulesets = gh_get(f"/repos/{full}/rulesets") or []
     existing = [r for r in rulesets if isinstance(r, dict) and r.get("name") == GATE_RULESET_NAME]
     body = {
         "name": GATE_RULESET_NAME,
@@ -478,66 +600,79 @@ def _required_check_bound(classic, rulesets, app_id: str) -> bool:
     return False
 
 
+# ── Rollback ───────────────────────────────────────────────────────────────
+
+
 def rollback(backup_path: Path) -> dict:
     """Restore the mechanism actually changed, then verify the remote state.
 
     Ruleset created by apply -> deleted exactly that ruleset. Ruleset updated
-    by apply -> restored to its exact previous representation. Unrelated
-    rulesets are never touched. Classic protection updated -> restored
-    exactly; classic protection created on a previously unprotected branch ->
-    removed (unprotected state restored). Verification failures are reported.
+    by apply -> restored from the stored normalized write-safe representation.
+    Unrelated rulesets are never touched. Classic protection updated ->
+    restored from the normalized representation; classic protection created
+    on a previously unprotected branch -> removed. Verification failures are
+    reported.
     """
     backup = json.loads(backup_path.read_text(encoding="utf-8"))
     results = []
     for full, state in backup.items():
-        try:
-            before = state.get("protection") or {}
-            default_branch = state["default_branch"]
-            actions: list[str] = []
-
-            # Rulesets: restore the exact previous representation of the Gate
-            # ruleset, or delete it when apply created it.
-            before_gate = [
-                r for r in (before.get("rulesets") or [])
-                if isinstance(r, dict) and r.get("name") == GATE_RULESET_NAME
-            ]
-            current_rulesets = gh_get(f"/repos/{full}/rulesets")
-            current_gate = [
-                r for r in (current_rulesets or [])
-                if isinstance(r, dict) and r.get("name") == GATE_RULESET_NAME
-            ]
-            if before_gate:
-                gh_put(f"/repos/{full}/rulesets/{before_gate[0]['id']}", before_gate[0])
-                actions.append("ruleset-restored")
-            elif current_gate:
-                gh_delete(f"/repos/{full}/rulesets/{current_gate[0]['id']}")
-                actions.append("ruleset-deleted")
-
-            # Classic: restore exactly, or remove when apply created it.
-            before_classic = before.get("classic")
-            if isinstance(before_classic, dict):
-                gh_put(
-                    f"/repos/{full}/branches/{default_branch}/protection",
-                    before_classic,
-                )
-                actions.append("classic-restored")
-            else:
-                gh_delete(f"/repos/{full}/branches/{default_branch}/protection")
-                actions.append("classic-removed")
-
-            # Verify the resulting remote state.
-            verification = _verify_rollback(full, default_branch, before)
-            results.append({
-                "repository": full, "status": "restored",
-                "actions": actions, "verification": verification,
-            })
-        except PolicyError as exc:
-            results.append({"repository": full, "status": "failed", "reason": str(exc)})
+        results.append(_rollback_repo(full, state))
     return {"backup": str(backup_path), "results": results}
 
 
+def _rollback_repo(full: str, state: dict) -> dict:
+    """Restore one repository's before-state; verify and report explicitly."""
+    try:
+        before = state.get("protection") or {}
+        default_branch = state["default_branch"]
+        actions: list[str] = []
+
+        before_gate = [
+            r for r in (before.get("rulesets") or [])
+            if isinstance(r, dict) and r.get("name") == GATE_RULESET_NAME
+        ]
+        current_rulesets = gh_get(f"/repos/{full}/rulesets") or []
+        current_gate = [
+            r for r in current_rulesets
+            if isinstance(r, dict) and r.get("name") == GATE_RULESET_NAME
+        ]
+        if before_gate:
+            # Restore the exact previous representation from the normalized,
+            # write-safe payload stored in the backup.
+            write_safe = before_gate[0].get("write_safe") or _normalize_ruleset_for_write(
+                before_gate[0]
+            )
+            ruleset_id = before_gate[0].get("id")
+            if ruleset_id is None:
+                raise PolicyError("gate ruleset before-state lacks an id; cannot restore")
+            gh_put(f"/repos/{full}/rulesets/{ruleset_id}", write_safe)
+            actions.append("ruleset-restored")
+        elif current_gate:
+            gh_delete(f"/repos/{full}/rulesets/{current_gate[0]['id']}")
+            actions.append("ruleset-deleted")
+
+        before_classic = before.get("classic")
+        if isinstance(before_classic, dict):
+            gh_put(
+                f"/repos/{full}/branches/{default_branch}/protection",
+                _normalize_classic_for_write(before_classic),
+            )
+            actions.append("classic-restored")
+        else:
+            gh_delete(f"/repos/{full}/branches/{default_branch}/protection")
+            actions.append("classic-removed")
+
+        verification = _verify_rollback(full, default_branch, before)
+        return {
+            "repository": full, "status": "restored",
+            "actions": actions, "verification": verification,
+        }
+    except PolicyError as exc:
+        return {"repository": full, "status": "failed", "reason": str(exc)}
+
+
 def _verify_rollback(full: str, default_branch: str, before: dict) -> dict:
-    """Check the remote state matches the before-state after rollback."""
+    """Check the remote state matches the normalized before-state."""
     problems: list[str] = []
     try:
         current_rulesets = gh_get(f"/repos/{full}/rulesets") or []
@@ -553,15 +688,25 @@ def _verify_rollback(full: str, default_branch: str, before: dict) -> dict:
             problems.append("gate ruleset missing after rollback")
         if not before_gate and current_gate:
             problems.append("gate ruleset still present after rollback")
+        if before_gate and current_gate:
+            full_current = gh_get(f"/repos/{full}/rulesets/{current_gate[0]['id']}")
+            expected = before_gate[0].get("write_safe") or _normalize_ruleset_for_write(
+                before_gate[0]
+            )
+            if isinstance(full_current, dict) and _normalize_ruleset_for_write(
+                full_current
+            ) != expected:
+                problems.append("gate ruleset not restored to its previous representation")
 
         try:
-            classic = gh_get(f"/repos/{full}/branches/{default_branch}/protection")
+            classic_raw = gh_get(f"/repos/{full}/branches/{default_branch}/protection")
         except PolicyError:
-            classic = None
-        before_classic = before.get("classic")
-        if isinstance(before_classic, dict) and classic != before_classic:
+            classic_raw = None
+        current_classic = _normalize_classic_for_write(classic_raw)
+        expected_classic = _normalize_classic_for_write(before.get("classic"))
+        if isinstance(before.get("classic"), dict) and current_classic != expected_classic:
             problems.append("classic protection not restored exactly")
-        if before_classic is None and classic is not None:
+        if before.get("classic") is None and current_classic is not None:
             problems.append("classic protection still present after rollback")
     except PolicyError as exc:
         problems.append(str(exc))

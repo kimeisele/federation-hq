@@ -375,6 +375,7 @@ def test_apply_preserves_existing_checks_and_uses_default_branch(monkeypatch, tm
 
     def fake_gh_put(path, body):
         puts.append((path, body))
+        responses[path] = body  # reflect the write for remote verification
         return body
 
     monkeypatch.setattr(policy, "gh_put", fake_gh_put)
@@ -415,6 +416,7 @@ def test_partial_fleet_failure_continues(monkeypatch, tmp_path):
     def fake_put(path, body):
         if "bad" in path:
             raise policy.PolicyError("boom")
+        responses[path] = body  # reflect the write for remote verification
         return body
 
     monkeypatch.setattr(policy, "gh_put", fake_put)
@@ -449,7 +451,7 @@ def test_rollback_restores_before_state(monkeypatch, tmp_path):
     report = policy.rollback(path)
     assert report["results"][0]["status"] == "restored"
     assert puts[0][0] == "/repos/kimeisele/agent-city/branches/main/protection"
-    assert puts[0][1]["required_status_checks"]["contexts"] == ["ci/build"]
+    assert puts[0][1]["required_status_checks"]["checks"] == [{"context": "ci/build"}]
 
 
 # ── Secret redaction ────────────────────────────────────────────────────────
