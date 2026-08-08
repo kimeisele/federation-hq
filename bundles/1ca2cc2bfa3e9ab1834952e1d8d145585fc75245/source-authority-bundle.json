@@ -1,0 +1,84 @@
+{
+  "artifact_paths": {
+    "canonical_surface": ".authority-exports/canonical-surface.json",
+    "public_summary_registry": ".authority-exports/public-summary-registry.json",
+    "source_surface_registry": ".authority-exports/source-surface-registry.json",
+    "surface_metadata": ".authority-exports/surface-metadata.json"
+  },
+  "authority_exports": [
+    {
+      "artifact_uri": ".authority-exports/canonical-surface.json",
+      "content_sha256": "20f749a3efb4d9c9ce1315ad32ab0accdcdf650a3ba65a8243d840748229f1f5",
+      "contract_version": 1,
+      "export_id": "federation-hq/canonical_surface",
+      "export_kind": "canonical_surface",
+      "generated_at": 0.0,
+      "labels": {
+        "source_sha": "1ca2cc2bfa3e9ab1834952e1d8d145585fc75245"
+      },
+      "repo_id": "federation-hq",
+      "version": "1ca2cc2bfa3e9ab1834952e1d8d145585fc75245"
+    },
+    {
+      "artifact_uri": ".authority-exports/public-summary-registry.json",
+      "content_sha256": "1064c72b0fa9c94f53b0e3a25f20e5173a426cf4cd839594be8fa06395976a0e",
+      "contract_version": 1,
+      "export_id": "federation-hq/public_summary_registry",
+      "export_kind": "public_summary_registry",
+      "generated_at": 0.0,
+      "labels": {
+        "source_sha": "1ca2cc2bfa3e9ab1834952e1d8d145585fc75245"
+      },
+      "repo_id": "federation-hq",
+      "version": "1ca2cc2bfa3e9ab1834952e1d8d145585fc75245"
+    },
+    {
+      "artifact_uri": ".authority-exports/source-surface-registry.json",
+      "content_sha256": "aa4fc82daf68c8654af6e85052f0eab02606c13dbdb6462c289047491b1a72b5",
+      "contract_version": 1,
+      "export_id": "federation-hq/source_surface_registry",
+      "export_kind": "source_surface_registry",
+      "generated_at": 0.0,
+      "labels": {
+        "source_sha": "1ca2cc2bfa3e9ab1834952e1d8d145585fc75245"
+      },
+      "repo_id": "federation-hq",
+      "version": "1ca2cc2bfa3e9ab1834952e1d8d145585fc75245"
+    },
+    {
+      "artifact_uri": ".authority-exports/surface-metadata.json",
+      "content_sha256": "9d1be461e0f93bb512c4cc38cb9f1bbb6b6193602143d36e563512b979c4938d",
+      "contract_version": 1,
+      "export_id": "federation-hq/surface_metadata",
+      "export_kind": "surface_metadata",
+      "generated_at": 0.0,
+      "labels": {
+        "source_sha": "1ca2cc2bfa3e9ab1834952e1d8d145585fc75245"
+      },
+      "repo_id": "federation-hq",
+      "version": "1ca2cc2bfa3e9ab1834952e1d8d145585fc75245"
+    }
+  ],
+  "contract_version": 1,
+  "generated_at": 0.0,
+  "kind": "source_authority_bundle",
+  "repo_role": {
+    "consumes": [],
+    "exports": [
+      "canonical_surface",
+      "public_summary_registry",
+      "source_surface_registry",
+      "surface_metadata"
+    ],
+    "labels": {
+      "display_name": "Federation Hq"
+    },
+    "owner_boundary": "federation_hq_surface",
+    "publication_targets": [
+      "federation-hq-public-wiki"
+    ],
+    "repo_id": "federation-hq",
+    "role": "normative_source"
+  },
+  "source_sha": "1ca2cc2bfa3e9ab1834952e1d8d145585fc75245"
+}
