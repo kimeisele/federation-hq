@@ -240,8 +240,10 @@ def test_missing_required_permission_detection():
         auth._validate_installation_permissions(installation)
 
 
-def test_scoped_installation_token_request(fake_curl):
-    fake_curl.route("GET", "/repos/kimeisele/agent-city", {"id": 42, "full_name": REPO})
+def test_scoped_installation_token_request(fake_curl, monkeypatch):
+    monkeypatch.setattr(
+        "federation_hq_gate.auth._resolve_repository_id_via_gh", lambda owner, repo: 42
+    )
     fake_curl.route("POST", "/access_tokens", {"token": "ghs_fake"})
     jwt = "fake-jwt"
     token, _ = auth.create_installation_token(

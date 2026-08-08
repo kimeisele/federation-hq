@@ -13,7 +13,7 @@ import time
 from pathlib import Path
 
 from . import FORBIDDEN_PERMISSIONS, REQUIRED_PERMISSIONS
-from .http import GitHubError, request
+from .http import request
 
 # Application/vnd.github+json requires the full header; the app endpoints
 # additionally accept the raw Accept used by the client.
@@ -102,14 +102,28 @@ def _validate_installation_permissions(installation: dict) -> None:
         )
 
 
-def _resolve_repository_id(owner: str, repo: str, token: str) -> int | None:
+def _resolve_repository_id_via_gh(owner: str, repo: str) -> int:
+    """Resolve the numeric repository ID via the owner's authenticated gh session.
+
+    Repository metadata reads must use the owner session — never the App JWT
+    (which is valid only for /app endpoints). Failing to resolve fails closed.
+    """
+    result = subprocess.run(
+        ["gh", "api", "repos", f"{owner}/{repo}", "--jq", ".id"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
+        raise AuthError(
+            f"cannot resolve repository id for {owner}/{repo} via the owner gh session; "
+            "refusing to create an unrestricted installation token"
+        )
     try:
-        data = request("GET", f"/repos/{owner}/{repo}", token=token)
-    except GitHubError:
-        return None
-    if isinstance(data, dict) and isinstance(data.get("id"), int):
-        return data["id"]
-    return None
+        repo_id = int(result.stdout.strip())
+    except ValueError as exc:
+        raise AuthError("repository id resolution returned a non-numeric value") from exc
+    return repo_id
 
 
 def create_installation_token(
@@ -121,15 +135,16 @@ def create_installation_token(
 ) -> tuple[str, dict]:
     """Create an installation token, scoped to one repository when possible.
 
-    Returns (token, response). The requested permissions are the runtime
-    minimum; an installation that grants forbidden permissions is rejected
-    before any token is requested.
+    When *owner* and *repo* are supplied the token is restricted to exactly
+    that repository via ``repository_ids`` (the documented GitHub API field;
+    resolved through the owner's gh session — never the App JWT). A failed
+    resolution fails closed instead of silently producing an unrestricted
+    token. The requested permissions are the runtime minimum.
     """
     body: dict = {"permissions": dict(_SCOPE_PERMISSIONS)}
     if owner and repo:
-        repo_id = _resolve_repository_id(owner, repo, jwt)
-        if repo_id is not None:
-            body["repository_ids"] = [repo_id]
+        repo_id = _resolve_repository_id_via_gh(owner, repo)
+        body["repository_ids"] = [repo_id]
     data = request(
         "POST",
         f"/app/installations/{installation_id}/access_tokens",

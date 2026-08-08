@@ -92,15 +92,17 @@ def run_doctor(cfg: dict | None = None) -> DoctorReport:
     report.add("forbidden-permissions-absent", not forbidden,
                "no forbidden permissions" if not forbidden else f"forbidden: {forbidden}")
 
-    # 7. Probe capability: request a scoped installation token.
+    # 7. Probe capability: request a minimally scoped installation token for
+    #    kimeisele/federation-hq (the same token is used for the repository
+    #    metadata probe below).
+    probe_token: str | None = None
     try:
         from .auth import create_installation_token
-        token, _ = create_installation_token(jwt, str(installation["id"]))
-        report.add("token-probe", True, "scoped installation token obtained (not printed)")
-        # A check-run probe without touching code: list commits of the probe
-        # repo is unnecessary; token acquisition itself proves write-capable
-        # checks permission eligibility. A live probe check-run is only
-        # attempted when a repository is explicitly provided.
+        probe_token, _ = create_installation_token(
+            jwt, str(installation["id"]), owner="kimeisele", repo="federation-hq"
+        )
+        report.add("token-probe", True,
+                   "scoped installation token obtained (not printed)")
     except (AuthError, GitHubError) as exc:
         report.add("token-probe", False, str(exc))
 
@@ -111,14 +113,18 @@ def run_doctor(cfg: dict | None = None) -> DoctorReport:
         report.add("gh-owner-auth", False,
                    f"gh session is {owner}, expected {ACCOUNT_LOGIN} for policy management")
 
-    # 10. API access needed for protection reads/writes.
-    try:
-        data = request("GET", "/repos/kimeisele/federation-hq", token=jwt)
-        if isinstance(data, dict) and data.get("full_name"):
-            report.add("app-api-access", True, "app can read repository metadata")
-        else:
-            report.add("app-api-access", False, "unexpected metadata response")
-    except GitHubError as exc:
-        report.add("app-api-access", False, str(exc))
+    # 10. Repository metadata access — must use the Installation Access Token,
+    #     never the App JWT (valid only for /app endpoints).
+    if probe_token is None:
+        report.add("app-api-access", False, "skipped: no scoped installation token available")
+    else:
+        try:
+            data = request("GET", "/repos/kimeisele/federation-hq", token=probe_token)
+            if isinstance(data, dict) and data.get("full_name"):
+                report.add("app-api-access", True, "repository metadata read with scoped installation token")
+            else:
+                report.add("app-api-access", False, "unexpected metadata response")
+        except GitHubError as exc:
+            report.add("app-api-access", False, str(exc))
 
     return report
