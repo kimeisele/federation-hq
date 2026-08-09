@@ -395,3 +395,106 @@ def test_apply_report_distinguishes_policy_and_rollback_outcomes(tmp_path, monke
     assert entry["status"] == "failed"
     assert entry["policy_verification"]["ok"] is False
     assert entry["rollback"]["status"] == "restored"
+
+
+# ── Classic null semantics preservation ─────────────────────────────────────
+
+
+def _null_raw() -> dict:
+    """A GET response where both protection subsystems are disabled (null)."""
+    return {
+        "required_status_checks": None,
+        "enforce_admins": None,
+        "required_pull_request_reviews": None,
+        "restrictions": None,
+        "required_linear_history": None,
+        "allow_force_pushes": None,
+        "allow_deletions": None,
+    }
+
+
+def test_required_status_checks_null_remains_null():
+    normalized = policy._normalize_classic_for_write(_null_raw())
+    assert normalized["required_status_checks"] is None
+
+
+def test_required_pull_request_reviews_null_remains_null():
+    normalized = policy._normalize_classic_for_write(_null_raw())
+    assert normalized["required_pull_request_reviews"] is None
+
+
+def test_rollback_restores_required_status_checks_null(tmp_path, monkeypatch):
+    rec = OrderRecorder()
+    before_classic = _null_raw()
+    before = {"default_branch": "main",
+              "protection": {"classic": before_classic, "rulesets": []}}
+    backup = tmp_path / "b.json"
+    backup.write_text(json.dumps({"kimeisele/federation-hq": before}))
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = []
+    rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = None
+    monkeypatch.setattr(policy, "gh_get", rec.gh_get)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
+    policy.rollback(backup)
+    body = rec.puts[0][1]
+    assert body["required_status_checks"] is None
+    assert body["required_pull_request_reviews"] is None
+
+
+def test_rollback_does_not_create_absent_status_check_protection(tmp_path, monkeypatch):
+    """Rollback must not enable status-check protection that did not exist."""
+    rec = OrderRecorder()
+    before = {"default_branch": "main",
+              "protection": {"classic": _null_raw(), "rulesets": []}}
+    backup = tmp_path / "b.json"
+    backup.write_text(json.dumps({"kimeisele/federation-hq": before}))
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = []
+    rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = None
+    monkeypatch.setattr(policy, "gh_get", rec.gh_get)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
+    policy.rollback(backup)
+    body = rec.puts[0][1]
+    assert body["required_status_checks"] is None
+    assert body["required_pull_request_reviews"] is None
+
+
+def test_rollback_does_not_create_absent_pr_review_protection(tmp_path, monkeypatch):
+    rec = OrderRecorder()
+    before = {"default_branch": "main",
+              "protection": {"classic": _null_raw(), "rulesets": []}}
+    backup = tmp_path / "b.json"
+    backup.write_text(json.dumps({"kimeisele/federation-hq": before}))
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = []
+    rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = None
+    monkeypatch.setattr(policy, "gh_get", rec.gh_get)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
+    policy.rollback(backup)
+    body = rec.puts[0][1]
+    assert body["required_pull_request_reviews"] is None
+
+
+def test_non_null_sections_still_round_trip():
+    raw = _classic(contexts=["ci/build"])
+    normalized = policy._normalize_classic_for_write(raw)
+    assert normalized["required_status_checks"] == {
+        "strict": True, "checks": [{"context": "ci/build"}]}
+    assert normalized["required_pull_request_reviews"]["required_approving_review_count"] == 1
+    # Re-normalizing the normalized form is idempotent.
+    assert policy._normalize_classic_for_write(normalized) == normalized
+
+
+def test_nullable_enforce_admins_and_force_pushes_retained():
+    raw = _null_raw()
+    raw["enforce_admins"] = None
+    raw["allow_force_pushes"] = None
+    normalized = policy._normalize_classic_for_write(raw)
+    assert normalized["enforce_admins"] is None
+    assert normalized["allow_force_pushes"] is None
+    # And objects still decode:
+    raw["enforce_admins"] = {"enabled": True}
+    raw["allow_force_pushes"] = {"enabled": False}
+    normalized = policy._normalize_classic_for_write(raw)
+    assert normalized["enforce_admins"] is True
+    assert normalized["allow_force_pushes"] is False

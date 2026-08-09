@@ -114,7 +114,7 @@ def _github_enabled(value) -> bool:
 
     ``bool({"enabled": false})`` is ``True`` in Python, which would invert
     protection state; this helper handles boolean, ``{"enabled": ...}``,
-    and null/missing consistently.
+    and null/missing consistently (null/missing decode to False).
     """
     if isinstance(value, bool):
         return value
@@ -124,6 +124,34 @@ def _github_enabled(value) -> bool:
             return enabled
         return bool(enabled)  # pragma: no cover - defensive for odd payloads
     return bool(value)  # null/missing -> False
+
+
+def _nullable_enabled(raw_value):
+    """Preserve explicit null semantics for fields GitHub allows to be null.
+
+    Returns None when the API value is null (protection subsystem absent /
+    unset), otherwise the decoded boolean. A meaningful API null must not be
+    converted to False merely because both may currently behave similarly:
+    the before-snapshot and rollback payload keep the null.
+    """
+    if raw_value is None:
+        return None
+    return _github_enabled(raw_value)
+
+
+def _nullable_section(raw_value):
+    """Preserve null-vs-object semantics for Classic protection sections.
+
+    GitHub's Update Branch Protection API treats ``required_status_checks:
+    null`` and ``required_pull_request_reviews: null`` as "protection
+    disabled". A null section must survive backup and rollback as null so a
+    rollback never enables a subsystem that did not exist before apply.
+    """
+    if raw_value is None:
+        return None
+    if not isinstance(raw_value, dict):
+        return None
+    return raw_value
 
 
 def _normalize_restrictions(raw) -> dict | None:
@@ -165,8 +193,30 @@ def _normalize_classic_for_write(raw: dict | None) -> dict | None:
     """
     if raw is None:
         return None
-    rsc = raw.get("required_status_checks") or {}
-    reviews = raw.get("required_pull_request_reviews") or {}
+    rsc = _nullable_section(raw.get("required_status_checks"))
+    reviews = _nullable_section(raw.get("required_pull_request_reviews"))
+    normalized: dict = {
+        "required_status_checks": None if rsc is None else {
+            "strict": bool(rsc.get("strict", True)),
+            "checks": _normalize_checks(rsc),
+        },
+        "enforce_admins": _nullable_enabled(raw.get("enforce_admins")),
+        "required_pull_request_reviews": None if reviews is None else _normalize_reviews(reviews),
+        "restrictions": _normalize_restrictions(raw.get("restrictions")),
+        "required_linear_history": _nullable_enabled(raw.get("required_linear_history")),
+        "allow_force_pushes": _nullable_enabled(raw.get("allow_force_pushes")),
+        "allow_deletions": _nullable_enabled(raw.get("allow_deletions")),
+        "block_creations": _nullable_enabled(raw.get("block_creations")),
+        "required_conversation_resolution": _nullable_enabled(
+            raw.get("required_conversation_resolution")
+        ),
+        "lock_branch": _nullable_enabled(raw.get("lock_branch")),
+        "allow_fork_syncing": _nullable_enabled(raw.get("allow_fork_syncing")),
+    }
+    return normalized
+
+
+def _normalize_checks(rsc: dict) -> list[dict]:
     checks: list[dict] = []
     for entry in rsc.get("checks") or []:
         if isinstance(entry, dict) and isinstance(entry.get("context"), str):
@@ -177,44 +227,27 @@ def _normalize_classic_for_write(raw: dict | None) -> dict | None:
     for ctx in rsc.get("contexts") or []:
         if isinstance(ctx, str):
             checks.append({"context": ctx})
+    return checks
+
+
+def _normalize_reviews(reviews: dict) -> dict:
     normalized = {
-        "required_status_checks": {
-            "strict": bool(rsc.get("strict", True)),
-            "checks": checks,
-        },
-        "enforce_admins": _github_enabled(raw.get("enforce_admins", False)),
-        "required_pull_request_reviews": {
-            "required_approving_review_count": reviews.get(
-                "required_approving_review_count", 0
-            ),
-            "dismiss_stale_reviews": _github_enabled(
-                reviews.get("dismiss_stale_reviews", False)
-            ),
-            "require_code_owner_reviews": _github_enabled(
-                reviews.get("require_code_owner_reviews", False)
-            ),
-            "require_last_push_approval": _github_enabled(
-                reviews.get("require_last_push_approval", False)
-            ),
-        },
-        "restrictions": _normalize_restrictions(raw.get("restrictions")),
-        "required_linear_history": _github_enabled(
-            raw.get("required_linear_history", False)
+        "required_approving_review_count": reviews.get(
+            "required_approving_review_count", 0
         ),
-        "allow_force_pushes": _github_enabled(raw.get("allow_force_pushes", False)),
-        "allow_deletions": _github_enabled(raw.get("allow_deletions", False)),
-        "block_creations": _github_enabled(raw.get("block_creations", False)),
-        "required_conversation_resolution": _github_enabled(
-            raw.get("required_conversation_resolution", False)
+        "dismiss_stale_reviews": _github_enabled(
+            reviews.get("dismiss_stale_reviews", False)
         ),
-        "lock_branch": _github_enabled(raw.get("lock_branch", False)),
-        "allow_fork_syncing": _github_enabled(raw.get("allow_fork_syncing", False)),
+        "require_code_owner_reviews": _github_enabled(
+            reviews.get("require_code_owner_reviews", False)
+        ),
+        "require_last_push_approval": _github_enabled(
+            reviews.get("require_last_push_approval", False)
+        ),
     }
     bypass = reviews.get("bypass_pull_request_allowances")
     if isinstance(bypass, dict):
-        normalized["required_pull_request_reviews"][
-            "bypass_pull_request_allowances"
-        ] = _normalize_pr_allowances(bypass)
+        normalized["bypass_pull_request_allowances"] = _normalize_pr_allowances(bypass)
     return normalized
 
 
