@@ -33,6 +33,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -63,6 +64,24 @@ def gh_get(path: str) -> dict | list | None:
     if not result.stdout.strip():
         return None
     return json.loads(result.stdout)
+
+
+def gh_get_optional_not_found(path: str) -> dict | list | None:
+    """GET, treating ONLY a confirmed HTTP 404 as ``None``.
+
+    Classic Branch Protection returns HTTP 404 ("Branch not protected")
+    when a branch has no Classic protection — the expected state for a
+    repository protected exclusively by Repository Rulesets. Any other
+    failure (401/403/429/5xx, transport, JSON) remains a fail-closed
+    PolicyError and is NEVER converted to ``None``.
+    """
+    try:
+        return gh_get(path)
+    except PolicyError as exc:
+        match = re.search(r"\(HTTP (\d{3})\)", str(exc))
+        if match is not None and match.group(1) == "404":
+            return None
+        raise
 
 
 def gh_put(path: str, body: dict) -> dict | None:
@@ -288,10 +307,9 @@ def _normalize_protection(repo: dict, default_branch: str) -> dict:
     can be restored exactly.
     """
     classic_raw = None
-    try:
-        classic_raw = gh_get(f"/repos/{repo['full_name']}/branches/{default_branch}/protection")
-    except PolicyError:
-        classic_raw = None
+    classic_raw = gh_get_optional_not_found(
+        f"/repos/{repo['full_name']}/branches/{default_branch}/protection"
+    )
     rulesets_raw = None
     try:
         rulesets_raw = gh_get(f"/repos/{repo['full_name']}/rulesets")
@@ -718,7 +736,9 @@ def _verify_protection(full: str, default_branch: str, app_id: str) -> dict:
     must not be assumed to contain the ``rules`` array.
     """
     try:
-        classic = gh_get(f"/repos/{full}/branches/{default_branch}/protection")
+        classic = gh_get_optional_not_found(
+            f"/repos/{full}/branches/{default_branch}/protection"
+        )
         rulesets = gh_get(f"/repos/{full}/rulesets")
     except PolicyError as exc:
         return {"ok": False, "reason": str(exc)}
@@ -855,13 +875,12 @@ def _rollback_repo(full: str, state: dict) -> dict:
             actions.append("classic-restored")
         else:
             # Only remove classic protection when apply actually created it
-            # (current state has protection that before-state lacked).
-            try:
-                current_classic_raw = gh_get(
-                    f"/repos/{full}/branches/{default_branch}/protection"
-                )
-            except PolicyError:
-                current_classic_raw = None
+            # (current state has protection that before-state lacked). A
+            # classic-endpoint 404 means "no Classic protection" (ruleset-only
+            # repository); anything else remains fail-closed.
+            current_classic_raw = gh_get_optional_not_found(
+                f"/repos/{full}/branches/{default_branch}/protection"
+            )
             if current_classic_raw is not None:
                 gh_delete(f"/repos/{full}/branches/{default_branch}/protection")
                 actions.append("classic-removed")
@@ -910,10 +929,9 @@ def _verify_rollback(full: str, default_branch: str, before: dict) -> dict:
             ) != expected:
                 problems.append("gate ruleset not restored to its previous representation")
 
-        try:
-            classic_raw = gh_get(f"/repos/{full}/branches/{default_branch}/protection")
-        except PolicyError:
-            classic_raw = None
+        classic_raw = gh_get_optional_not_found(
+            f"/repos/{full}/branches/{default_branch}/protection"
+        )
         current_classic = _normalize_classic_for_write(classic_raw)
         expected_classic = _normalize_classic_for_write(before.get("classic"))
         if isinstance(before.get("classic"), dict) and current_classic != expected_classic:

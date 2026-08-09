@@ -932,3 +932,230 @@ def test_ruleset_inventory_uses_write_safe_full_representation():
     }
     protection = {"classic": None, "rulesets": [summary]}
     assert policy._existing_required_checks(protection) == ["federation-hq/review@4528340"]
+
+
+# ── Classic Branch Protection optional-404 boundary (CLASSIC_404_FIX) ─────
+
+
+def _not_found_error(path: str) -> policy.PolicyError:
+    return policy.PolicyError(f"gh GET {path} failed: gh: Branch not protected (HTTP 404)")
+
+
+def _http_error(path: str, code: int) -> policy.PolicyError:
+    return policy.PolicyError(f"gh GET {path} failed: gh: Server Error (HTTP {code})")
+
+
+def _gate_full_rs(integration_id: int) -> dict:
+    return {"id": 900, "name": policy.GATE_RULESET_NAME, "rules": [
+        {"type": "required_status_checks", "parameters": {"required_status_checks": [
+            {"context": "federation-hq/review", "integration_id": integration_id}]}}]}
+
+
+def _rollback_backup(tmp_path, protection: dict) -> Path:
+    before = {"default_branch": "main", "protection": protection,
+              "policy_mutation_started": True}
+    backup = tmp_path / "b.json"
+    backup.write_text(json.dumps({"kimeisele/federation-hq": before}))
+    return backup
+
+
+def test_gh_get_optional_not_found_swallows_only_404(monkeypatch):
+    def gh_get(path):
+        if path == "/404":
+            raise _not_found_error(path)
+        if path == "/403":
+            raise _http_error(path, 403)
+        if path == "/ok":
+            return {"ok": True}
+        raise policy.PolicyError("gh GET /transport failed: Connection refused")
+
+    monkeypatch.setattr(policy, "gh_get", gh_get)
+    assert policy.gh_get_optional_not_found("/404") is None
+    assert policy.gh_get_optional_not_found("/ok") == {"ok": True}
+    for path in ("/403", "/transport"):
+        with pytest.raises(policy.PolicyError):
+            policy.gh_get_optional_not_found(path)
+
+
+def test_verify_protection_ruleset_only_classic_404_ok(monkeypatch):
+    rec = OrderRecorder(mirror_puts=False)
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = [
+        {"id": 900, "name": policy.GATE_RULESET_NAME, "enforcement": "active"}]
+    rec.gets["/repos/kimeisele/federation-hq/rulesets/900"] = _gate_full_rs(4528340)
+
+    def gh_get_404(path):
+        if path.endswith("/branches/main/protection"):
+            raise _not_found_error(path)
+        return rec.gh_get(path)
+
+    monkeypatch.setattr(policy, "gh_get", gh_get_404)
+    verify = policy._verify_protection("kimeisele/federation-hq", "main", "4528340")
+    assert verify["ok"] is True
+    assert verify["required_check_app_bound"] is True
+    assert verify["approval_count_zero"] is True
+
+
+def test_verify_protection_classic_403_fails_closed(monkeypatch):
+    rec = OrderRecorder(mirror_puts=False)
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = []
+
+    def gh_get_403(path):
+        if path.endswith("/branches/main/protection"):
+            raise _http_error(path, 403)
+        return rec.gh_get(path)
+
+    monkeypatch.setattr(policy, "gh_get", gh_get_403)
+    verify = policy._verify_protection("kimeisele/federation-hq", "main", "4528340")
+    assert verify["ok"] is False
+    assert "403" in verify["reason"]
+
+
+def test_verify_protection_classic_500_fails_closed(monkeypatch):
+    rec = OrderRecorder(mirror_puts=False)
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = []
+
+    def gh_get_500(path):
+        if path.endswith("/branches/main/protection"):
+            raise _http_error(path, 500)
+        return rec.gh_get(path)
+
+    monkeypatch.setattr(policy, "gh_get", gh_get_500)
+    verify = policy._verify_protection("kimeisele/federation-hq", "main", "4528340")
+    assert verify["ok"] is False
+    assert "500" in verify["reason"]
+
+
+def test_normalize_protection_classic_404_means_absent(monkeypatch):
+    rec = OrderRecorder(mirror_puts=False)
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = []
+
+    def gh_get_404(path):
+        if path.endswith("/branches/main/protection"):
+            raise _not_found_error(path)
+        return rec.gh_get(path)
+
+    monkeypatch.setattr(policy, "gh_get", gh_get_404)
+    normalized = policy._normalize_protection(_gh_repo("kimeisele/federation-hq"), "main")
+    assert normalized["classic"] is None
+
+
+def test_normalize_protection_classic_403_propagates(monkeypatch):
+    rec = OrderRecorder(mirror_puts=False)
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = []
+
+    def gh_get_403(path):
+        if path.endswith("/branches/main/protection"):
+            raise _http_error(path, 403)
+        return rec.gh_get(path)
+
+    monkeypatch.setattr(policy, "gh_get", gh_get_403)
+    with pytest.raises(policy.PolicyError):
+        policy._normalize_protection(_gh_repo("kimeisele/federation-hq"), "main")
+
+
+def test_rollback_classic_404_current_is_idempotent_noop(monkeypatch, tmp_path):
+    rec = OrderRecorder()
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = []
+
+    def gh_get_404(path):
+        if path.endswith("/branches/main/protection"):
+            raise _not_found_error(path)
+        return rec.gh_get(path)
+
+    monkeypatch.setattr(policy, "gh_get", gh_get_404)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
+    report = policy.rollback(_rollback_backup(tmp_path, {"classic": None, "rulesets": []}))
+    result = report["results"][0]
+    assert result["status"] == "restored"
+    assert any("classic-no-op" in a for a in result["actions"])
+    assert rec.deletes == []
+
+
+def test_rollback_classic_403_fails_not_noop(monkeypatch, tmp_path):
+    rec = OrderRecorder()
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = []
+
+    def gh_get_403(path):
+        if path.endswith("/branches/main/protection"):
+            raise _http_error(path, 403)
+        return rec.gh_get(path)
+
+    monkeypatch.setattr(policy, "gh_get", gh_get_403)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
+    report = policy.rollback(_rollback_backup(tmp_path, {"classic": None, "rulesets": []}))
+    result = report["results"][0]
+    assert result["status"] == "failed"
+    assert "403" in result["reason"]
+    assert rec.deletes == []
+
+
+def test_verify_rollback_classic_404_accepted_when_before_absent(monkeypatch):
+    rec = OrderRecorder()
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = []
+
+    def gh_get_404(path):
+        if path.endswith("/branches/main/protection"):
+            raise _not_found_error(path)
+        return rec.gh_get(path)
+
+    monkeypatch.setattr(policy, "gh_get", gh_get_404)
+    result = policy._verify_rollback(
+        "kimeisele/federation-hq", "main", {"classic": None, "rulesets": []})
+    assert result["ok"] is True
+
+
+def test_verify_rollback_classic_403_fails(monkeypatch):
+    rec = OrderRecorder()
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = []
+
+    def gh_get_403(path):
+        if path.endswith("/branches/main/protection"):
+            raise _http_error(path, 403)
+        return rec.gh_get(path)
+
+    monkeypatch.setattr(policy, "gh_get", gh_get_403)
+    result = policy._verify_rollback(
+        "kimeisele/federation-hq", "main", {"classic": None, "rulesets": []})
+    assert result["ok"] is False
+    assert any("403" in p for p in result["problems"])
+
+
+def test_verify_protection_classic_path_still_works(monkeypatch):
+    rec = OrderRecorder(mirror_puts=False)
+    rec.gets["/repos/kimeisele/agent-city/branches/main/protection"] = {
+        "required_status_checks": {"strict": True, "checks": [
+            {"context": "federation-hq/review", "app_id": 4528340}]},
+        "required_pull_request_reviews": {"required_approving_review_count": 0},
+    }
+    rec.gets["/repos/kimeisele/agent-city/rulesets"] = []
+    monkeypatch.setattr(policy, "gh_get", rec.gh_get)
+    verify = policy._verify_protection("kimeisele/agent-city", "main", "4528340")
+    assert verify["ok"] is True
+    assert verify["required_check_app_bound"] is True
+
+
+def test_verify_protection_ruleset_only_fetches_full_endpoint_and_binding(monkeypatch):
+    """Ruleset-only verification fetches the individual Gate ruleset endpoint
+    (the list summary has no rules) and verifies integration_id == app id."""
+    rec = OrderRecorder(mirror_puts=False)
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = [
+        {"id": 900, "name": policy.GATE_RULESET_NAME, "enforcement": "active"}]
+    rec.gets["/repos/kimeisele/federation-hq/rulesets/900"] = _gate_full_rs(4528340)
+    calls: list[str] = []
+
+    def gh_get_tracked(path):
+        calls.append(path)
+        if path.endswith("/branches/main/protection"):
+            raise _not_found_error(path)
+        return rec.gh_get(path)
+
+    monkeypatch.setattr(policy, "gh_get", gh_get_tracked)
+    verify = policy._verify_protection("kimeisele/federation-hq", "main", "4528340")
+    assert verify["ok"] is True
+    assert "/repos/kimeisele/federation-hq/rulesets/900" in calls
+    # Wrong integration id on the same full representation fails closed.
+    rec.gets["/repos/kimeisele/federation-hq/rulesets/900"] = _gate_full_rs(999)
+    verify_bad = policy._verify_protection("kimeisele/federation-hq", "main", "4528340")
+    assert verify_bad["ok"] is False
