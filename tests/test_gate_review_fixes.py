@@ -163,10 +163,13 @@ def test_backup_written_before_any_mutation(tmp_path, monkeypatch):
 
     monkeypatch.setattr(policy, "_write_atomic", recording_write_atomic)
     _apply(rec, plan, tmp_path=tmp_path)
-    # The durable backup write must precede every protection mutation.
+    # The durable backup write must precede every protection mutation, and
+    # the mutation-journal marker persist (a second atomic backup write) must
+    # also precede the first protection write.
     assert rec.events[0] == "backup"
     assert rec.puts, "expected at least one protection write"
-    assert all("put:" in e or "delete:" in e for e in rec.events[1:])
+    first_write = next(i for i, e in enumerate(rec.events) if "put:" in e or "delete:" in e)
+    assert any(e == "backup" for e in rec.events[:first_write])
 
 
 def test_backup_is_atomic_and_durable(tmp_path, monkeypatch):
@@ -498,3 +501,261 @@ def test_nullable_enforce_admins_and_force_pushes_retained():
     normalized = policy._normalize_classic_for_write(raw)
     assert normalized["enforce_admins"] is True
     assert normalized["allow_force_pushes"] is False
+
+
+# ── Canary live-defect fixes: POST ruleset creation + mutation journal ─────
+
+
+class PostRecorder(OrderRecorder):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.posts: list[tuple[str, dict]] = []
+
+    def gh_post(self, path: str, body: dict):
+        self.posts.append((path, body))
+        self.events.append(f"post:{path}")
+        # Mirror the created ruleset so post-write verification sees it.
+        if path.endswith("/rulesets"):
+            created = dict(body)
+            created["id"] = 900
+            self.gets["/repos/kimeisele/federation-hq/rulesets"] = [
+                {"id": 900, "name": created["name"], "rules": created.get("rules", [])}
+            ]
+            self.gets["/repos/kimeisele/federation-hq/rulesets/900"] = created
+        return body
+
+
+def test_ruleset_creation_uses_post(monkeypatch, tmp_path):
+    rec = PostRecorder()
+    rec.gets["/user/repos?affiliation=owner&per_page=100&page=1"] = [
+        _gh_repo("kimeisele/federation-hq")]
+    rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = None
+    # Existing rulesets but NO Gate ruleset -> creation path.
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = [
+        {"id": 20466659, "name": "agent-federation-baseline-v1", "rules": []}]
+    rec.gets["/repos/kimeisele/federation-hq"] = _gh_repo("kimeisele/federation-hq")
+    monkeypatch.setattr(policy, "gh_get", rec.gh_get)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+    monkeypatch.setattr(policy, "gh_post", rec.gh_post)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
+    monkeypatch.setattr(policy, "_bootstrap_repo",
+                        lambda fn, full, branch: (True, "bootstrapped"))
+    plan = policy.build_plan("kimeisele", set(), set())
+    report = policy.apply_plan(
+        plan, expected_sha256=plan["plan_sha256"],
+        app_installation_token_fn=lambda **k: "t", dry_run=False,
+        app_id="4528340", backup_dir=tmp_path,
+    )
+    assert report["repositories"][0]["status"] == "configured"
+    assert any(path == "/repos/kimeisele/federation-hq/rulesets" for path, _ in rec.posts)
+    assert not any(path == "/repos/kimeisele/federation-hq/rulesets" for path, _ in rec.puts)
+
+
+def test_ruleset_update_uses_put_by_id(monkeypatch, tmp_path):
+    rec = PostRecorder()
+    rec.gets["/user/repos?affiliation=owner&per_page=100&page=1"] = [
+        _gh_repo("kimeisele/federation-hq")]
+    rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = None
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = [
+        {"id": 900, "name": policy.GATE_RULESET_NAME, "rules": []}]
+    rec.gets["/repos/kimeisele/federation-hq/rulesets/900"] = dict(GATE_RULESET)
+    rec.gets["/repos/kimeisele/federation-hq"] = _gh_repo("kimeisele/federation-hq")
+    monkeypatch.setattr(policy, "gh_get", rec.gh_get)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+    monkeypatch.setattr(policy, "gh_post", rec.gh_post)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
+    monkeypatch.setattr(policy, "_bootstrap_repo",
+                        lambda fn, full, branch: (True, "bootstrapped"))
+    plan = policy.build_plan("kimeisele", set(), set())
+    report = policy.apply_plan(
+        plan, expected_sha256=plan["plan_sha256"],
+        app_installation_token_fn=lambda **k: "t", dry_run=False,
+        app_id="4528340", backup_dir=tmp_path,
+    )
+    assert report["repositories"][0]["status"] == "configured"
+    assert any(path == "/repos/kimeisele/federation-hq/rulesets/900" for path, _ in rec.puts)
+    assert rec.posts == []
+
+
+def test_failed_post_reports_failure_not_success(monkeypatch, tmp_path):
+    rec = PostRecorder()
+    rec.gets["/user/repos?affiliation=owner&per_page=100&page=1"] = [
+        _gh_repo("kimeisele/federation-hq")]
+    rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = None
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = [
+        {"id": 20466659, "name": "agent-federation-baseline-v1", "rules": []}]
+    rec.gets["/repos/kimeisele/federation-hq"] = _gh_repo("kimeisele/federation-hq")
+    monkeypatch.setattr(policy, "gh_get", rec.gh_get)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+
+    def failing_post(path, body):
+        raise policy.PolicyError("HTTP 404 Not Found")
+
+    monkeypatch.setattr(policy, "gh_post", failing_post)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
+    monkeypatch.setattr(policy, "_bootstrap_repo",
+                        lambda fn, full, branch: (True, "bootstrapped"))
+    plan = policy.build_plan("kimeisele", set(), set())
+    report = policy.apply_plan(
+        plan, expected_sha256=plan["plan_sha256"],
+        app_installation_token_fn=lambda **k: "t", dry_run=False,
+        app_id="4528340", backup_dir=tmp_path,
+    )
+    entry = report["repositories"][0]
+    assert entry["status"] == "failed"
+    assert "404" in entry["reason"]
+
+
+def test_backup_initially_records_mutation_not_started(monkeypatch, tmp_path):
+    rec = PostRecorder()
+    plan = _plan(rec, [_gh_repo("kimeisele/federation-hq")])
+    backup_events: list[str] = []
+    original_write_atomic = policy._write_atomic
+
+    def recording_write_atomic(path: Path, data: dict):
+        backup_events.append("backup")
+        if len(backup_events) == 1:  # first persist: before any marker
+            assert data["kimeisele/federation-hq"]["policy_mutation_started"] is False
+        original_write_atomic(path, data)
+
+    monkeypatch.setattr(policy, "_write_atomic", recording_write_atomic)
+    _apply(rec, plan, tmp_path=tmp_path)
+    assert backup_events[0] == "backup"
+    # The second persist (marker) records mutation-started BEFORE the write.
+    backup_path = Path(tmp_path) / [f.name for f in tmp_path.iterdir() if "policy-backup" in f.name][0]
+    journal = json.loads(backup_path.read_text())
+    assert journal["kimeisele/federation-hq"]["policy_mutation_started"] is True
+
+
+def test_repo_failing_before_write_remains_mutation_not_started(monkeypatch, tmp_path):
+    rec = PostRecorder()
+    plan = _plan(rec, [_gh_repo("kimeisele/federation-hq")])
+    # Bootstrap fails -> apply stops before the marker.
+    _apply(rec, plan, tmp_path=tmp_path, bootstrap_ok=False)
+    backup_path = Path(tmp_path) / [f.name for f in tmp_path.iterdir() if "policy-backup" in f.name][0]
+    journal = json.loads(backup_path.read_text())
+    assert journal["kimeisele/federation-hq"]["policy_mutation_started"] is False
+
+
+def test_rollback_mutation_not_started_performs_zero_writes(monkeypatch, tmp_path):
+    rec = PostRecorder()
+    before = {"default_branch": "main",
+              "protection": {"classic": _classic(), "rulesets": []},
+              "policy_mutation_started": False}
+    backup = tmp_path / "b.json"
+    backup.write_text(json.dumps({"kimeisele/federation-hq": before}))
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = []
+    rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = _classic()
+    monkeypatch.setattr(policy, "gh_get", rec.gh_get)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+    monkeypatch.setattr(policy, "gh_post", rec.gh_post)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
+    report = policy.rollback(backup)
+    result = report["results"][0]
+    assert result["status"] == "restored"
+    assert "no-op-already-original" in result["actions"]
+    assert rec.puts == [] and rec.posts == [] and rec.deletes == []
+
+
+def test_rollback_mutation_not_started_with_external_drift_reports_failure(monkeypatch, tmp_path):
+    rec = PostRecorder()
+    before = {"default_branch": "main",
+              "protection": {"classic": _classic(), "rulesets": []},
+              "policy_mutation_started": False}
+    backup = tmp_path / "b.json"
+    backup.write_text(json.dumps({"kimeisele/federation-hq": before}))
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = []
+    # External drift: current protection differs from before-state.
+    drifted = _classic(contexts=["external-drift-check"])
+    rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = drifted
+    monkeypatch.setattr(policy, "gh_get", rec.gh_get)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+    monkeypatch.setattr(policy, "gh_post", rec.gh_post)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
+    report = policy.rollback(backup)
+    result = report["results"][0]
+    assert result["status"] == "failed"
+    assert "external drift" in result["reason"]
+    assert rec.puts == [] and rec.posts == [] and rec.deletes == []
+
+
+def test_rollback_mutation_started_still_restores(monkeypatch, tmp_path):
+    rec = PostRecorder()
+    before = {"default_branch": "main",
+              "protection": {"classic": _classic(), "rulesets": []},
+              "policy_mutation_started": True}
+    backup = tmp_path / "b.json"
+    backup.write_text(json.dumps({"kimeisele/federation-hq": before}))
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = []
+    rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = _classic()
+    monkeypatch.setattr(policy, "gh_get", rec.gh_get)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+    monkeypatch.setattr(policy, "gh_post", rec.gh_post)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
+    report = policy.rollback(backup)
+    result = report["results"][0]
+    assert result["status"] == "restored"
+    assert any("classic-restored" in a for a in result["actions"])
+
+
+def test_rollback_classic_absent_is_idempotent_noop(monkeypatch, tmp_path):
+    rec = PostRecorder()
+    before = {"default_branch": "main",
+              "protection": {"classic": None, "rulesets": []},
+              "policy_mutation_started": True}
+    backup = tmp_path / "b.json"
+    backup.write_text(json.dumps({"kimeisele/federation-hq": before}))
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = []
+    rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = None
+    monkeypatch.setattr(policy, "gh_get", rec.gh_get)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+    monkeypatch.setattr(policy, "gh_post", rec.gh_post)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
+    report = policy.rollback(backup)
+    result = report["results"][0]
+    assert any("classic-no-op" in a for a in result["actions"])
+    assert not any("/branches/main/protection" in d for d in rec.deletes)
+
+
+def test_rollback_gate_ruleset_absent_is_idempotent_noop(monkeypatch, tmp_path):
+    rec = PostRecorder()
+    before = {"default_branch": "main",
+              "protection": {"classic": None, "rulesets": []},
+              "policy_mutation_started": True}
+    backup = tmp_path / "b.json"
+    backup.write_text(json.dumps({"kimeisele/federation-hq": before}))
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = []
+    rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = None
+    monkeypatch.setattr(policy, "gh_get", rec.gh_get)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+    monkeypatch.setattr(policy, "gh_post", rec.gh_post)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
+    report = policy.rollback(backup)
+    result = report["results"][0]
+    assert any("ruleset-no-op" in a for a in result["actions"])
+    assert not any("rulesets" in d for d in rec.deletes)
+    assert result["status"] == "restored"
+
+
+def test_crash_window_after_marker_before_write_rolls_back_safely(monkeypatch, tmp_path):
+    """Marker true but the remote never changed (crash before GitHub accepted
+    the write): rollback must no-op and verify unchanged state."""
+    rec = PostRecorder()
+    before = {"default_branch": "main",
+              "protection": {"classic": None, "rulesets": []},
+              "policy_mutation_started": True}
+    backup = tmp_path / "b.json"
+    backup.write_text(json.dumps({"kimeisele/federation-hq": before}))
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = []
+    rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = None
+    monkeypatch.setattr(policy, "gh_get", rec.gh_get)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+    monkeypatch.setattr(policy, "gh_post", rec.gh_post)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
+    report = policy.rollback(backup)
+    result = report["results"][0]
+    assert result["status"] == "restored"
+    assert any("classic-no-op" in a for a in result["actions"])
+    assert any("ruleset-no-op" in a for a in result["actions"])
+    assert rec.deletes == []
+    assert result["verification"]["ok"] is True

@@ -253,7 +253,9 @@ def test_rollback_deletes_gate_ruleset_created_by_apply(rec, tmp_path):
     assert report["results"][0]["status"] == "restored"
     assert any("ruleset-deleted" in a for a in report["results"][0]["actions"])
     assert "/repos/kimeisele/federation-hq/rulesets/900" in rec.deletes
-    assert "/repos/kimeisele/federation-hq/branches/main/protection" in rec.deletes
+    # Classic was never created and current classic is absent -> no-op, no DELETE.
+    assert any("classic-no-op" in a for a in report["results"][0]["actions"])
+    assert "/repos/kimeisele/federation-hq/branches/main/protection" not in rec.deletes
 
 
 def test_rollback_restores_gate_ruleset_updated_by_apply(rec, tmp_path):
@@ -283,11 +285,14 @@ def test_unrelated_rulesets_remain_untouched(rec, tmp_path):
     rec.gets["/repos/kimeisele/federation-hq/rulesets"] = [dict(UNRELATED_RULESET)]
     policy.rollback(backup)
     assert rec.puts == []
-    assert rec.deletes == ["/repos/kimeisele/federation-hq/branches/main/protection"]
+    # No Gate ruleset and no classic protection exist anywhere -> zero deletes.
+    assert rec.deletes == []
 
 
 def test_rollback_removes_classic_created_on_unprotected_branch(rec, tmp_path):
-    rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = None
+    # Apply created classic protection on a previously unprotected branch, so
+    # the current remote HAS protection while the before-state had none.
+    rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = _classic()
     before = {"default_branch": "main", "protection": {"classic": None, "rulesets": []}}
     backup = tmp_path / "b.json"
     backup.write_text(json.dumps({"kimeisele/federation-hq": before}))
