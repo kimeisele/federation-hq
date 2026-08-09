@@ -41,10 +41,11 @@ documented Operator capability** — not as a protocol change.
 
 The canonical layer is unchanged by this slice. `operator@0.1.0` is
 immutable; the new behavior lives in the additive release `operator@0.2.0`
-(`prompts/operator/v0.2.0.md`, registered in `prompts/registry.yaml`).
-Run manifests pin prompt versions, so existing runs (Pilot 01, Pilot 02,
-and any future run pinning `operator@0.1.0`) remain valid and
-interpretable.
+(`prompts/operator/v0.2.0.md`, registered in `prompts/registry.yaml`), with
+the Integrator auto-dispatch clarification released as `operator@0.2.1`
+(PATCH, `prompts/operator/v0.2.1.md`). Run manifests pin prompt versions,
+so existing runs (Pilot 01, Pilot 02, and any future run pinning
+`operator@0.1.0` or `operator@0.2.0`) remain valid and interpretable.
 
 ## OMP as the first reference adapter
 
@@ -53,6 +54,12 @@ This repository ships thin project-local role wrappers under `.omp/agents/`
 (`hq-scout.md`, `hq-repair.md`, `hq-review.md`, `hq-integrator.md`) that
 define ONLY the adapter-side contract:
 
+- valid OMP agent frontmatter (`name`, role-specific `description`) so the
+  harness natively discovers them by exact name (`agent: hq-scout`, ...);
+- `spawns: []` — a deny-all child-spawn policy: the Operator may spawn
+  `hq-*` workers, but an `hq-*` worker may NOT spawn further Federation HQ
+  workers (no agent Matryoshka orchestration); tool access is not
+  restricted unless a specific role requires it;
 - read the Coordination Issue and the active assignment (by message
   identity, not a rewritten summary);
 - read the run manifest;
@@ -65,6 +72,14 @@ The wrappers deliberately do NOT duplicate the canonical Scout/Repair/
 Review prompts: `prompts/` remains the single source of semantic role
 truth. The wrappers are harness-local files, not canonical artifacts; the
 validator does not treat them as such.
+
+Discovery note: OMP resolves task agents from the **nearest** `.omp/agents`
+directory of the session working directory (project scope first, then user
+scope). An OMP session whose working directory is the Federation HQ
+repository discovers `hq-*` automatically; a session rooted elsewhere must
+expose the agents at its own nearest `.omp/agents` (e.g. by linking the
+repository's `.omp/agents/*.md`) or the agents are not in that session's
+roster.
 
 An OMP Operator session uses its native subagent/task capability to launch
 a worker with the corresponding wrapper. Federation HQ Core does not know
@@ -87,7 +102,10 @@ active worker assignment in canonical state
 The Operator remains the ONLY orchestrator. Workers never accept their own
 artifact, never advance state, never publish semantic Gate approval, and
 never merge (merging is the distinct Integrator capability, itself a
-mechanical role around already-approved state). A failed dispatch is an
+mechanical role around already-approved state — and the Operator may
+dispatch an isolated `hq-integrator` worker through the same adapter after
+an accepted approved Review verdict, per `operator@0.2.1`, with
+manual/external Integrator handoff as the fallback). A failed dispatch is an
 operational failure, never semantic acceptance: it must become a visible
 blocker (or a manual fallback), not a fabricated submission.
 

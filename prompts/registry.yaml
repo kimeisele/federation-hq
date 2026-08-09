@@ -101,3 +101,18 @@ prompts:
           remains the supported fallback; no harness becomes part of the
           protocol vocabulary. Does not invalidate prior artifacts or runs
           pinned to operator@0.1.0.
+      - version: 0.2.1
+        file: operator/v0.2.1.md
+        sha256: "1638cb9876fdfe0184c596b6ea0fd8c8621fb96db63a55c4f9bd1abf30675de5"
+        status: released
+        released: "2026-08-09"
+        changelog: >
+          PATCH clarification (Issue #15 bounded review, PR #16): makes
+          Integrator auto-dispatch explicit in the automated-dispatch
+          section. After a canonical approved Review verdict, the Operator
+          MAY spawn an isolated hq-integrator worker through the same
+          execution adapter (mechanical, execution-only, not a new pipeline
+          state and not a semantic Reviewer); manual/external Integrator
+          handoff remains the fallback when no adapter is available. No
+          state machine, coordination-message type, protocol, artifact, or
+          Gate semantics changed. operator@0.2.0 bytes remain immutable.
