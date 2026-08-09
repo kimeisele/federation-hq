@@ -32,7 +32,7 @@ coordination:
   protocol_version: 0.1.0
   issue_number: 21
   issue_url: https://github.com/kimeisele/federation-hq/issues/21
-pipeline_state: repair_submitted
+pipeline_state: approved
 prompt_pins:
   operator:
     id: operator
@@ -71,4 +71,9 @@ notes: >
   repair_in_progress (assignment msg-stab02-0005); repair_in_progress ->
   repair_submitted (artifact_acceptance msg-stab02-0007, canonical
   repair-result SHA-256 df10ffb894f5d36a3eb4b4d140c796697a88049791e9a9b005b9daac92a6ab17,
-  PR kimeisele/agent-city#2716, head 4ec0c3733bd918b366a06d812c0276dd7ffbf35d).
+  PR kimeisele/agent-city#2716, head 4ec0c3733bd918b366a06d812c0276dd7ffbf35d);
+  repair_submitted -> independent_review (assignment msg-stab02-0008);
+  Reviewer submitted verdict approved (msg-stab02-0009);
+  independent_review -> approved (artifact_acceptance msg-stab02-0010,
+  canonical review-result SHA-256
+  b5b3e630b15fdaf1b8adafed907f1f3fb1fce5bc420b58955d5baf9e3cdfd21e).
