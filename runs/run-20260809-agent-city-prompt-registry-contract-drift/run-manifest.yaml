@@ -1,0 +1,63 @@
+# Run manifest — run-20260809-agent-city-prompt-registry-contract-drift
+#
+# Federation HQ Pilot Run 03 — first fully automated run under
+# Automated Role Execution v0.1 (operator@0.2.1, OMP reference adapter).
+# Target: kimeisele/agent-city, PromptRegistry composition vs test contract.
+
+kind: federation_hq_run_manifest
+run_id: run-20260809-agent-city-prompt-registry-contract-drift
+target_repository: kimeisele/agent-city
+baseline_sha: "c1fc768a214d72674481014e1b117e6d63c96799"
+maintenance_request:
+  text: >
+    Investigate the current contract discrepancy in kimeisele/agent-city
+    between the default PromptRegistry composition and its tests. Current
+    repository evidence indicates that city/brain_prompt.py::_build_registry()
+    registers seven builders, including DiscoveryBuilder, while
+    tests/test_prompt_registry.py::TestGetPromptRegistry::
+    test_singleton_has_all_6_builders asserts that the singleton contains
+    exactly six builders and expects a set that omits discovery. Determine
+    from the pinned baseline's production code, callers/usages, tests,
+    history, and repository contracts whether this represents a
+    production-code defect, a stale/incorrect test contract, or another
+    single bounded defect. Do not assume which side should change. If
+    warranted, select exactly one repair candidate.
+  source: human_operator
+  created_at: "2026-08-09T14:42:28Z"
+  source_reference: "Federation HQ Pilot Run 03 instruction (protocol 0.1.0, automated role execution v0.1)"
+coordination:
+  protocol_version: 0.1.0
+  issue_number: 17
+  issue_url: https://github.com/kimeisele/federation-hq/issues/17
+pipeline_state: requested
+prompt_pins:
+  operator:
+    id: operator
+    version: 0.2.1
+    sha256: "1638cb9876fdfe0184c596b6ea0fd8c8621fb96db63a55c4f9bd1abf30675de5"
+  scout:
+    id: scout
+    version: 0.1.0
+    sha256: "6940ea39da9799fa6595809cfce6a948427bdc07edba2e48774418642fe6eb8a"
+  repair:
+    id: repair
+    version: 0.1.0
+    sha256: "0606d8ed7bec4501c10613d8e13b399325d6245b72f5d9212ea65e459f933f84"
+  review:
+    id: review
+    version: 0.1.0
+    sha256: "82b9cc37176304d418a934b261fa5efa2374d4e886c5afdec3789eaa264479e9"
+evidence:
+  - kind: pr
+    location: https://github.com/kimeisele/agent-city/pull/2571
+    description: Open PR checked at run opening; touches only PR-lifecycle files (city/hooks/dharma/pr_verdict.py, city/pr_lifecycle.py, PR tests) — no overlap with city/brain_prompt.py, city/prompt_registry.py, city/prompt_builders/, tests/test_prompt_registry.py, or DiscoveryBuilder.
+created_at: "2026-08-09T14:42:28Z"
+notes: >
+  Federation HQ Pilot Run 03 — fully automated execution under
+  operator@0.2.1 / OMP reference adapter (hq-scout, hq-repair, hq-review,
+  hq-integrator; isolated workers, spawns denied). Target main verified
+  live at run opening to resolve to baseline SHA c1fc768a
+  (2026-08-09T14:42Z); Review Gate active: required check
+  federation-hq/review bound to App ID 4528340,
+  required_approving_review_count 0. HQ main at run opening:
+  8ba970ca6ee6315aa711e1baf367d5303a09700c (untouched by this run).
