@@ -1,0 +1,88 @@
+# Scout notes — run-20260809-agent-city-actionverb-contract-drift
+
+Evidence for the selected candidate (exact baseline
+81eb9d8f09790efd87ec1a3043e2c581829180da). Target checkout used for
+investigation: /tmp/agent-city-scout (git checkout of the pinned SHA).
+
+## Failure reproduction (exact baseline)
+
+`python -m pytest tests/test_brain_action.py::TestActionVerb -q`
+
+```
+F... [100%]
+FAILED ... TestActionVerb.test_all_9_verbs - assert 10 == 9
+ +  where 10 = len(ActionVerb)
+1 failed, 3 passed
+```
+
+Full file: `python -m pytest tests/test_brain_action.py -q` -> `1 failed,
+41 passed`. The count test is the ONLY failure in the file.
+
+## The production side is active and intended
+
+1. city/brain_action.py:54 — `PROPOSE_MISSION = "propose_mission"  # Public
+   suggestion`, declared under the "infer — propose new work" layer of the
+   enum docstring.
+2. city/brain_action.py:83 — `_VERB_AUTH[ActionVerb.PROPOSE_MISSION] =
+   AuthTier.PUBLIC  # Anyone can suggest`.
+3. city/intent_executor.py:177 — handler registration:
+   `self.register("handle_brain_propose_mission",
+   _handle_brain_propose_mission)` (comment "Idea-to-Action").
+4. city/intent_executor.py:460-513 — `_handle_brain_propose_mission`:
+   atomic flow compose -> sign -> NADI outbox emit -> flush -> GitHub Issue
+   receipt with SHA-256 NADI_REF (Senior Architect Atomic Flow).
+5. city/hooks/genesis/active_discovery.py:203-206 — genesis discovery emits
+   `operation="propose_mission"` machine-readable payloads to NADI.
+6. tests/verify_step2_atomic.py — dedicated test
+   `test_atomic_mission_proposal()` exercising `_handle_brain_propose_mission`
+   atomicity and signature.
+7. city/discussions_commands.py — `/mission` discussion command upgraded in
+   the same commit (create_community_mission -> handle_community_mission).
+
+## History (intent)
+
+- 96c0b13 "Schritt 2: Neurosymbolische Brücke — typed BrainAction
+  vocabulary": enum created with 9 members; test_all_9_verbs written with
+  `assert len(ActionVerb) == 9` — correct at creation.
+- bcdcd34 "feat: persistent discovery, anti-spam throttling, and
+  machine-readable A2A bridge" (2026-03-24): adds `PROPOSE_MISSION` to the
+  enum and _VERB_AUTH (city/brain_action.py +2), adds
+  `_handle_brain_propose_mission` (city/intent_executor.py +102), adds
+  active_discovery hook (city/hooks/genesis/active_discovery.py +112), and
+  upgrades /mission commands; commit message: "Upgrade PROPOSE_MISSION and
+  /mission commands to include machine-readable JSON payloads for the
+  Steward Agent (A2A Bridge)". The count test was NOT updated -> stale.
+  `git merge-base --is-ancestor bcdcd34 81eb9d8f` -> ancestor of baseline.
+
+## Dynamic tests already agree with 10 members
+
+- TestActionVerbCompleteness.test_all_verbs_have_auth_tier: iterates
+  ActionVerb; PROPOSE_MISSION is in _VERB_AUTH -> passes.
+- TestActionVerbCompleteness.test_parse_roundtrip: parse_action_hint
+  roundtrip for every verb, including propose_mission -> passes.
+- TestBrainIntentSignals.test_all_verbs_have_signals and
+  test_signal_count_matches_verb_count: BRAIN_INTENT_SIGNALS is generated
+  `for verb in ActionVerb` -> 10 entries -> passes.
+- Removing PROPOSE_MISSION would break the executor registration
+  (intent_executor.py:177) and the roundtrip/signals tests — it is not dead
+  code.
+
+## Repository-native triage contracts
+
+- docs/MAINTENANCE_BASELINE_22_TRIAGE.md:
+  "tests/test_brain_action.py::TestActionVerb::test_all_9_verbs —
+  AssertionError; ActionVerb has 10 members while the test expects 9.
+  ... Smallest slice: reconcile enum and test cardinality without changing
+  Federation operations."
+- docs/MAINTENANCE_CAMPAIGN_RECRUITMENT_BASELINE.json:
+  node tests/test_brain_action.py::TestActionVerb::test_all_9_verbs ->
+  failure_cluster "stale_test_contract_drift", root_cause_hint "ActionVerb
+  contains 10 members while the test asserts 9", base_present true,
+  head_present true, deterministic_second_run true.
+
+## Conclusion
+
+Single bounded defect: the hardcoded vocabulary-count assertion in
+tests/test_brain_action.py (test_all_9_verbs) is stale. The repair is on
+the TEST side only — reconcile the assertion to the intended 10-member
+vocabulary (or make it non-brittle); do not touch production code.

@@ -27,7 +27,7 @@ coordination:
   protocol_version: 0.1.0
   issue_number: 13
   issue_url: https://github.com/kimeisele/federation-hq/issues/13
-pipeline_state: requested
+pipeline_state: candidate_selected
 prompt_pins:
   operator:
     id: operator
@@ -56,3 +56,7 @@ notes: >
   Review Gate active on target: required check federation-hq/review bound to
   App ID 4528340, required_approving_review_count 0. HQ main at run opening:
   aee81f4ee166721082c7f0c8089274203763d7a7 (untouched by this run).
+  Transition history: requested -> scouting (msg-run20260809-0002); Scout
+  submitted candidate (msg-run20260809-0003); scouting -> candidate_selected
+  (artifact_acceptance msg-run20260809-0004, canonical SHA-256
+  7e3996be19fdefe9f0b2309ca36b974c2d0752a10a4655b4684f702027145aa3).
