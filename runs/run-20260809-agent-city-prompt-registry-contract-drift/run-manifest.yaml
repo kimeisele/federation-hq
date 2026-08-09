@@ -29,7 +29,7 @@ coordination:
   protocol_version: 0.1.0
   issue_number: 17
   issue_url: https://github.com/kimeisele/federation-hq/issues/17
-pipeline_state: requested
+pipeline_state: candidate_selected
 prompt_pins:
   operator:
     id: operator
@@ -61,3 +61,7 @@ notes: >
   federation-hq/review bound to App ID 4528340,
   required_approving_review_count 0. HQ main at run opening:
   8ba970ca6ee6315aa711e1baf367d5303a09700c (untouched by this run).
+  Transition history: requested -> scouting (msg-pilot03-0002); Scout
+  submitted candidate (msg-pilot03-0003, SHA-256
+  556f5daa2ecf3b3e2d63598325c691954cd50210ebb36f2d89780d7200a49b33);
+  scouting -> candidate_selected (artifact_acceptance msg-pilot03-0004).

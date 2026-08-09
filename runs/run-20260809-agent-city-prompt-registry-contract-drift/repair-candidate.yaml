@@ -1,0 +1,79 @@
+kind: federation_hq_repair_candidate
+candidate_id: run-20260809-agent-city-prompt-registry-contract-drift-c1
+run_id: run-20260809-agent-city-prompt-registry-contract-drift
+target_repository: kimeisele/agent-city
+baseline_sha: "c1fc768a214d72674481014e1b117e6d63c96799"
+repository_checkout: /tmp/agent-city-p03
+defect_description: >
+  The defect is a STALE TEST CONTRACT, not a production-code defect.
+  tests/test_prompt_registry.py::TestGetPromptRegistry::
+  test_singleton_has_all_6_builders (lines 406-411) asserts
+  `len(reg) == 6` and expects exactly
+  {comprehension, health_check, reflection, insight, critique, signal},
+  but the intended default PromptRegistry composition is 7 builders and
+  the 7th, DiscoveryBuilder (kind "discovery"), is deliberate, active and
+  production-wired end to end. Reproduction on the exact pinned baseline
+  (HEAD == c1fc768a214d72674481014e1b117e6d63c96799):
+  `python -m pytest tests/test_prompt_registry.py::TestGetPromptRegistry::
+  test_singleton_has_all_6_builders -q` -> 1 failed; failure
+  `assert 7 == 6` (+ `where 7 = len(<PromptRegistry>)`) at
+  tests/test_prompt_registry.py:410. Whole file: 1 failed, 38 passed.
+  The count test was correct when written (commit e023bd0, 2026-03-05,
+  "8I: Prompt Infrastructure - PromptRegistry + PromptBuilders plugin
+  architecture", 6 builders) and became stale when commit 099320d
+  (2026-03-24, "Hardening Agent City Federation: Steps 1-3 Complete.
+  Signed NADI Bridge & Semantic Discovery implemented.") added
+  DiscoveryBuilder to city/prompt_builders/discovery.py, registered it in
+  city/brain_prompt.py::_build_registry() (import line 99, registration
+  line 108) and wired the "discovery" kind into production, without
+  updating the test. DiscoveryBuilder is intended and active: (1)
+  city/brain.py:49 ThoughtKind.DISCOVERY = "discovery" ("Step 3: semantic
+  repo evaluation"); (2) city/brain.py:84 _KIND_TIER["discovery"] =
+  ModelTier.STANDARD; (3) city/brain.py:616-640
+  Brain.evaluate_federation_fit() builds a discovery-specific
+  PromptContext (discovery_repo/discovery_description/discovery_readme,
+  fields defined at city/prompt_registry.py:39-41) and calls
+  self._think("discovery", ctx); (4) city/hooks/genesis/active_discovery.py
+  :128-163 ActiveDiscoveryHook._evaluate_candidates() (hook registered in
+  city/phases/genesis.py:70) calls brain.evaluate_federation_fit() and
+  maps thought.action_hint -> FIT/REJECTED/NEEDS_HUMAN_REVIEW into the
+  DiscoveryLedger, with comment at active_discovery.py:150-151: "Senior
+  Architect Mandate: FIT, REJECTED, NEEDS_HUMAN_REVIEW - Mapped from
+  action_hint in DiscoveryBuilder"; (5) tests/verify_step3_semantic.py is
+  a dedicated semantic-discovery verification script. Removing
+  DiscoveryBuilder would break semantic discovery: _think("discovery")
+  would get an empty payload and the comprehension fallback schema
+  (city/prompt_registry.py:84-86 build_schema fallback), so
+  action_hint invite/reject/review could never be produced and every
+  ledger evaluation would be corrupted. The repository's own baseline
+  evidence classifies this exact node as failure_cluster
+  "stale_test_contract_drift" with root_cause_hint "PromptRegistry
+  contains 7 builders while test expects 6"
+  (docs/MAINTENANCE_CAMPAIGN_RECRUITMENT_BASELINE.json; base_present
+  true, head_present true, deterministic_second_run true), and
+  docs/MAINTENANCE_BASELINE_22_TRIAGE.md (Prompt Registry row) says the
+  smallest slice is to "reconcile registry cardinality with the current
+  builder contract". The repo's established convention for this exact
+  cluster is test-side reconciliation: PR #2713 (merged at this very
+  baseline, c1fc768) fixed the analogous stale ActionVerb count contract
+  (test_all_9_verbs -> test_all_10_verbs) by updating the test, not
+  production. Intended behavior: the default PromptRegistry composition
+  is 7 builders including discovery; the test contract must be reconciled
+  to assert the intended composition (7, including "discovery") - or made
+  non-brittle - without changing any production code. Smallest repair
+  scope: update tests/test_prompt_registry.py::
+  TestGetPromptRegistry::test_singleton_has_all_6_builders so the
+  cardinality assertion reflects the intended 7-builder composition and
+  the expected kind set includes "discovery" (rename the test if it is no
+  longer "6"-specific); do NOT touch city/brain_prompt.py,
+  city/prompt_registry.py, city/prompt_builders/ or any other production
+  code.
+baseline_failures:
+  - "tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_6_builders - AssertionError 'assert 7 == 6' at tests/test_prompt_registry.py:410 (only failure in tests/test_prompt_registry.py at baseline: 1 failed, 38 passed; reproduced on pinned baseline c1fc768a with `python -m pytest tests/test_prompt_registry.py -q`)"
+  - "documented as deterministic baseline node in docs/MAINTENANCE_CAMPAIGN_RECRUITMENT_BASELINE.json (failure_cluster stale_test_contract_drift) and docs/MAINTENANCE_BASELINE_22_TRIAGE.md (Prompt Registry row)"
+evidence_locations:
+  - run-output/run-20260809-agent-city-prompt-registry-contract-drift/repair-candidate.yaml
+  - run-output/run-20260809-agent-city-prompt-registry-contract-drift/scout-notes.txt
+  - runs/run-20260809-agent-city-prompt-registry-contract-drift/run-manifest.yaml
+selected_by: scout
+created_at: "2026-08-09T14:50:58Z"
