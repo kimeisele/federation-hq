@@ -1,0 +1,48 @@
+kind: federation_hq_review_result
+review_id: run-20260809-agent-city-contract-proposal-service-sync-v1
+run_id: run-20260809-agent-city-contract-proposal-service-sync
+candidate_id: run-20260809-agent-city-contract-proposal-service-sync-c1
+result_id: run-20260809-agent-city-contract-proposal-service-sync-r1
+target_repository: kimeisele/agent-city
+reviewer_head_sha: "4ec0c3733bd918b366a06d812c0276dd7ffbf35d"
+verdict: approved
+baseline_failures_checked:
+  - "tests/test_layer5.py::test_contract_failure_creates_proposal — reproduced at baseline 1cc173ee: 1 failed, AssertionError 'Failing contract should create a proposal' assert 0 >= 1 (exact match with claimed reproduction)"
+  - "tests/test_layer5.py whole file at baseline: 5 failed, 20 passed — exact node set test_mayor_runs_election_in_dharma, test_full_rotation_with_council, test_contract_failure_creates_proposal, test_auto_vote_and_execute, test_full_feedback_loop (confirmed via -rf)"
+  - "tests/federation_v1/test_golden_wire.py — collection error at BOTH SHAs: FileNotFoundError tests/fixtures/federation_v1/keys/test_keys.json (gitignored 'keys/' per .gitignore; not tracked in git; absent from both worktrees)"
+  - "tests/federation_v1/test_golden_wire_01a.py — identical collection error at BOTH SHAs"
+  - "tests/test_federation_v1_admission.py — identical collection error at BOTH SHAs"
+  - "tests/test_federation_v1_assignment.py — identical collection error at BOTH SHAs"
+  - "tests/test_federation_v1_hardening.py — identical collection error at BOTH SHAs"
+  - "tests/test_federation_v1_ready_work_item.py — identical collection error at BOTH SHAs"
+  - "tests/test_treasury.py::TestMoltbookOutboundFallback::test_fallback_path_exists — persistent baseline-red; still fails at head with ImportError: cannot import name 'MoltbookOutboundHook' from 'city.hooks.moksha.outbound'"
+  - "tests/test_mayor_execution.py::test_execution_bridge_routes_genesis — persistent baseline-red; still fails at head (AttributeError: 'types.SimpleNamespace' object has no attribute 'city_nadi')"
+  - "tests/test_mayor_execution.py::test_execution_bridge_runs_moksha_self_diagnostics — persistent baseline-red; still fails at head"
+  - "tests/test_mayor_execution.py::test_heartbeat_updates_persisted_totals — persistent baseline-red; still fails at head (AssertionError: assert 'MURALI' == 'KARMA')"
+  - "tests/test_layer6.py (6 claimed failures) — confirmed at head: test_full_rotation_with_federation, test_bridge_post_cooldown, test_bridge_post_format, test_bridge_mission_result_post, test_bridge_directive_acks_in_content, test_create_mission_directive_creates_mission_and_proposal (6 failed, 41 passed, 1 error)"
+  - "tests/test_runtime.py::test_build_city_runtime_boots_offline — pytest-timeout >30s, load-flaky, unrelated to diff (timed out under load in my head rerun as well); listed as flaky baseline failure in repair result"
+  - "tests/test_wiki_compiler.py::test_build_wiki_materializes_pages — pytest-timeout >30s, load-flaky, unrelated to diff (timed out under load in my head rerun as well); listed as flaky baseline failure in repair result"
+newly_introduced_failures_checked: []
+blockers: []
+evidence_checked:
+  - "gh pr view 2716 --repo kimeisele/agent-city: OPEN, baseRefName main, baseRefOid 1cc173eef57e408a17494b3d13d696dbf4e54edb == pinned baseline, headRefName repair/run-20260809-layer5-test-contract-reconcile, headRefOid 4ec0c3733bd918b366a06d812c0276dd7ffbf35d == claimed repair_head_sha, exactly one commit"
+  - "git fetch + git cat-file -t 4ec0c3733bd918b366a06d812c0276dd7ffbf35d: head SHA exists remotely; parent == 1cc173eef57e408a17494b3d13d696dbf4e54edb"
+  - "git diff --name-status/--numstat 1cc173ee..4ec0c373: only tests/test_layer5.py, +34/-29; no other file in the entire tree"
+  - "git rev-parse <sha>:<path> blob comparison baseline vs head — byte-identical for city/registry.py, city/mayor/services.py, city/mayor/context.py, city/phases/__init__.py, city/mayor/kernel.py, city/mayor/execution.py, city/contracts.py, city/hooks/dharma/contracts_issues.py, city/phases/dharma.py, city/karma_handlers/council.py, city/factory.py, city/runtime.py"
+  - "python3 -m pytest tests/test_layer5.py::test_contract_failure_creates_proposal -q (head 4ec0c373): 1 passed"
+  - "python3 -m pytest tests/test_layer5.py -q (head): 25 passed"
+  - "python3 -m pytest tests/test_layer5.py::test_contract_failure_creates_proposal -q (baseline 1cc173ee): 1 failed, assert 0 >= 1 at tests/test_layer5.py:499"
+  - "python3 -m pytest tests/test_layer5.py -q --tb=no -rf (baseline): 5 failed, 20 passed, exact claimed node set"
+  - "python3 -m pytest tests/test_contract_policy.py tests/test_integrity_contract.py tests/test_layer3.py tests/test_layer4.py tests/test_governance_layer.py -q (head): 81 passed"
+  - "python3 -m pytest <six federation_v1 files> --collect-only -q (head AND baseline): identical 6 FileNotFoundError collection errors at both SHAs"
+  - "tests/test_layer5.py head bodies of the five reconciled tests: explicit mayor._contract_invocation = registry.new_invocation('full', invocation_id='layer5-full') per Layer-3/4 convention; run_cycle(1)/results[0] full-MURALI-cycle indexing; proposal lifecycle asserted as GOV-0001 status EXECUTED"
+  - "tests/test_layer3.py:265-269 and tests/test_layer4.py:273-277: confirmed the migrated Layer-3/4 convention (auto-supply new_invocation when _contracts passed)"
+  - "tests/test_contract_policy.py:101-104 (test_missing_and_unknown_policy_fail_closed): codified missing_policy short-circuit — invocation=None -> reason_code missing_policy, result name contract_execution"
+  - "city/contracts.py:181-188: check_all() short-circuits to contract_execution/missing_policy when invocation is None"
+  - "city/hooks/dharma/contracts_issues.py:56-57: ContractsHook skips create_healing_mission/_submit_contract_proposal for r.name == 'contract_execution'"
+  - "city/karma_handlers/council.py:30-62: KARMA auto-votes open proposals (default VoteChoice.YES) and executes/mark_executed passed proposals in the same cycle — backs EXECUTED end-state assertion"
+  - "city/mayor/execution.py:50-68: run_heartbeat executes a FULL MURALI cycle per heartbeat"
+  - "city/registry.py:99-103 (register overwrites unconditionally), city/mayor/services.py:54-58 (sync_legacy_services 'register only if not has'), city/mayor/context.py:22 (sync re-run per build_phase_context), city/phases/__init__.py (service properties read registry.get() only; legacy kwargs registered only if not has): Model B registry-authoritative semantics confirmed and untouched"
+  - "Spot checks at head of persistent baseline-reds: tests/test_treasury.py (ImportError MoltbookOutboundHook), tests/test_mayor_execution.py x3, tests/test_layer6.py (6 failed) — all fail identically to baseline classification; no new failure modes"
+  - "Broader-suite delta arithmetic: baseline 30 failed/1924 passed vs head 23 failed/1931 passed = -7/+7, exactly explained by 5 Layer-5 fixes (verified) + 2 load-flaky pytest-timeout nodes in unrelated files (tests/test_runtime.py, tests/test_wiki_compiler.py); 6 collection errors identical at both SHAs"
+created_at: "2026-08-09T18:33:17Z"

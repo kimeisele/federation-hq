@@ -1,0 +1,84 @@
+# Run manifest — run-20260809-agent-city-contract-proposal-service-sync
+#
+# Federation HQ Stabilization Run 02 — fully automated under
+# Automated Role Execution v0.1 (operator@0.2.1, OMP reference adapter).
+# Target: kimeisele/agent-city, Layer-5 contract-proposal service sync.
+
+kind: federation_hq_run_manifest
+run_id: run-20260809-agent-city-contract-proposal-service-sync
+target_repository: kimeisele/agent-city
+baseline_sha: "1cc173eef57e408a17494b3d13d696dbf4e54edb"
+maintenance_request:
+  text: >
+    Investigate the current failure around
+    tests/test_layer5.py::test_contract_failure_creates_proposal in
+    kimeisele/agent-city. The intended Layer-5 behavior appears to be that
+    a failing quality contract encountered during DHARMA can create a
+    healing mission and, when an elected council exists, submit a council
+    proposal. The test installs a custom failing ContractRegistry on an
+    already-created Mayor, runs the Mayor, observes that a council exists,
+    but historically no expected proposal is produced. Determine from the
+    exact pinned baseline's runtime wiring, service-registry semantics,
+    Mayor compatibility layer, PhaseContext construction, DHARMA hook
+    ordering, contracts behavior, tests, callers, and history whether this
+    is a production service-synchronization/DI defect, a stale test
+    assumption, a council/proposal defect, or another single bounded cause.
+    Do not assume which component should change. If warranted, select
+    exactly one repair candidate.
+  source: human_operator
+  created_at: "2026-08-09T17:06:47Z"
+  source_reference: "Federation HQ Stabilization Run 02 instruction (protocol 0.1.0, automated role execution v0.1)"
+coordination:
+  protocol_version: 0.1.0
+  issue_number: 21
+  issue_url: https://github.com/kimeisele/federation-hq/issues/21
+pipeline_state: approved
+prompt_pins:
+  operator:
+    id: operator
+    version: 0.2.1
+    sha256: "1638cb9876fdfe0184c596b6ea0fd8c8621fb96db63a55c4f9bd1abf30675de5"
+  scout:
+    id: scout
+    version: 0.1.0
+    sha256: "6940ea39da9799fa6595809cfce6a948427bdc07edba2e48774418642fe6eb8a"
+  repair:
+    id: repair
+    version: 0.1.0
+    sha256: "0606d8ed7bec4501c10613d8e13b399325d6245b72f5d9212ea65e459f933f84"
+  review:
+    id: review
+    version: 0.1.0
+    sha256: "82b9cc37176304d418a934b261fa5efa2374d4e886c5afdec3789eaa264479e9"
+evidence:
+  - kind: pr
+    location: https://github.com/kimeisele/agent-city/pull/2571
+    description: Open PR checked at run opening; touches only PR-lifecycle files (city/hooks/dharma/pr_verdict.py, city/pr_lifecycle.py, PR tests) — no overlap with tests/test_layer5.py, city/mayor/, city/registry.py, city/phases/dharma.py, city/hooks/dharma/contracts_issues.py, or the contract-proposal area.
+created_at: "2026-08-09T17:06:47Z"
+notes: >
+  Federation HQ Stabilization Run 02 — fully automated under
+  operator@0.2.1 / OMP reference adapter (hq-scout, hq-repair, hq-review,
+  hq-integrator; isolated workers, spawns denied). Target main verified
+  live at run opening to resolve to baseline SHA 1cc173ee (2026-08-09T17:06Z);
+  Review Gate active: required check federation-hq/review bound to App ID
+  4528340, required_approving_review_count 0. HQ main at run opening:
+  48152f1db68d4237fcc5c5db8e976aec91197cf9 (untouched by this run).
+  Transition history: requested -> scouting (msg-stab02-0002); Scout
+  submitted candidate (msg-stab02-0003, SHA-256
+  0c15a58f7da4b52656b8600ed4a3724409f96a53c5294c1bb4a1cdf41c1735d6);
+  scouting -> candidate_selected (artifact_acceptance msg-stab02-0004);
+  Repair submitted result (msg-stab02-0006); candidate_selected ->
+  repair_in_progress (assignment msg-stab02-0005); repair_in_progress ->
+  repair_submitted (artifact_acceptance msg-stab02-0007, canonical
+  repair-result SHA-256 df10ffb894f5d36a3eb4b4d140c796697a88049791e9a9b005b9daac92a6ab17,
+  PR kimeisele/agent-city#2716, head 4ec0c3733bd918b366a06d812c0276dd7ffbf35d);
+  repair_submitted -> independent_review (assignment msg-stab02-0008);
+  Reviewer submitted verdict approved (msg-stab02-0009);
+  independent_review -> approved (artifact_acceptance msg-stab02-0010,
+  canonical review-result SHA-256
+  b5b3e630b15fdaf1b8adafed907f1f3fb1fce5bc420b58955d5baf9e3cdfd21e).
+  Target integration: Review Gate check federation-hq/review published for
+  exact head 4ec0c3733bd918b366a06d812c0276dd7ffbf35d (App 4528340, run
+  93285178946, conclusion success); PR kimeisele/agent-city#2716 merged
+  NORMALLY on 2026-08-09T18:38:48Z, merge commit
+  e01d011bd563e964afb55901a4ed9474191aec59 (now main).
