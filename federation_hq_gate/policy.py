@@ -80,6 +80,22 @@ def gh_put(path: str, body: dict) -> dict | None:
     return json.loads(result.stdout)
 
 
+def gh_post(path: str, body: dict) -> dict | None:
+    """POST a collection endpoint (e.g. create a ruleset)."""
+    result = subprocess.run(
+        ["gh", "api", "--method", "POST", path, "--input", "-"],
+        input=json.dumps(body),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise PolicyError(f"gh POST {path} failed: {(result.stderr or result.stdout)[:300]}")
+    if not result.stdout.strip():
+        return None
+    return json.loads(result.stdout)
+
+
 def gh_delete(path: str) -> None:
     result = _run_gh(["--method", "DELETE", path])
     if result.returncode != 0:
@@ -435,7 +451,13 @@ def _protection_changed(planned: dict, now: dict) -> bool:
 
 
 def _collect_backup(plan: dict) -> dict:
-    """Build the before-state backup from the drift-verified plan entries."""
+    """Build the before-state backup/journal from the plan entries.
+
+    Each entry records ``policy_mutation_started: false``; apply flips and
+    atomically persists the marker immediately before the first
+    branch-protection/ruleset write so rollback can distinguish never-mutated
+    repositories from mutated ones.
+    """
     backup: dict[str, dict] = {}
     for entry in plan.get("repositories", []):
         if entry.get("skip_reason"):
@@ -443,6 +465,7 @@ def _collect_backup(plan: dict) -> dict:
         backup[entry["repository"]] = {
             "default_branch": entry["default_branch"],
             "protection": entry["protection_snapshot"],
+            "policy_mutation_started": False,
         }
     return backup
 
@@ -509,6 +532,12 @@ def apply_plan(plan: dict, *, expected_sha256: str, app_installation_token_fn,
                     "reason": "Gate App ID unavailable; refusing protection write (fail closed)",
                 })
                 continue
+
+            # Mutation journal: mark policy-mutation-started and persist
+            # atomically BEFORE the first protection/ruleset write.
+            backup[full]["policy_mutation_started"] = True
+            if backup_path is not None:
+                _write_atomic(backup_path, backup)
 
             _configure_protection(full, entry, now, app_id)
             verify = _verify_protection(full, entry["default_branch"], app_id)
@@ -664,7 +693,7 @@ def _configure_via_ruleset(full: str, default_branch: str, app_id: str) -> str:
     if existing:
         gh_put(f"/repos/{full}/rulesets/{existing[0]['id']}", body)
         return "ruleset-updated"
-    gh_put(f"/repos/{full}/rulesets", body)
+    gh_post(f"/repos/{full}/rulesets", body)
     return "ruleset-created"
 
 
@@ -745,11 +774,35 @@ def rollback(backup_path: Path) -> dict:
 
 
 def _rollback_repo(full: str, state: dict) -> dict:
-    """Restore one repository's before-state; verify and report explicitly."""
+    """Restore one repository's before-state; verify and report explicitly.
+
+    Mutation journal semantics: when ``policy_mutation_started`` is false the
+    repository never entered a policy mutation — rollback performs ZERO
+    PUT/POST/DELETE, verifies the current state still matches the before-state
+    (no-op / already-original), and reports ``rollback verification failed /
+    external drift`` without deleting anything when it does not match. When
+    the marker is true, restore normally with idempotent deletes: a created
+    mechanism is only deleted when it actually exists remotely.
+    """
     try:
         before = state.get("protection") or {}
         default_branch = state["default_branch"]
         actions: list[str] = []
+
+        mutation_started = state.get("policy_mutation_started", True) is True
+        if not mutation_started:
+            verification = _verify_rollback(full, default_branch, before)
+            if verification["ok"]:
+                return {
+                    "repository": full, "status": "restored",
+                    "actions": ["no-op-already-original"], "verification": verification,
+                }
+            return {
+                "repository": full, "status": "failed",
+                "reason": "rollback verification failed / external drift: "
+                          + "; ".join(verification.get("problems", [])),
+                "actions": ["no-mutation-performed"], "verification": verification,
+            }
 
         before_gate = [
             r for r in (before.get("rulesets") or [])
@@ -772,8 +825,11 @@ def _rollback_repo(full: str, state: dict) -> dict:
             gh_put(f"/repos/{full}/rulesets/{ruleset_id}", write_safe)
             actions.append("ruleset-restored")
         elif current_gate:
+            # Only delete a created mechanism that actually exists remotely.
             gh_delete(f"/repos/{full}/rulesets/{current_gate[0]['id']}")
             actions.append("ruleset-deleted")
+        else:
+            actions.append("ruleset-no-op")
 
         before_classic = before.get("classic")
         if isinstance(before_classic, dict):
@@ -783,8 +839,19 @@ def _rollback_repo(full: str, state: dict) -> dict:
             )
             actions.append("classic-restored")
         else:
-            gh_delete(f"/repos/{full}/branches/{default_branch}/protection")
-            actions.append("classic-removed")
+            # Only remove classic protection when apply actually created it
+            # (current state has protection that before-state lacked).
+            try:
+                current_classic_raw = gh_get(
+                    f"/repos/{full}/branches/{default_branch}/protection"
+                )
+            except PolicyError:
+                current_classic_raw = None
+            if current_classic_raw is not None:
+                gh_delete(f"/repos/{full}/branches/{default_branch}/protection")
+                actions.append("classic-removed")
+            else:
+                actions.append("classic-no-op")
 
         verification = _verify_rollback(full, default_branch, before)
         if verification["ok"]:
