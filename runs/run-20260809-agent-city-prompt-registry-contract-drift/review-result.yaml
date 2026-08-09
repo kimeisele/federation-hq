@@ -1,0 +1,32 @@
+kind: federation_hq_review_result
+review_id: run-20260809-agent-city-prompt-registry-contract-drift-v1
+run_id: run-20260809-agent-city-prompt-registry-contract-drift
+candidate_id: run-20260809-agent-city-prompt-registry-contract-drift-c1
+result_id: run-20260809-agent-city-prompt-registry-contract-drift-r1
+target_repository: kimeisele/agent-city
+reviewer_head_sha: "2d8db2534acd8cea697697b8aa7597e3c35518b6"
+verdict: approved
+baseline_failures_checked:
+  - "tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_6_builders - AssertionError 'assert 7 == 6' at tests/test_prompt_registry.py:410 (independently reproduced on pinned baseline c1fc768a from a fresh clone: 1 failed focused; whole file 1 failed, 38 passed)"
+  - "6 full-suite collection errors, all FileNotFoundError for the gitignored tests/fixtures/federation_v1/keys/test_keys.json (rule 'keys/' at .gitignore:13) - independently confirmed at baseline: 1955 tests collected, 6 errors"
+  - "tests/test_heartbeat_campaign_bootstrap.py::test_heartbeat_cli_smoke_with_campaign_manifest - independently rerun at baseline c1fc768a: failed 2/2 runs (Timeout >30.0s from pytest-timeout), confirming the repair result's flake characterization"
+  - "tests/test_wiki_compiler.py::test_build_wiki_materializes_pages - independently rerun at baseline in isolation: 1 passed in 25.75s (timing flake near the 30s pytest-timeout limit; not a deterministic baseline failure, and not head-only)"
+newly_introduced_failures_checked: []
+blockers: []
+evidence_checked:
+  - "runs/run-20260809-agent-city-prompt-registry-contract-drift/run-manifest.yaml (prompt_pins.review sha256 82b9cc37176304d418a934b261fa5efa2374d4e886c5afdec3789eaa264479e9 matches prompts/review/v0.1.0.md exactly)"
+  - "runs/run-20260809-agent-city-prompt-registry-contract-drift/repair-candidate.yaml (sha256 556f5daa2ecf3b3e2d63598325c691954cd50210ebb36f2d89780d7200a49b33) and repair-result.yaml (sha256 1453e8f65de51cb1ac37bf3a4c82e60b5bde5aab0245352194dfa138427c8978), both matching the pinned hashes"
+  - "gh api repos/kimeisele/agent-city/pulls/2714 -> state OPEN, base ref main, base sha c1fc768a214d72674481014e1b117e6d63c96799 (equals live main sha), head sha 2d8db2534acd8cea697697b8aa7597e3c35518b6, mergeable MERGEABLE; 1 commit; files: only tests/test_prompt_registry.py, +11 -3"
+  - "git diff c1fc768a..2d8db253 in fresh clone /tmp/agent-city-p03-review: only tests/test_prompt_registry.py changed (rename test_singleton_has_all_6_builders -> test_singleton_has_all_7_builders; len 6 -> 7; expected kind set now includes 'discovery')"
+  - "python -m pytest tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_6_builders -q at baseline worktree /tmp/ac-baseline: 1 failed (assert 7 == 6 at tests/test_prompt_registry.py:410)"
+  - "python -m pytest tests/test_prompt_registry.py -q at baseline: 1 failed, 38 passed"
+  - "python -m pytest tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_7_builders -q at head worktree /tmp/ac-head: 1 passed"
+  - "python -m pytest tests/test_prompt_registry.py -q at head: 39 passed"
+  - "python -m pytest --co -q at baseline: 1955 tests collected, 6 errors; at head: 1955 tests collected, 6 errors - identical missing test_keys.json FileNotFoundErrors"
+  - "python -m pytest tests/test_heartbeat_campaign_bootstrap.py::test_heartbeat_cli_smoke_with_campaign_manifest -q: baseline 2/2 failed, head 1/1 failed (Timeout >30.0s) - fails at both SHAs, not introduced"
+  - "Production evidence at baseline: city/brain_prompt.py:99 import DiscoveryBuilder, :108 registry.register(DiscoveryBuilder()); city/prompt_builders/discovery.py (DiscoveryBuilder, kind 'discovery', schema maps action_hint invite/reject/review); city/brain.py:49 ThoughtKind.DISCOVERY, :84 tier STANDARD, :616-637 evaluate_federation_fit() -> _think('discovery', ctx); city/hooks/genesis/active_discovery.py:141 evaluate_federation_fit() and :151-152 action_hint mapping; city/prompt_registry.py:54-60 discovery-specific PromptContext fields"
+  - "Git history: e023bd0 (2026-03-05) introduced the 6-builder test; 099320d (2026-03-24) added DiscoveryBuilder and production wiring; git log -S 'len(reg) == 6' shows only e023bd0 and the repair head touched the count assertion"
+  - "docs/MAINTENANCE_CAMPAIGN_RECRUITMENT_BASELINE.json node tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_6_builders (failure_cluster stale_test_contract_drift, root_cause_hint 'PromptRegistry contains 7 builders while test expects 6', base_present/head_present/deterministic_second_run true); docs/MAINTENANCE_BASELINE_22_TRIAGE.md Prompt Registry row: 'reconcile registry cardinality with the current builder contract'"
+  - "Convention check: PR kimeisele/agent-city#2713 merged at c1fc768a (commit c42ffab 'fix(tests): reconcile ActionVerb vocabulary-count contract to 10 members') established test-side reconciliation for this stale-test cluster"
+  - "gh api repos/kimeisele/agent-city/branches/main/protection -> required_approving_review_count 0, required check federation-hq/review; no check runs at head (gate check is published by the Operator only after acceptance of this review result)"
+created_at: "2026-08-09T15:45:11Z"
