@@ -79,3 +79,25 @@ prompts:
           canonical run-record branch commit with a matching hash; acceptance
           and next assignment are separate messages. No run pinned the earlier
           draft bytes.
+      - version: 0.2.0
+        file: operator/v0.2.0.md
+        sha256: "6e054aa82e87608713d858e3f2b5116a33098e4fb4b5b867d63fc32b874a2994"
+        status: released
+        released: "2026-08-09"
+        changelog: >
+          MINOR additive release (Issue #15): automated role execution v0.1.
+          Adds optional execution-adapter dispatch — the Operator may launch
+          an ISOLATED role worker (scout/repair/review) through a compatible
+          adapter instead of waiting for an external actor, observe its
+          submission, and continue the normal validate -> canonicalize ->
+          accept -> next-assignment loop. New section 'Automated role
+          dispatch (execution adapters)' plus failure-visibility and
+          fallback rules; independence invariant (repair and review run in
+          distinct worker contexts; review never inherits repair's private
+          reasoning); return-to-human conditions narrowed to terminal
+          completion, policy decisions, unrecoverable execution failure, and
+          permission/credential boundaries. Canonical protocol, artifacts,
+          prompt pins, and Gate semantics unchanged; external/manual dispatch
+          remains the supported fallback; no harness becomes part of the
+          protocol vocabulary. Does not invalidate prior artifacts or runs
+          pinned to operator@0.1.0.
