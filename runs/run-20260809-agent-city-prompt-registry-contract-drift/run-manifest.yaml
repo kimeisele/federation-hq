@@ -75,3 +75,8 @@ notes: >
   independent_review -> approved (artifact_acceptance msg-pilot03-0010,
   canonical review-result SHA-256
   2f7603e45fede8ad0f046f5e4dba83b632169136aa6880e8b6bba0c28524f2a7).
+  Target integration: Review Gate check federation-hq/review published for
+  exact head 2d8db2534acd8cea697697b8aa7597e3c35518b6 (App 4528340, run
+  93266453275, conclusion success); PR kimeisele/agent-city#2714 merged
+  NORMALLY on 2026-08-09T15:48:44Z, merge commit
+  89bf10eea690617f38627e63554a89457a90ed71 (now main).
