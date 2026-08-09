@@ -18,7 +18,7 @@ from tests.test_gate_policy_safety import _classic, _gh_repo  # noqa: E402
 
 GATE_RULESET = {
     "id": 900, "name": policy.GATE_RULESET_NAME,
-    "rules": [{"type": "required_status_checks", "parameters": {"checks": [
+    "rules": [{"type": "required_status_checks", "parameters": {"required_status_checks": [
         {"context": "federation-hq/review", "integration_id": 4528340}]}}],
 }
 
@@ -272,7 +272,7 @@ def test_ruleset_verification_fetches_full_gate_ruleset(monkeypatch):
     # individual endpoint.
     rec.gets["/repos/kimeisele/federation-hq/rulesets/900"] = {
         "id": 900, "name": policy.GATE_RULESET_NAME, "rules": [
-            {"type": "required_status_checks", "parameters": {"checks": [
+            {"type": "required_status_checks", "parameters": {"required_status_checks": [
                 {"context": "federation-hq/review", "integration_id": 4528340}]}},
         ]}
     monkeypatch.setattr(policy, "gh_get", rec.gh_get)
@@ -288,7 +288,7 @@ def test_ruleset_verification_rejects_wrong_integration_id(monkeypatch):
         {"id": 900, "name": policy.GATE_RULESET_NAME, "enforcement": "active"}]
     rec.gets["/repos/kimeisele/federation-hq/rulesets/900"] = {
         "id": 900, "name": policy.GATE_RULESET_NAME, "rules": [
-            {"type": "required_status_checks", "parameters": {"checks": [
+            {"type": "required_status_checks", "parameters": {"required_status_checks": [
                 {"context": "federation-hq/review", "integration_id": 999}]}},
         ]}
     monkeypatch.setattr(policy, "gh_get", rec.gh_get)
@@ -759,3 +759,176 @@ def test_crash_window_after_marker_before_write_rolls_back_safely(monkeypatch, t
     assert any("ruleset-no-op" in a for a in result["actions"])
     assert rec.deletes == []
     assert result["verification"]["ok"] is True
+
+
+# ── Ruleset required-status-check schema boundary (RULESET_SCHEMA_FIX) ─────
+
+
+def _rs_rule(parameters: dict) -> dict:
+    """A required_status_checks ruleset rule (ruleset schema)."""
+    return {"type": "required_status_checks", "parameters": parameters}
+
+
+def _gate_ruleset_full(parameters: dict) -> dict:
+    return {"id": 900, "name": policy.GATE_RULESET_NAME, "rules": [_rs_rule(parameters)]}
+
+
+def test_ruleset_create_payload_uses_required_status_checks(monkeypatch, tmp_path):
+    rec = PostRecorder()
+    rec.gets["/user/repos?affiliation=owner&per_page=100&page=1"] = [
+        _gh_repo("kimeisele/federation-hq")]
+    rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = None
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = [
+        {"id": 20466659, "name": "agent-federation-baseline-v1", "rules": []}]
+    rec.gets["/repos/kimeisele/federation-hq"] = _gh_repo("kimeisele/federation-hq")
+    monkeypatch.setattr(policy, "gh_get", rec.gh_get)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+    monkeypatch.setattr(policy, "gh_post", rec.gh_post)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
+    monkeypatch.setattr(policy, "_bootstrap_repo",
+                        lambda fn, full, branch: (True, "bootstrapped"))
+    plan = policy.build_plan("kimeisele", set(), set())
+    report = policy.apply_plan(
+        plan, expected_sha256=plan["plan_sha256"],
+        app_installation_token_fn=lambda **k: "t", dry_run=False,
+        app_id="4528340", backup_dir=tmp_path,
+    )
+    assert report["repositories"][0]["status"] == "configured"
+    _, body = rec.posts[0]
+    rs_rule = [r for r in body["rules"] if r["type"] == "required_status_checks"][0]
+    assert rs_rule["parameters"]["required_status_checks"] == [
+        {"context": "federation-hq/review", "integration_id": 4528340}]
+    assert rs_rule["parameters"]["strict_required_status_checks_policy"] is True
+
+
+def test_ruleset_create_payload_has_no_legacy_checks_parameter(monkeypatch, tmp_path):
+    rec = PostRecorder()
+    rec.gets["/user/repos?affiliation=owner&per_page=100&page=1"] = [
+        _gh_repo("kimeisele/federation-hq")]
+    rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = None
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = [
+        {"id": 20466659, "name": "agent-federation-baseline-v1", "rules": []}]
+    rec.gets["/repos/kimeisele/federation-hq"] = _gh_repo("kimeisele/federation-hq")
+    monkeypatch.setattr(policy, "gh_get", rec.gh_get)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+    monkeypatch.setattr(policy, "gh_post", rec.gh_post)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
+    monkeypatch.setattr(policy, "_bootstrap_repo",
+                        lambda fn, full, branch: (True, "bootstrapped"))
+    plan = policy.build_plan("kimeisele", set(), set())
+    policy.apply_plan(
+        plan, expected_sha256=plan["plan_sha256"],
+        app_installation_token_fn=lambda **k: "t", dry_run=False,
+        app_id="4528340", backup_dir=tmp_path,
+    )
+    _, body = rec.posts[0]
+    for rule in body["rules"]:
+        assert "checks" not in rule.get("parameters", {})
+
+
+def test_ruleset_update_payload_uses_required_status_checks(monkeypatch, tmp_path):
+    rec = PostRecorder()
+    rec.gets["/user/repos?affiliation=owner&per_page=100&page=1"] = [
+        _gh_repo("kimeisele/federation-hq")]
+    rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = None
+    rec.gets["/repos/kimeisele/federation-hq/rulesets"] = [
+        {"id": 900, "name": policy.GATE_RULESET_NAME, "rules": []}]
+    rec.gets["/repos/kimeisele/federation-hq/rulesets/900"] = dict(GATE_RULESET)
+    rec.gets["/repos/kimeisele/federation-hq"] = _gh_repo("kimeisele/federation-hq")
+    monkeypatch.setattr(policy, "gh_get", rec.gh_get)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+    monkeypatch.setattr(policy, "gh_post", rec.gh_post)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
+    monkeypatch.setattr(policy, "_bootstrap_repo",
+                        lambda fn, full, branch: (True, "bootstrapped"))
+    plan = policy.build_plan("kimeisele", set(), set())
+    report = policy.apply_plan(
+        plan, expected_sha256=plan["plan_sha256"],
+        app_installation_token_fn=lambda **k: "t", dry_run=False,
+        app_id="4528340", backup_dir=tmp_path,
+    )
+    assert report["repositories"][0]["status"] == "configured"
+    path, body = rec.puts[0]
+    assert path == "/repos/kimeisele/federation-hq/rulesets/900"
+    rs_rule = [r for r in body["rules"] if r["type"] == "required_status_checks"][0]
+    assert rs_rule["parameters"]["required_status_checks"] == [
+        {"context": "federation-hq/review", "integration_id": 4528340}]
+    assert "checks" not in rs_rule["parameters"]
+
+
+def test_classic_protection_still_uses_checks_schema(monkeypatch, tmp_path):
+    rec = PostRecorder()
+    rec.gets["/user/repos?affiliation=owner&per_page=100&page=1"] = [
+        _gh_repo("kimeisele/agent-city")]
+    rec.gets["/repos/kimeisele/agent-city/branches/main/protection"] = _classic()
+    rec.gets["/repos/kimeisele/agent-city/rulesets"] = []
+    rec.gets["/repos/kimeisele/agent-city"] = _gh_repo("kimeisele/agent-city")
+    monkeypatch.setattr(policy, "gh_get", rec.gh_get)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+    monkeypatch.setattr(policy, "gh_post", rec.gh_post)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
+    monkeypatch.setattr(policy, "_bootstrap_repo",
+                        lambda fn, full, branch: (True, "bootstrapped"))
+    plan = policy.build_plan("kimeisele", set(), set())
+    report = policy.apply_plan(
+        plan, expected_sha256=plan["plan_sha256"],
+        app_installation_token_fn=lambda **k: "t", dry_run=False,
+        app_id="4528340", backup_dir=tmp_path,
+    )
+    assert report["repositories"][0]["status"] == "configured"
+    body = rec.puts[0][1]
+    rsc = body["required_status_checks"]
+    assert rsc["checks"] == [{"context": "federation-hq/review", "app_id": 4528340}]
+    assert "required_status_checks" not in rsc  # classic section keeps `checks`
+
+
+def test_ruleset_bound_accepts_correct_integration_id():
+    full = _gate_ruleset_full({"strict_required_status_checks_policy": True,
+                               "required_status_checks": [
+                                   {"context": "federation-hq/review",
+                                    "integration_id": 4528340}]})
+    assert policy._required_check_bound(None, full, "4528340") is True
+
+
+def test_ruleset_bound_rejects_wrong_integration_id():
+    full = _gate_ruleset_full({"strict_required_status_checks_policy": True,
+                               "required_status_checks": [
+                                   {"context": "federation-hq/review",
+                                    "integration_id": 999}]})
+    assert policy._required_check_bound(None, full, "4528340") is False
+    assert policy._required_check_bound(None, full, "999") is True
+
+
+def test_ruleset_verification_ignores_legacy_checks_schema():
+    """A ruleset carrying only the Classic `parameters.checks` field must not
+    count as an App-bound required check."""
+    full = _gate_ruleset_full({"strict_required_status_checks_policy": True,
+                               "checks": [{"context": "federation-hq/review",
+                                            "integration_id": 4528340}]})
+    assert policy._required_check_bound(None, full, "4528340") is False
+
+
+def test_ruleset_inventory_reads_required_status_checks():
+    protection = {"classic": None, "rulesets": [dict(GATE_RULESET)]}
+    assert policy._existing_required_checks(protection) == ["federation-hq/review@4528340"]
+
+
+def test_ruleset_inventory_preserves_integration_id_when_present():
+    unbound = _rs_rule({"required_status_checks": [{"context": "ci/build"}]})
+    protection = {"classic": None, "rulesets": [
+        {"id": 901, "name": "other-ruleset", "rules": [unbound]}]}
+    assert policy._existing_required_checks(protection) == ["ci/build"]
+
+
+def test_ruleset_inventory_uses_write_safe_full_representation():
+    """List summary without a `rules` array -> inventory falls back to the
+    normalized full representation stored under `write_safe`."""
+    summary = {"id": 900, "name": policy.GATE_RULESET_NAME}
+    summary["write_safe"] = {
+        "name": policy.GATE_RULESET_NAME, "target": "branch",
+        "enforcement": "active", "bypass_actors": [], "conditions": {},
+        "rules": [_rs_rule({"required_status_checks": [
+            {"context": "federation-hq/review", "integration_id": 4528340}]})],
+    }
+    protection = {"classic": None, "rulesets": [summary]}
+    assert policy._existing_required_checks(protection) == ["federation-hq/review@4528340"]
