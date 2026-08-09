@@ -1,0 +1,58 @@
+# Run manifest — run-20260809-agent-city-actionverb-contract-drift
+#
+# Federation HQ Operator Coordination Protocol v0.1 pilot run 02.
+# Target: kimeisele/agent-city, ActionVerb vocabulary vs test contract drift.
+# Review Gate permanently active on target (federation-hq/review, App 4528340).
+
+kind: federation_hq_run_manifest
+run_id: run-20260809-agent-city-actionverb-contract-drift
+target_repository: kimeisele/agent-city
+baseline_sha: "81eb9d8f09790efd87ec1a3043e2c581829180da"
+maintenance_request:
+  text: >
+    Investigate the current contract discrepancy in kimeisele/agent-city
+    between the ActionVerb vocabulary and its tests. Current repository
+    evidence indicates that city/brain_action.py defines 10 ActionVerb
+    members, including PROPOSE_MISSION, while
+    tests/test_brain_action.py::TestActionVerb::test_all_9_verbs asserts
+    that the enum contains exactly 9 members. Determine from the pinned
+    baseline's code, tests, usages, history, and repository contracts
+    whether this represents a production-code defect, a stale/incorrect
+    test contract, or another single bounded defect. Do not assume which
+    side should change. If warranted, select exactly one repair candidate.
+  source: human_operator
+  created_at: "2026-08-09T10:28:16Z"
+  source_reference: "Federation HQ Pilot Run 02 instruction (protocol 0.1.0)"
+coordination:
+  protocol_version: 0.1.0
+  issue_number: 13
+  issue_url: https://github.com/kimeisele/federation-hq/issues/13
+pipeline_state: requested
+prompt_pins:
+  operator:
+    id: operator
+    version: 0.1.0
+    sha256: "17cd6f0e046dd75dd9393aabec80f409c5fc50ed8bfdb1097357f6069ff45a2c"
+  scout:
+    id: scout
+    version: 0.1.0
+    sha256: "6940ea39da9799fa6595809cfce6a948427bdc07edba2e48774418642fe6eb8a"
+  repair:
+    id: repair
+    version: 0.1.0
+    sha256: "0606d8ed7bec4501c10613d8e13b399325d6245b72f5d9212ea65e459f933f84"
+  review:
+    id: review
+    version: 0.1.0
+    sha256: "82b9cc37176304d418a934b261fa5efa2374d4e886c5afdec3789eaa264479e9"
+evidence:
+  - kind: pr
+    location: https://github.com/kimeisele/agent-city/pull/2571
+    description: Open PR checked at run opening; touches only PR-lifecycle files (city/hooks/dharma/pr_verdict.py, city/pr_lifecycle.py, PR tests) — no overlap with city/brain_action.py, tests/test_brain_action.py, ActionVerb, or PROPOSE_MISSION.
+created_at: "2026-08-09T10:28:16Z"
+notes: >
+  Operator Coordination Protocol v0.1 pilot run 02. Target main verified
+  live at run opening to resolve to baseline SHA 81eb9d8f (2026-08-09T10:28Z);
+  Review Gate active on target: required check federation-hq/review bound to
+  App ID 4528340, required_approving_review_count 0. HQ main at run opening:
+  aee81f4ee166721082c7f0c8089274203763d7a7 (untouched by this run).
