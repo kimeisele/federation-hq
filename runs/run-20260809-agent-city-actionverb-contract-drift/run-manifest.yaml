@@ -27,7 +27,7 @@ coordination:
   protocol_version: 0.1.0
   issue_number: 13
   issue_url: https://github.com/kimeisele/federation-hq/issues/13
-pipeline_state: repair_submitted
+pipeline_state: approved
 prompt_pins:
   operator:
     id: operator
@@ -65,4 +65,9 @@ notes: >
   repair_in_progress -> repair_submitted (artifact_acceptance
   msg-run20260809-0007, canonical repair-result SHA-256
   819c0e78ec377283bbeaeea85177ee5573d2c2f91dd5135258af86703592b600,
-  PR kimeisele/agent-city#2713, head c42ffab1d5bdd26f62640498a71bcec46a28c78e).
+  PR kimeisele/agent-city#2713, head c42ffab1d5bdd26f62640498a71bcec46a28c78e);
+  repair_submitted -> independent_review (assignment msg-run20260809-0008);
+  Reviewer submitted verdict approved (msg-run20260809-0009);
+  independent_review -> approved (artifact_acceptance msg-run20260809-0010,
+  canonical review-result SHA-256
+  f99ee9ff3bbcb154cee04efb0e314665de07aa0755dc048e9eb1043b931dc675).
