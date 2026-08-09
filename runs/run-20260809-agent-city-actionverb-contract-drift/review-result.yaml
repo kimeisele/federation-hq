@@ -1,0 +1,41 @@
+kind: federation_hq_review_result
+review_id: run-20260809-agent-city-actionverb-contract-drift-v1
+run_id: run-20260809-agent-city-actionverb-contract-drift
+candidate_id: run-20260809-agent-city-actionverb-contract-drift-c1
+result_id: run-20260809-agent-city-actionverb-contract-drift-r1
+target_repository: kimeisele/agent-city
+reviewer_head_sha: "c42ffab1d5bdd26f62640498a71bcec46a28c78e"
+verdict: approved
+baseline_failures_checked:
+  - "tests/test_brain_action.py::TestActionVerb::test_all_9_verbs (baseline focused rerun: FAILED assert 10 == 9, exit 1; whole file 1 failed / 41 passed)"
+  - "tests/federation_v1/test_golden_wire.py [collection error: FileNotFoundError tests/fixtures/federation_v1/keys/test_keys.json, confirmed at baseline]"
+  - "tests/federation_v1/test_golden_wire_01a.py [collection error: identical missing gitignored fixture, confirmed at baseline]"
+  - "tests/test_federation_v1_admission.py [collection error: identical missing gitignored fixture, confirmed at baseline]"
+  - "tests/test_federation_v1_assignment.py [collection error: identical missing gitignored fixture, confirmed at baseline]"
+  - "tests/test_federation_v1_hardening.py [collection error: identical missing gitignored fixture, confirmed at baseline]"
+  - "tests/test_federation_v1_ready_work_item.py [collection error: identical missing gitignored fixture, confirmed at baseline]"
+  - "tests/test_layer3.py::test_full_layer3_governance_cycle (baseline targeted rerun: FAILED pytest-timeout >30s — pre-existing flaky timeout, not head-introduced)"
+newly_introduced_failures_checked: []
+blockers: []
+evidence_checked:
+  - "gh pr view 2713 --repo kimeisele/agent-city: state OPEN, merged_at null, base main oid 81eb9d8f09790efd87ec1a3043e2c581829180da, head c42ffab1d5bdd26f62640498a71bcec46a28c78e, 1 commit, 1 file changed (+2/-2)"
+  - "gh pr diff 2713 --repo kimeisele/agent-city: exactly test_all_9_verbs -> test_all_10_verbs, assert len(ActionVerb) == 9 -> 10, only tests/test_brain_action.py"
+  - "git diff 81eb9d8f c42ffab1 (fresh clone /tmp/agent-city-review): identical bounded diff; commit message 'fix(tests): reconcile ActionVerb vocabulary-count contract to 10 members'"
+  - "python3 -m pytest tests/test_brain_action.py::TestActionVerb::test_all_10_verbs -q @ c42ffab1 (head worktree): 1 passed, exit 0"
+  - "python3 -m pytest tests/test_brain_action.py -q @ c42ffab1 (head worktree): 42 passed, exit 0"
+  - "python3 -m pytest tests/test_brain_action.py::TestActionVerb::test_all_9_verbs -q @ 81eb9d8f (baseline worktree): 1 failed, assert 10 == 9 (tests/test_brain_action.py:34), exit 1"
+  - "python3 -m pytest tests/test_brain_action.py -q @ 81eb9d8f (baseline worktree): 1 failed, 41 passed, exit 1"
+  - "city/brain_action.py:54 ActionVerb.PROPOSE_MISSION enum member; :83 _VERB_AUTH[PROPOSE_MISSION] = AuthTier.PUBLIC (baseline; 10 enum members verified via python count)"
+  - "city/intent_executor.py:177 handler registration handle_brain_propose_mission; :460-513 _handle_brain_propose_mission atomic flow (baseline)"
+  - "city/hooks/genesis/active_discovery.py:204 operation='propose_mission' emitter (baseline)"
+  - "git show bcdcd34c7f51ae7bb8731589cf260b41f6869eba: introduced PROPOSE_MISSION enum + _VERB_AUTH entries; message 'Upgrade PROPOSE_MISSION and /mission commands ... (A2A Bridge)'"
+  - "BRAIN_INTENT_SIGNALS['brain:propose_mission'] = handle_brain_propose_mission, len(signals) == 10 == len(ActionVerb) (baseline)"
+  - "tests/test_brain_action.py TestActionVerbCompleteness (test_all_verbs_have_auth_tier, test_parse_roundtrip) and TestBrainIntentSignals iterate all enum members dynamically"
+  - "python3 -m pytest --collect-only -q (6 federation_v1 modules) @ head and @ baseline: identical 6 FileNotFoundError collection errors on gitignored tests/fixtures/federation_v1/keys/test_keys.json (.gitignore:13 keys/; git check-ignore confirmed; fixture content-addressed in tests/fixtures/federation_v1/manifest.json, sha e63cf51f...)"
+  - "python3 -m pytest -q (6 head-suite-only candidates) @ baseline: 1 failed (test_full_layer3_governance_cycle, pytest-timeout >30s), 5 passed"
+  - "python3 -m pytest -q (6 head-suite-only candidates) @ head: 1 failed (test_full_layer3_governance_cycle, pytest-timeout >30s, different stack location), 5 passed — flaky profile identical at both SHAs"
+  - "python3 -m pytest -q (reverse-direction 4 test_layer6 candidates) @ baseline: 4 passed; @ head: 4 passed — no deterministic difference"
+  - "gh api repos/kimeisele/agent-city/commits/c42ffab1.../check-runs: 0 check runs — federation-hq/review NOT published by Repair"
+  - "gh api repos/kimeisele/agent-city/branches/main/protection: required check federation-hq/review bound to App ID 4528340, approvals 0 (matches run manifest)"
+  - "docs/MAINTENANCE_CAMPAIGN_RECRUITMENT_BASELINE.json: node classified failure_cluster stale_test_contract_drift; test_key_setup documented as ignored synthetic fixture"
+created_at: "2026-08-09T12:04:26Z"

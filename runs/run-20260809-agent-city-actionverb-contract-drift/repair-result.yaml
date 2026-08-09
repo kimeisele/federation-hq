@@ -1,0 +1,192 @@
+kind: federation_hq_repair_result
+result_id: run-20260809-agent-city-actionverb-contract-drift-r1
+run_id: run-20260809-agent-city-actionverb-contract-drift
+candidate_id: run-20260809-agent-city-actionverb-contract-drift-c1
+target_repository: kimeisele/agent-city
+baseline_sha: "81eb9d8f09790efd87ec1a3043e2c581829180da"
+repair_head_sha: "c42ffab1d5bdd26f62640498a71bcec46a28c78e"
+branch: repair/run-20260809-actionverb-test-contract
+pull_request:
+  number: 2713
+  url: https://github.com/kimeisele/agent-city/pull/2713
+commands:
+  # ── Baseline (checkout /tmp/agent-city-scout, exact pinned SHA 81eb9d8f) ──
+  - command: python -m pytest tests/test_brain_action.py::TestActionVerb::test_all_9_verbs -q
+    exit_code: 1
+    outcome: >
+      Focused baseline reproduction of the accepted defect: 1 failed —
+      FAILED tests/test_brain_action.py::TestActionVerb::test_all_9_verbs:
+      assert 10 == 9 (tests/test_brain_action.py:34).
+  - command: python -m pytest tests/test_brain_action.py -q
+    exit_code: 1
+    outcome: "Baseline whole-file state: 1 failed, 41 passed; only failure is test_all_9_verbs (assert 10 == 9)."
+  - command: python -m pytest -q
+    exit_code: 2
+    outcome: >
+      Baseline full-suite collection blocked by environment limitation:
+      6 collection errors (tests/federation_v1/test_golden_wire.py,
+      tests/federation_v1/test_golden_wire_01a.py,
+      tests/test_federation_v1_admission.py,
+      tests/test_federation_v1_assignment.py,
+      tests/test_federation_v1_hardening.py,
+      tests/test_federation_v1_ready_work_item.py) — FileNotFoundError:
+      tests/fixtures/federation_v1/keys/test_keys.json. That key file is
+      gitignored ('.gitignore' keys/ pattern; confirmed via git check-ignore)
+      and absent from every local checkout; per repo-native
+      docs/MAINTENANCE_CAMPAIGN_RECRUITMENT_BASELINE.json it is a synthetic
+      test fixture copied into disposable checkouts by the maintenance
+      campaign, not committed. Not fabricated (content-addressed in
+      tests/fixtures/federation_v1/manifest.json).
+  - command: >-
+      python -m pytest -q --ignore=tests/federation_v1/test_golden_wire.py
+      --ignore=tests/federation_v1/test_golden_wire_01a.py
+      --ignore=tests/test_federation_v1_admission.py
+      --ignore=tests/test_federation_v1_assignment.py
+      --ignore=tests/test_federation_v1_hardening.py
+      --ignore=tests/test_federation_v1_ready_work_item.py
+    exit_code: 1
+    outcome: >
+      Baseline broader suite (same 6 collection-blocked modules ignored):
+      38 failed, 1916 passed, 1 skipped in 1460.28s. Failure list includes
+      the accepted defect test_all_9_verbs plus 37 known pre-existing reds
+      (layer1/3/4/5/6/8 cycle, timeout, and mock-contract tests). Full list
+      recorded in baseline_failures below.
+  # ── Head (checkout /tmp/agent-city-repair, repair head c42ffab1) ──
+  - command: python -m pytest tests/test_brain_action.py::TestActionVerb::test_all_10_verbs -q
+    exit_code: 0
+    outcome: >
+      Focused node at head passes: 1 passed. NOTE: the test node was RENAMED
+      from test_all_9_verbs to test_all_10_verbs so its name matches the
+      repaired 10-member vocabulary contract; the focused node ID changed
+      accordingly.
+  - command: python -m pytest tests/test_brain_action.py -q
+    exit_code: 0
+    outcome: "Head whole-file state: 42 passed (baseline was 1 failed, 41 passed); stale-count failure gone."
+  - command: >-
+      python -m pytest -q --ignore=tests/federation_v1/test_golden_wire.py
+      --ignore=tests/federation_v1/test_golden_wire_01a.py
+      --ignore=tests/test_federation_v1_admission.py
+      --ignore=tests/test_federation_v1_assignment.py
+      --ignore=tests/test_federation_v1_hardening.py
+      --ignore=tests/test_federation_v1_ready_work_item.py
+    exit_code: 1
+    outcome: >
+      Head broader suite (identical invocation/conditions): 39 failed, 1915
+      passed, 1 skipped in 1554.19s. Delta vs baseline is test_all_9_verbs
+      fixed (absent, replaced by passing test_all_10_verbs) plus flaky
+      pre-existing reds moving in and out of the failure set (see
+      flakiness re-runs below); no deterministic new failure.
+  - command: python -m pytest -q
+    exit_code: 2
+    outcome: >
+      Head full-suite collection check under equivalent conditions: identical
+      6 collection errors for the same missing gitignored
+      tests/fixtures/federation_v1/keys/test_keys.json — collection
+      limitation unchanged baseline vs head.
+  # ── Flakiness characterization of the suite delta ──
+  - command: >-
+      python -m pytest -q tests/test_layer3.py::test_full_layer3_governance_cycle
+      tests/test_layer3.py::test_governance_feedback_loop
+      tests/test_layer3.py::test_reflection_proposal_creates_mission
+      tests/test_layer4.py::test_full_rotation_heal_cycle
+      tests/test_layer4.py::test_karma_executes_heal_on_failing_contract
+      tests/test_layer6.py::test_genesis_processes_directives
+    exit_code: 1
+    outcome: >
+      BASELINE re-run of the 6 tests that failed only in the head suite run:
+      test_full_layer3_governance_cycle FAILED at baseline too (pytest-timeout
+      >30s, nondeterministic location), 1 failed, 5 passed. These are
+      pre-existing flaky timeout/cycle tests, not head-introduced.
+  - command: >-
+      python -m pytest -q tests/test_layer3.py::test_full_layer3_governance_cycle
+      tests/test_layer3.py::test_governance_feedback_loop
+      tests/test_layer3.py::test_reflection_proposal_creates_mission
+      tests/test_layer4.py::test_full_rotation_heal_cycle
+      tests/test_layer4.py::test_karma_executes_heal_on_failing_contract
+      tests/test_layer6.py::test_genesis_processes_directives
+    exit_code: 1
+    outcome: >
+      HEAD re-run of the same 6: test_full_layer3_governance_cycle FAILED
+      again (timeout, different stack location), 1 failed, 5 passed — same
+      flaky profile as baseline.
+  - command: >-
+      python -m pytest -q tests/test_layer3.py::test_governance_feedback_loop
+      tests/test_layer3.py::test_reflection_proposal_creates_mission
+      tests/test_layer4.py::test_full_rotation_heal_cycle
+      tests/test_layer4.py::test_karma_executes_heal_on_failing_contract
+      tests/test_layer6.py::test_genesis_processes_directives
+    exit_code: 0
+    outcome: >
+      HEAD re-run of the remaining 5 head-suite-only failures: 5 passed —
+      flaky (they fail in one run and pass in an immediately following run at
+      the same head SHA), not deterministic new failures.
+  - command: >-
+      python -m pytest -q tests/test_layer6.py::test_bridge_offline_no_crash
+      tests/test_layer6.py::test_execute_register_agent
+      tests/test_layer6.py::test_federation_nadi_moksha_flush
+      tests/test_layer6.py::test_mayor_no_federation_backward_compatible
+    exit_code: 1
+    outcome: >
+      BASELINE re-run of 4 tests that passed at head but failed in the
+      baseline suite run: test_bridge_offline_no_crash FAILED (timeout),
+      3 passed — flaky in the reverse direction too.
+  - command: >-
+      python -m pytest -q tests/test_layer6.py::test_bridge_offline_no_crash
+      tests/test_layer6.py::test_execute_register_agent
+      tests/test_layer6.py::test_federation_nadi_moksha_flush
+      tests/test_layer6.py::test_mayor_no_federation_backward_compatible
+    exit_code: 1
+    outcome: >
+      HEAD re-run of the same 4: test_bridge_offline_no_crash FAILED
+      (timeout), 3 passed — identical flaky profile at head.
+baseline_failures:
+  - "tests/review_governance/test_b1.py::test_import_is_side_effect_free"
+  - "tests/test_brain_action.py::TestActionVerb::test_all_9_verbs"
+  - "tests/test_campaign_cli.py::test_campaign_cli_apply_list_show"
+  - "tests/test_heartbeat_campaign_bootstrap.py::test_heartbeat_cli_smoke_with_campaign_manifest"
+  - "tests/test_issue_binding.py::test_issue_open_and_bound_helpers"
+  - "tests/test_layer1.py::test_jiva_derivation"
+  - "tests/test_layer1.py::test_pokedex_discover"
+  - "tests/test_layer1.py::test_pokedex_register"
+  - "tests/test_layer1.py::test_pokedex_zones"
+  - "tests/test_layer5.py::test_auto_vote_and_execute"
+  - "tests/test_layer5.py::test_contract_failure_creates_proposal"
+  - "tests/test_layer5.py::test_full_feedback_loop"
+  - "tests/test_layer5.py::test_full_rotation_with_council"
+  - "tests/test_layer5.py::test_mayor_runs_election_in_dharma"
+  - "tests/test_layer6.py::test_bridge_directive_acks_in_content"
+  - "tests/test_layer6.py::test_bridge_mission_result_post"
+  - "tests/test_layer6.py::test_bridge_offline_no_crash"
+  - "tests/test_layer6.py::test_bridge_post_cooldown"
+  - "tests/test_layer6.py::test_bridge_post_format"
+  - "tests/test_layer6.py::test_create_mission_directive_creates_mission_and_proposal"
+  - "tests/test_layer6.py::test_execute_register_agent"
+  - "tests/test_layer6.py::test_federation_nadi_moksha_flush"
+  - "tests/test_layer6.py::test_full_rotation_with_federation"
+  - "tests/test_layer6.py::test_mayor_no_federation_backward_compatible"
+  - "tests/test_layer8.py::test_daemon_heartbeat_frequency"
+  - "tests/test_mayor_context.py::test_context_bridge_builds_phase_context_and_syncs_services"
+  - "tests/test_mayor_execution.py::test_execution_bridge_routes_genesis"
+  - "tests/test_mayor_execution.py::test_execution_bridge_runs_moksha_self_diagnostics"
+  - "tests/test_mayor_execution.py::test_heartbeat_updates_persisted_totals"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_full_pipeline_core_file_escalation"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_full_pipeline_rejection"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_full_pipeline_scanner_to_verdict"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_verdict_reads_from_real_nadi_inbox"
+  - "tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_6_builders"
+  - "tests/test_runtime.py::test_build_city_runtime_boots_offline"
+  - "tests/test_scalable_metabolism.py::test_metabolize_all_scales_to_100_agents"
+  - "tests/test_treasury.py::TestMoltbookOutboundFallback::test_fallback_path_exists"
+  - "tests/test_wiki_compiler.py::test_build_wiki_materializes_pages"
+  - "tests/federation_v1/test_golden_wire.py [collection error: missing gitignored fixture tests/fixtures/federation_v1/keys/test_keys.json]"
+  - "tests/federation_v1/test_golden_wire_01a.py [collection error: missing gitignored fixture tests/fixtures/federation_v1/keys/test_keys.json]"
+  - "tests/test_federation_v1_admission.py [collection error: missing gitignored fixture tests/fixtures/federation_v1/keys/test_keys.json]"
+  - "tests/test_federation_v1_assignment.py [collection error: missing gitignored fixture tests/fixtures/federation_v1/keys/test_keys.json]"
+  - "tests/test_federation_v1_hardening.py [collection error: missing gitignored fixture tests/fixtures/federation_v1/keys/test_keys.json]"
+  - "tests/test_federation_v1_ready_work_item.py [collection error: missing gitignored fixture tests/fixtures/federation_v1/keys/test_keys.json]"
+newly_introduced_failures: []
+evidence_locations:
+  - run-output/run-20260809-agent-city-actionverb-contract-drift/repair-result.yaml
+  - runs/run-20260809-agent-city-actionverb-contract-drift/repair-candidate.yaml
+  - runs/run-20260809-agent-city-actionverb-contract-drift/run-manifest.yaml
+created_at: "2026-08-09T11:29:26Z"
