@@ -432,12 +432,21 @@ def _existing_required_checks(protection: dict) -> list[str]:
                 ctx = entry["context"]
                 checks.add(f"{ctx}@{entry['app_id']}" if entry.get("app_id") else ctx)
     for rs in protection.get("rulesets") or []:
-        for rule in rs.get("rules") or []:
+        # Prefer the full normalized representation (write_safe) when the
+        # list summary does not contain the rules array.
+        rules = (rs.get("write_safe") or {}).get("rules") or rs.get("rules") or []
+        for rule in rules:
             if rule.get("type") == "required_status_checks":
-                for entry in rule.get("parameters", {}).get("checks") or []:
+                # Ruleset schema: parameters.required_status_checks, never
+                # Classic `parameters.checks`.
+                for entry in rule.get("parameters", {}).get("required_status_checks") or []:
                     context = entry.get("context")
                     if isinstance(context, str):
-                        checks.add(context)
+                        checks.add(
+                            f"{context}@{entry['integration_id']}"
+                            if entry.get("integration_id")
+                            else context
+                        )
     return list(checks)
 
 
@@ -685,7 +694,11 @@ def _configure_via_ruleset(full: str, default_branch: str, app_id: str) -> str:
                 "type": "required_status_checks",
                 "parameters": {
                     "strict_required_status_checks_policy": True,
-                    "checks": [{"context": CHECK_RUN_NAME, "integration_id": int(app_id)}],
+                    # Ruleset schema: parameter array is `required_status_checks`
+                    # (NOT `checks`; that field is Classic Branch Protection only).
+                    "required_status_checks": [
+                        {"context": CHECK_RUN_NAME, "integration_id": int(app_id)}
+                    ],
                 },
             },
         ],
@@ -747,7 +760,9 @@ def _required_check_bound(classic, gate_ruleset_full, app_id: str) -> bool:
     if isinstance(gate_ruleset_full, dict):
         for rule in gate_ruleset_full.get("rules") or []:
             if rule.get("type") == "required_status_checks":
-                for entry in rule.get("parameters", {}).get("checks") or []:
+                # Ruleset schema: parameters.required_status_checks, never
+                # Classic `parameters.checks`.
+                for entry in rule.get("parameters", {}).get("required_status_checks") or []:
                     if entry.get("context") == CHECK_RUN_NAME:
                         return entry.get("integration_id") == int(app_id)
     return False

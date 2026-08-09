@@ -18,7 +18,8 @@ from federation_hq_gate import policy  # noqa: E402
 
 GATE_RULESET = {
     "id": 900, "name": policy.GATE_RULESET_NAME,
-    "rules": [{"type": "required_status_checks", "parameters": {"checks": [{"context": "federation-hq/review", "integration_id": 4528340}]}}],
+    "rules": [{"type": "required_status_checks", "parameters": {"required_status_checks": [
+        {"context": "federation-hq/review", "integration_id": 4528340}]}}],
 }
 UNRELATED_RULESET = {"id": 901, "name": "other-ruleset", "rules": []}
 
