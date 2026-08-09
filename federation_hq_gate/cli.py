@@ -141,7 +141,8 @@ def cmd_policy(args: argparse.Namespace) -> int:
     from . import policy
     if args.action == "plan":
         exclusions = set(args.exclude or [])
-        plan = policy.build_plan(args.owner, exclusions)
+        includes = set(args.include or [])
+        plan = policy.build_plan(args.owner, exclusions, includes)
         output = Path(args.output)
         output.write_text(json.dumps(plan, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         print(f"policy plan written to {output}")
@@ -218,6 +219,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_policy.add_argument("--output", default="policy-plan.json")
     p_policy.add_argument("--exclude", action="append", default=[],
                           help="OWNER/REPO to exclude (repeatable)")
+    p_policy.add_argument("--include", action="append", default=[],
+                          help="OWNER/REPO to include (repeatable); when present, only these may be configured")
     p_policy.add_argument("--plan", default="policy-plan.json")
     p_policy.add_argument("--confirm-plan-sha256", default="")
     p_policy.add_argument("--dry-run", action="store_true")

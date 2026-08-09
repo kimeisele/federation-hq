@@ -375,9 +375,12 @@ def test_apply_preserves_existing_checks_and_uses_default_branch(monkeypatch, tm
 
     def fake_gh_put(path, body):
         puts.append((path, body))
+        responses[path] = body  # reflect the write for remote verification
         return body
 
     monkeypatch.setattr(policy, "gh_put", fake_gh_put)
+    monkeypatch.setattr(policy, "_bootstrap_repo",
+                        lambda fn, full, branch: (True, "bootstrapped"))
     report = policy.apply_plan(
         plan, expected_sha256=plan["plan_sha256"],
         app_installation_token_fn=lambda **k: "t", dry_run=False, app_id="42",
@@ -386,7 +389,9 @@ def test_apply_preserves_existing_checks_and_uses_default_branch(monkeypatch, tm
     assert report["repositories"][0]["status"] == "configured"
     path, body = puts[0]
     assert path == "/repos/kimeisele/agent-city/branches/master/protection"
-    assert body["required_status_checks"]["contexts"] == ["ci/build", "federation-hq/review"]
+    checks = body["required_status_checks"]["checks"]
+    assert {"context": "ci/build"} in checks
+    assert {"context": "federation-hq/review", "app_id": 42} in checks
     assert body["required_pull_request_reviews"]["required_approving_review_count"] == 0
     assert body["required_conversation_resolution"] is True
     assert body["allow_force_pushes"] is False
@@ -411,12 +416,15 @@ def test_partial_fleet_failure_continues(monkeypatch, tmp_path):
     def fake_put(path, body):
         if "bad" in path:
             raise policy.PolicyError("boom")
+        responses[path] = body  # reflect the write for remote verification
         return body
 
     monkeypatch.setattr(policy, "gh_put", fake_put)
+    monkeypatch.setattr(policy, "_bootstrap_repo",
+                        lambda fn, full, branch: (True, "bootstrapped"))
     report = policy.apply_plan(plan, expected_sha256=plan["plan_sha256"],
                                app_installation_token_fn=lambda **k: "t", dry_run=False,
-                               backup_dir=tmp_path)
+                               app_id="42", backup_dir=tmp_path)
     statuses = {r["repository"]: r["status"] for r in report["repositories"]}
     assert statuses["kimeisele/good"] == "configured"
     assert statuses["kimeisele/bad"] == "failed"
@@ -434,16 +442,20 @@ def test_rollback_restores_before_state(monkeypatch, tmp_path):
     path = tmp_path / "backup.json"
     path.write_text(json.dumps(backup))
     puts: list[tuple[str, dict]] = []
+    gets: dict[str, object] = {}
+    gets["/repos/kimeisele/agent-city/rulesets"] = []
 
     def fake_put(ppath, body):
         puts.append((ppath, body))
+        gets[ppath] = body  # reflect the write for rollback verification
         return body
 
     monkeypatch.setattr(policy, "gh_put", fake_put)
+    monkeypatch.setattr(policy, "gh_get", lambda path: gets[path])
     report = policy.rollback(path)
     assert report["results"][0]["status"] == "restored"
     assert puts[0][0] == "/repos/kimeisele/agent-city/branches/main/protection"
-    assert puts[0][1]["required_status_checks"]["contexts"] == ["ci/build"]
+    assert puts[0][1]["required_status_checks"]["checks"] == [{"context": "ci/build"}]
 
 
 # ── Secret redaction ────────────────────────────────────────────────────────
