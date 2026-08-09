@@ -109,11 +109,59 @@ def plan_sha256(plan: dict) -> str:
 # ── Normalized, write-safe representations ─────────────────────────────────
 
 
+def _github_enabled(value) -> bool:
+    """Decode GitHub's boolean-or-{"enabled": bool} protection values.
+
+    ``bool({"enabled": false})`` is ``True`` in Python, which would invert
+    protection state; this helper handles boolean, ``{"enabled": ...}``,
+    and null/missing consistently.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, dict):
+        enabled = value.get("enabled")
+        if isinstance(enabled, bool):
+            return enabled
+        return bool(enabled)  # pragma: no cover - defensive for odd payloads
+    return bool(value)  # null/missing -> False
+
+
+def _normalize_restrictions(raw) -> dict | None:
+    """Reduce restrictions to writable login/slug strings."""
+    if not isinstance(raw, dict):
+        return None
+    normalized: dict = {}
+    for key in ("users", "teams", "apps"):
+        entries = raw.get(key) or []
+        normalized[key] = [
+            e.get("login", e.get("slug")) for e in entries if isinstance(e, dict)
+        ] if key != "apps" else [
+            e.get("slug") for e in entries if isinstance(e, dict)
+        ]
+    return normalized
+
+
+def _normalize_pr_allowances(raw) -> dict | None:
+    """Reduce PR-review bypass allowances to writable login/slug strings."""
+    if not isinstance(raw, dict):
+        return None
+    normalized: dict = {}
+    for key in ("users", "teams", "apps"):
+        entries = raw.get(key) or []
+        normalized[key] = [
+            e.get("login", e.get("slug")) for e in entries if isinstance(e, dict)
+        ] if key != "apps" else [
+            e.get("slug") for e in entries if isinstance(e, dict)
+        ]
+    return normalized
+
+
 def _normalize_classic_for_write(raw: dict | None) -> dict | None:
     """Reduce a Classic Branch Protection GET response to the writable fields.
 
-    Raw responses carry read-only fields (``url`` and friends) that must
-    never be replayed as a mutation payload.
+    Raw responses carry read-only fields (``url`` and friends) and encode
+    several settings as ``{"enabled": bool}`` objects; both must never be
+    replayed or mis-decoded.
     """
     if raw is None:
         return None
@@ -129,28 +177,45 @@ def _normalize_classic_for_write(raw: dict | None) -> dict | None:
     for ctx in rsc.get("contexts") or []:
         if isinstance(ctx, str):
             checks.append({"context": ctx})
-    return {
+    normalized = {
         "required_status_checks": {
             "strict": bool(rsc.get("strict", True)),
             "checks": checks,
         },
-        "enforce_admins": bool(raw.get("enforce_admins", False)),
+        "enforce_admins": _github_enabled(raw.get("enforce_admins", False)),
         "required_pull_request_reviews": {
             "required_approving_review_count": reviews.get(
                 "required_approving_review_count", 0
             ),
-            "dismiss_stale_reviews": bool(reviews.get("dismiss_stale_reviews", False)),
-            "require_code_owner_reviews": bool(reviews.get("require_code_owner_reviews", False)),
-            "require_last_push_approval": bool(reviews.get("require_last_push_approval", False)),
+            "dismiss_stale_reviews": _github_enabled(
+                reviews.get("dismiss_stale_reviews", False)
+            ),
+            "require_code_owner_reviews": _github_enabled(
+                reviews.get("require_code_owner_reviews", False)
+            ),
+            "require_last_push_approval": _github_enabled(
+                reviews.get("require_last_push_approval", False)
+            ),
         },
-        "restrictions": raw.get("restrictions"),
-        "required_linear_history": bool(raw.get("required_linear_history", False)),
-        "allow_force_pushes": bool(raw.get("allow_force_pushes", False)),
-        "allow_deletions": bool(raw.get("allow_deletions", False)),
-        "required_conversation_resolution": bool(
+        "restrictions": _normalize_restrictions(raw.get("restrictions")),
+        "required_linear_history": _github_enabled(
+            raw.get("required_linear_history", False)
+        ),
+        "allow_force_pushes": _github_enabled(raw.get("allow_force_pushes", False)),
+        "allow_deletions": _github_enabled(raw.get("allow_deletions", False)),
+        "block_creations": _github_enabled(raw.get("block_creations", False)),
+        "required_conversation_resolution": _github_enabled(
             raw.get("required_conversation_resolution", False)
         ),
+        "lock_branch": _github_enabled(raw.get("lock_branch", False)),
+        "allow_fork_syncing": _github_enabled(raw.get("allow_fork_syncing", False)),
     }
+    bypass = reviews.get("bypass_pull_request_allowances")
+    if isinstance(bypass, dict):
+        normalized["required_pull_request_reviews"][
+            "bypass_pull_request_allowances"
+        ] = _normalize_pr_allowances(bypass)
+    return normalized
 
 
 def _normalize_ruleset_for_write(raw: dict) -> dict:
@@ -421,11 +486,8 @@ def apply_plan(plan: dict, *, expected_sha256: str, app_installation_token_fn,
                 restore = _rollback_repo(full, backup[full])
                 report["repositories"].append({
                     "repository": full, "status": "failed",
-                    "reason": "remote verification failed after protection write; "
-                             f"rollback: {restore['status']}"
-                             + (f" ({restore.get('verification', {}).get('problems')})"
-                                if not restore["status"] == "ok" else ""),
-                    "verification": verify,
+                    "reason": "remote verification failed after protection write",
+                    "policy_verification": verify,
                     "rollback": restore,
                 })
                 continue
@@ -497,25 +559,38 @@ def _configure_via_classic(full: str, default_branch: str, existing: dict | None
         checks.append({"context": CHECK_RUN_NAME, "app_id": int(app_id)})
 
     reviews = existing.get("required_pull_request_reviews") or {}
+    review_body = {
+        "required_approving_review_count": 0,
+        "dismiss_stale_reviews": _github_enabled(reviews.get("dismiss_stale_reviews", False)),
+        "require_code_owner_reviews": _github_enabled(
+            reviews.get("require_code_owner_reviews", False)
+        ),
+        "require_last_push_approval": _github_enabled(
+            reviews.get("require_last_push_approval", False)
+        ),
+    }
+    bypass = reviews.get("bypass_pull_request_allowances")
+    if isinstance(bypass, dict):
+        review_body["bypass_pull_request_allowances"] = bypass
     body = {
         "required_status_checks": {
             "strict": bool(rsc.get("strict", True)),
             "checks": checks,
         },
-        "enforce_admins": bool(existing.get("enforce_admins", False)),
-        "required_pull_request_reviews": {
-            "required_approving_review_count": 0,
-            "dismiss_stale_reviews": bool(reviews.get("dismiss_stale_reviews", False)),
-            "require_code_owner_reviews": bool(reviews.get("require_code_owner_reviews", False)),
-            "require_last_push_approval": bool(reviews.get("require_last_push_approval", False)),
-        },
+        "enforce_admins": _github_enabled(existing.get("enforce_admins", False)),
+        "required_pull_request_reviews": review_body,
         "restrictions": existing.get("restrictions"),
-        "required_linear_history": bool(existing.get("required_linear_history", False)),
-        "allow_force_pushes": bool(existing.get("allow_force_pushes", False)),
-        "allow_deletions": bool(existing.get("allow_deletions", False)),
-        "required_conversation_resolution": bool(
+        "required_linear_history": _github_enabled(
+            existing.get("required_linear_history", False)
+        ),
+        "allow_force_pushes": _github_enabled(existing.get("allow_force_pushes", False)),
+        "allow_deletions": _github_enabled(existing.get("allow_deletions", False)),
+        "block_creations": _github_enabled(existing.get("block_creations", False)),
+        "required_conversation_resolution": _github_enabled(
             existing.get("required_conversation_resolution", False)
         ),
+        "lock_branch": _github_enabled(existing.get("lock_branch", False)),
+        "allow_fork_syncing": _github_enabled(existing.get("allow_fork_syncing", False)),
     }
     gh_put(f"/repos/{full}/branches/{default_branch}/protection", body)
     return "classic-configured"
@@ -561,13 +636,26 @@ def _configure_via_ruleset(full: str, default_branch: str, app_id: str) -> str:
 
 
 def _verify_protection(full: str, default_branch: str, app_id: str) -> dict:
-    """Verify the required check is present AND bound to the exact App ID."""
+    """Verify the required check is present AND bound to the exact App ID.
+
+    For the ruleset path the FULL Gate ruleset representation is fetched from
+    the individual ruleset endpoint: the list endpoint returns summaries that
+    must not be assumed to contain the ``rules`` array.
+    """
     try:
         classic = gh_get(f"/repos/{full}/branches/{default_branch}/protection")
         rulesets = gh_get(f"/repos/{full}/rulesets")
     except PolicyError as exc:
         return {"ok": False, "reason": str(exc)}
-    bound = _required_check_bound(classic, rulesets, app_id)
+    gate_full = None
+    if isinstance(rulesets, list):
+        gate = [
+            r for r in rulesets
+            if isinstance(r, dict) and r.get("name") == GATE_RULESET_NAME and r.get("id")
+        ]
+        if gate:
+            gate_full = gh_get(f"/repos/{full}/rulesets/{gate[0]['id']}")
+    bound = _required_check_bound(classic, gate_full, app_id)
     reviews_ok = True
     if isinstance(classic, dict):
         reviews = classic.get("required_pull_request_reviews") or {}
@@ -579,8 +667,13 @@ def _verify_protection(full: str, default_branch: str, app_id: str) -> dict:
     }
 
 
-def _required_check_bound(classic, rulesets, app_id: str) -> bool:
-    """True when the Gate check exists bound to the exact App ID."""
+def _required_check_bound(classic, gate_ruleset_full, app_id: str) -> bool:
+    """True when the Gate check exists bound to the exact App ID.
+
+    *gate_ruleset_full* is the full representation from the individual
+    ruleset endpoint (or None when no Gate ruleset exists); list-summary
+    ``rules`` fields are never inspected.
+    """
     if isinstance(classic, dict):
         rsc = classic.get("required_status_checks") or {}
         for entry in rsc.get("checks") or []:
@@ -589,10 +682,8 @@ def _required_check_bound(classic, rulesets, app_id: str) -> bool:
         for ctx in rsc.get("contexts") or []:
             if ctx == CHECK_RUN_NAME:
                 return False  # unbound context is not an App-bound check
-    for rs in rulesets or []:
-        if not isinstance(rs, dict):
-            continue
-        for rule in rs.get("rules") or []:
+    if isinstance(gate_ruleset_full, dict):
+        for rule in gate_ruleset_full.get("rules") or []:
             if rule.get("type") == "required_status_checks":
                 for entry in rule.get("parameters", {}).get("checks") or []:
                     if entry.get("context") == CHECK_RUN_NAME:
@@ -663,8 +754,14 @@ def _rollback_repo(full: str, state: dict) -> dict:
             actions.append("classic-removed")
 
         verification = _verify_rollback(full, default_branch, before)
+        if verification["ok"]:
+            status = "restored"
+        else:
+            # Rollback mutation succeeded but remote verification failed.
+            status = "failed"
+            actions.append("verification-failed")
         return {
-            "repository": full, "status": "restored",
+            "repository": full, "status": status,
             "actions": actions, "verification": verification,
         }
     except PolicyError as exc:

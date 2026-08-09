@@ -442,12 +442,16 @@ def test_rollback_restores_before_state(monkeypatch, tmp_path):
     path = tmp_path / "backup.json"
     path.write_text(json.dumps(backup))
     puts: list[tuple[str, dict]] = []
+    gets: dict[str, object] = {}
+    gets["/repos/kimeisele/agent-city/rulesets"] = []
 
     def fake_put(ppath, body):
         puts.append((ppath, body))
+        gets[ppath] = body  # reflect the write for rollback verification
         return body
 
     monkeypatch.setattr(policy, "gh_put", fake_put)
+    monkeypatch.setattr(policy, "gh_get", lambda path: gets[path])
     report = policy.rollback(path)
     assert report["results"][0]["status"] == "restored"
     assert puts[0][0] == "/repos/kimeisele/agent-city/branches/main/protection"

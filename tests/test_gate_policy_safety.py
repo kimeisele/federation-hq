@@ -44,11 +44,12 @@ def _classic(existing_checks: list | None = None, contexts: list | None = None) 
 
 
 class Recorder:
-    def __init__(self) -> None:
+    def __init__(self, reflect_deletes: bool = True) -> None:
         self.gets: dict[str, object] = {}
         self.puts: list[tuple[str, dict]] = []
         self.deletes: list[str] = []
         self.default_state: dict | None = None
+        self.reflect_deletes = reflect_deletes
 
     def gh_get(self, path: str):
         if path.endswith("/branches/main/protection") and "branches/main/protection" in self.gets:
@@ -68,6 +69,17 @@ class Recorder:
 
     def gh_delete(self, path: str):
         self.deletes.append(path)
+        if not self.reflect_deletes:
+            return
+        # Reflect the deletion so rollback verification observes it.
+        if "/rulesets/" in path and self.gets.get(
+            "/repos/kimeisele/federation-hq/rulesets"
+        ) is not None:
+            self.gets["/repos/kimeisele/federation-hq/rulesets"] = []
+        elif path.endswith("/protection"):
+            self.gets[path] = None  # deleted protection reads back as absent
+        else:
+            self.gets.pop(path, None)
 
 
 def _plan_for(rec: Recorder, repos: list[dict], includes: set[str] | None = None,
@@ -302,14 +314,19 @@ def test_rollback_restores_classic_exactly(rec, tmp_path):
     assert report["results"][0]["verification"]["ok"] is True
 
 
-def test_rollback_verification_failure_reported(rec, tmp_path):
+def test_rollback_verification_failure_reported(monkeypatch, tmp_path):
+    rec = Recorder(reflect_deletes=False)  # the remote delete does not stick
     rec.gets["/repos/kimeisele/federation-hq/branches/main/protection"] = None
     before = {"default_branch": "main", "protection": {"classic": None, "rulesets": []}}
     backup = tmp_path / "b.json"
     backup.write_text(json.dumps({"kimeisele/federation-hq": before}))
     # After rollback the gate ruleset is still present remotely -> verify fails.
     rec.gets["/repos/kimeisele/federation-hq/rulesets"] = [dict(GATE_RULESET)]
+    monkeypatch.setattr(policy, "gh_get", rec.gh_get)
+    monkeypatch.setattr(policy, "gh_put", rec.gh_put)
+    monkeypatch.setattr(policy, "gh_delete", rec.gh_delete)
     report = policy.rollback(backup)
     verification = report["results"][0]["verification"]
     assert verification["ok"] is False
+    assert report["results"][0]["status"] == "failed"
     assert any("still present" in p for p in verification["problems"])
