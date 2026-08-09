@@ -1,0 +1,87 @@
+kind: federation_hq_repair_candidate
+candidate_id: run-20260809-agent-city-issue-open-helper-isolation-c1
+run_id: run-20260809-agent-city-issue-open-helper-isolation
+target_repository: kimeisele/agent-city
+baseline_sha: "89bf10eea690617f38627e63554a89457a90ed71"
+repository_checkout: /tmp/agent-city-s01
+defect_description: >
+  The defect is a TEST ISOLATION / SETUP defect, not a production-code
+  defect. tests/test_issue_binding.py::test_issue_open_and_bound_helpers
+  (lines 101-109) constructs a real CityIssueManager() and, on an untracked
+  issue number, calls CityIssueManager.is_issue_open(), whose untracked path
+  is answered by a LIVE GitHub query. city/issues.py:529-538
+  is_issue_open() checks the local _issue_cells cache first and then falls
+  back to _gh_run(["issue", "view", str(issue_number), "--json", "state",
+  "-q", ".state"]) and returns out == "OPEN"; __post_init__
+  (city/issues.py:91-108) additionally performs a live
+  _gh_run(["repo", "view", ...]) on every construction. The test asserts
+  is_issue_open(99) is False purely from its local fixture
+  (mgr._issue_cells[42] = object(); _bound_missions[42] = "issue_42_10"),
+  but the method's untracked path returns live GitHub state:
+  kimeisele/agent-city issue #99 is OPEN ("[Campaign] Internet adaptation",
+  verified via `gh issue view 99 --repo kimeisele/agent-city`), so the
+  fallback returns True and the assertion fails with
+  "AssertionError: assert True is False" at tests/test_issue_binding.py:107.
+  Reproduction on the exact pinned baseline (checkout HEAD ==
+  89bf10eea690617f38627e63554a89457a90ed71, clean tree):
+  `python -m pytest tests/test_issue_binding.py::test_issue_open_and_bound_helpers -q`
+  -> "1 failed in 18.54s"; whole file -> "1 failed, 6 passed in 17.38s"
+  (the only failing test in the file). Environment dependence is proven:
+  re-running the SAME focused test with a stub `gh` on PATH that exits 1
+  (forcing _gh_run to return None) -> "1 passed in 21.05s". The test's
+  outcome is therefore determined by ambient external state (gh CLI
+  availability/authentication and issue #99's live state), not by the
+  fixture — the signature of a test-isolation defect. History: is_issue_open(),
+  get_bound_mission() and this very test were added together in commit d02c09e
+  ("fix: dedupe campaign issue reuse", 2026-03-08) when is_issue_open was
+  purely local (`return issue_number in self._issue_cells`); commit 4987d10
+  ("feat: federation recruitment via DHARMA bounties", 2026-03-23)
+  intentionally extended is_issue_open with the live-GitHub fallback
+  ("Issue #743 fix") for issues outside the local 100-issue tracking window
+  and did NOT update the test, leaving it asserting the stale pre-fallback
+  contract and making it the only test in the suite that exercises the
+  fallback path through a real manager. The fallback is production-required,
+  NOT the defect: campaign recruitment targets reference external GitHub
+  issues (github_issue 360 / 131 / 348 in campaigns/default.json:40-61),
+  and CampaignRegistry._compute_gaps (city/campaigns.py:236-242),
+  evaluate() pruning (city/campaigns.py:169-172) and
+  _find_reusable_issue_number (city/campaigns.py:319-322) call
+  _is_issue_open (city/campaigns.py:324-330), which delegates to
+  ctx.issues.is_issue_open; without the fallback those out-of-window numbers
+  would always read as closed and recruitment bounties would never be
+  created. Issue #743 — the issue named in the fallback comment — is itself
+  an OPEN campaign issue ("[Campaign] Internet adaptation"), demonstrating
+  the out-of-window campaign-issue problem the fallback solves. Test
+  conventions confirm the repo's established pattern is to mock the issue
+  manager interface (tests/test_campaigns.py:74-75, 147-148, 195-196:
+  `mock_issues = MagicMock(); mock_issues.is_issue_open.return_value =
+  ...`) or to exercise only local cell state without hitting the fallback
+  (tests/test_layer2.py:418-448, tests/test_layer3.py:20-123);
+  test_issue_open_and_bound_helpers is the only test calling is_issue_open
+  on an untracked number through a real manager with no GitHub isolation.
+  The repository's own baseline evidence documents this exact node:
+  docs/MAINTENANCE_CAMPAIGN_RECRUITMENT_BASELINE.json (failure_cluster
+  "known_red_baseline", root_cause_hint "is_issue_open(99) returns true
+  although issue 99 is not present in the fixture state", base_present true,
+  head_present true, deterministic_second_run true) and
+  docs/MAINTENANCE_BASELINE_22_TRIAGE.md (Issue Binding row: "AssertionError;
+  is_issue_open(99) returns true for an absent issue in the fixture state").
+  Minimal expected behavior: test_issue_open_and_bound_helpers must
+  deterministically verify the read-only issue-open / bound-mission helper
+  semantics against its local fixture WITHOUT depending on live GitHub state
+  (issue #99's live state, gh CLI availability/authentication, or the
+  ambient repository), consistent with the repo's existing isolation
+  conventions; production CityIssueManager.is_issue_open() fallback
+  semantics must remain unchanged. Not prescribed here (per assignment):
+  removing the GitHub fallback, changing the test assertion, global GitHub
+  mocking, or changing issue number 99.
+baseline_failures:
+  - "tests/test_issue_binding.py::test_issue_open_and_bound_helpers - AssertionError: assert True is False at tests/test_issue_binding.py:107; reproduced on pinned baseline 89bf10eea690617f38627e63554a89457a90ed71 with `python -m pytest tests/test_issue_binding.py::test_issue_open_and_bound_helpers -q` (1 failed in 18.54s; whole file: 1 failed, 6 passed in 17.38s). is_issue_open(99) returned True because kimeisele/agent-city issue #99 is OPEN live (gh issue view 99 -> state OPEN, '[Campaign] Internet adaptation')."
+  - "Environment-dependent pass: the identical focused test passes ('1 passed in 21.05s') when a stub `gh` exiting 1 is prepended to PATH, proving the failure is caused by the test's un-isolated live GitHub access, not by the fixture or by production logic."
+  - "Documented as a deterministic baseline node in docs/MAINTENANCE_CAMPAIGN_RECRUITMENT_BASELINE.json (node tests/test_issue_binding.py::test_issue_open_and_bound_helpers, failure_cluster known_red_baseline, base_present true, head_present true, deterministic_second_run true) and docs/MAINTENANCE_BASELINE_22_TRIAGE.md (Issue Binding row)."
+evidence_locations:
+  - run-output/run-20260809-agent-city-issue-open-helper-isolation/repair-candidate.yaml
+  - run-output/run-20260809-agent-city-issue-open-helper-isolation/scout-notes.txt
+  - runs/run-20260809-agent-city-issue-open-helper-isolation/run-manifest.yaml
+selected_by: scout
+created_at: "2026-08-09T16:13:31Z"
