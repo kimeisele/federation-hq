@@ -27,7 +27,7 @@ coordination:
   protocol_version: 0.1.0
   issue_number: 13
   issue_url: https://github.com/kimeisele/federation-hq/issues/13
-pipeline_state: candidate_selected
+pipeline_state: repair_submitted
 prompt_pins:
   operator:
     id: operator
@@ -59,4 +59,10 @@ notes: >
   Transition history: requested -> scouting (msg-run20260809-0002); Scout
   submitted candidate (msg-run20260809-0003); scouting -> candidate_selected
   (artifact_acceptance msg-run20260809-0004, canonical SHA-256
-  7e3996be19fdefe9f0b2309ca36b974c2d0752a10a4655b4684f702027145aa3).
+  7e3996be19fdefe9f0b2309ca36b974c2d0752a10a4655b4684f702027145aa3);
+  Repair submitted result (msg-run20260809-0006); candidate_selected ->
+  repair_in_progress (assignment msg-run20260809-0005);
+  repair_in_progress -> repair_submitted (artifact_acceptance
+  msg-run20260809-0007, canonical repair-result SHA-256
+  819c0e78ec377283bbeaeea85177ee5573d2c2f91dd5135258af86703592b600,
+  PR kimeisele/agent-city#2713, head c42ffab1d5bdd26f62640498a71bcec46a28c78e).
