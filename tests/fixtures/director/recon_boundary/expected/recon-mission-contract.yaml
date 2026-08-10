@@ -1,0 +1,42 @@
+# NON-CANONICAL expected Director output (Issue #33): a bounded Recon
+# Mission — the Director formulates the investigation, never performs it.
+kind: federation_hq_mission_contract
+mission_version: "0.1.0"
+mission_id: mission-director-fixture-recon-i
+source_candidate_id: cand-director-fixture-recon-i
+signal_refs:
+  - signal_id: sig-director-fixture-i
+    source_kind: github_issue
+    repository: kimeisele/agent-city
+    source_native_ref: "kimeisele/agent-city#99997"
+target_repository: kimeisele/agent-city
+objective: >
+  Recon: determine whether the reported discrepancy is a production defect,
+  a stale test contract, or another bounded cause — the investigation itself
+  is the mission.
+decision_question: >
+  Which single bounded artifact or implementation is wrong?
+bounded_scope: >
+  Scout-only recon: inspect the focused test, the implementation and
+  history; report exactly one evidence-backed candidate or none.
+scope_enforcement: declared
+prescribes_repair: false
+hard_constraints:
+  - "The Scout performs the source investigation; the Director does not."
+  - "Exactly one bounded repair candidate or none."
+stop_conditions:
+  - "Evidence cannot be located or verified."
+expected_allowed_outcomes:
+  - approved
+  - changes_requested
+  - blocked
+  - invalid_candidate
+  - mission_rejected
+policy_reference: docs/HQ_MISSION_POLICY.md
+policy_version: "0.1.0"
+policy_sha256: "7d3c4eb4b6528e4aef515b429aafcdb6d9dc228d6feea098582b10a2a4f2241d"
+status: proposed
+creation_provenance:
+  author_role: other
+  source_reference: "Director cycle (director@0.1.0) — NON-CANONICAL fixture (Issue #33)"
+created_at: "2026-08-10T09:00:00Z"

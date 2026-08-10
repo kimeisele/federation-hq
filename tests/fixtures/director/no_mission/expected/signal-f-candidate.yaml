@@ -1,0 +1,23 @@
+# NON-CANONICAL expected Director output (Issue #33): NEW duplicate signal.
+kind: federation_hq_mission_candidate
+candidate_id: cand-director-fixture-f
+signal_refs:
+  - signal_id: sig-director-fixture-f
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_fixture_director_f.py::test_duplicate
+target_repository: kimeisele/agent-city
+problem_statement: >
+  New signal whose evidence establishes it duplicates the already-completed
+  sig-director-fixture-d work.
+disposition: duplicate
+duplicate_of: sig-director-fixture-d
+policy_eligibility:
+  policy_reference: docs/HQ_MISSION_POLICY.md
+  eligible: false
+  reasons:
+    - "POL-06 duplicate of existing completed work"
+evidence:
+  - tests/fixtures/director/no_mission/signals.yaml
+source: "Director cycle (director@0.1.0) — NON-CANONICAL fixture"
+created_at: "2026-08-10T09:00:00Z"

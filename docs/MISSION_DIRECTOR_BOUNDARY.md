@@ -1,6 +1,7 @@
 # Mission Foundation v0.1 — Director Boundary
 
-Status: implemented per Issue #23 (draft PR, not yet merged). This document
+Status: current (Mission Foundation #23, Operator consumption #25,
+MissionContract Pilot 01 #29, terminal feedback #31 all integrated). This document
 defines the boundary between mission formulation and mission execution, the
 signal identity model, the prompt composition contract, and the intended
 future relationship. It does NOT implement the Mission Director.
@@ -153,3 +154,33 @@ Rules (see ADR-0003):
 RunAssessment + Ledger = the terminal feedback interface consumed by future
 mission formulation. The Director does not own or rewrite historical
 assessment facts.
+
+
+## HQ Director v0.1 (implemented, Issue #33)
+
+The formulation role is now real (ADR-0004): `director@0.1.0` +
+`.omp/agents/hq-director.md` (spawns only `hq-operator`) and the smallest
+`.omp/agents/hq-operator.md` adapter (spawns only `hq-scout`, `hq-repair`,
+`hq-review`, `hq-integrator`). The Director:
+
+- receives a FINITE explicit signal set; one invocation = one decision
+  cycle; at most one MissionContract; selecting none is a valid outcome;
+- reads exact canonical Policy + Ledger (+ canonical terminal RunAssessments
+  where relevant); cheap evidence only — no deep recon; a bounded Recon
+  Mission routes through the Operator path;
+- never silently reopens a terminal prior Ledger disposition (POL-04);
+  never self-scores or ranks; ambiguous selection -> BLOCKED / none;
+- hands an accepted canonical MissionContract to an ISOLATED `hq-operator`
+  by canonical references only (Mission ID, paths, exact formulation merge
+  commit C, admission Ledger path + pre-formulation commit B + SHA-256,
+  cycle Issue) — the Operator independently performs `operator@0.3.0`
+  admission against Candidate@C + Contract@C + AdmissionLedger@B; the
+  Director NORMAL-merges its own current-cycle HQ decision PR — the
+  selected formulation PR or the terminal no-mission Ledger-only PR — as
+  the canonicalization bridge (Director-owned HQ state persistence, never
+  target/run-record integration); no-mission cycles spawn no workers;
+- never becomes the Operator, Scout, Reviewer, or Integrator.
+
+No synthetic Director state lives in `mission/ledger.yaml` or `missions/`;
+Director tests/smoke use `tests/fixtures/director/` + temporary/in-memory
+Ledger state. The first REAL Director-selected mission is a separate Pilot.

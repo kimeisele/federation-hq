@@ -147,3 +147,37 @@ prompts:
       no Director. PR-local review fix: admission evaluated against the exact point-in-time
       admission-time ledger snapshot (mission_input.admission_ledger pin); live-ledger
       mutations never change historical admission validity.'
+- id: director
+  name: HQ Mission Director
+  description: HQ Mission Director — selects at most one bounded mission from explicit
+    structured signals using canonical Policy, Ledger and terminal feedback; may legitimately
+    select none; never performs Scout/Operator/Review work.
+  versions:
+  - version: 0.1.0
+    file: director/v0.1.0.md
+    sha256: 69f5e26c9411c6f466fc873356f6a50911c633900849af54d966572d5d24126e
+    status: released
+    released: '2026-08-10'
+    changelog: 'Initial release (Issue #33, ADR-0002 step 4): HQ Mission Director
+      v0.1. Bounded mission-formulation role: one invocation = one decision cycle,
+      at most one MissionContract; finite explicit signal set + canonical Policy/Ledger/terminal
+      feedback; cheap evidence only (no deep recon; Recon Missions route through the
+      Operator); no self-scoring; POL-01..07, 10, 11, 14, 15; v0.1 tie boundary (ambiguous
+      selection -> BLOCKED/no selection); terminal prior dispositions never silently
+      reopened (POL-04 override required); no-mission is a valid outcome; canonical
+      handoff to an isolated Operator (operator@0.3.0 admission). PR-local review
+      fix: explicit formulation-integration authority — the Director NORMAL-merges
+      its own validated formulation PR (missions/<mission-id>/{mission-candidate,mission-contract}.yaml
+      + mission/ledger.yaml only; no --admin/force/protection changes; blocked ->
+      BLOCKED — formulation integration, no Operator spawn) and hands the Operator
+      ONLY the exact merged HQ commit + canonical references (never a PR head or branch
+      name). PR-local final review fix: explicit time ordering — the POL-04 admission
+      Ledger basis B is captured at the exact pre-formulation HQ main commit and hashed
+      BEFORE any formulation mutation; the Operator handoff uses Candidate@C + Contract@C
+      + AdmissionLedger@B (mixed-commit pins expected); blocked variants BLOCKED —
+      formulation integration / BLOCKED — admission ledger basis. PR-local persistence
+      fix: explicit no-mission Ledger persistence — NEW terminal non-mission decisions
+      project into mission/ledger.yaml ONLY and are NORMAL-merged as the Director''s
+      Ledger-only decision PR (BLOCKED — Director decision persistence if unmergeable);
+      already-terminal signals are reported without redundant mutation; ambiguous
+      cycles are never terminalized; no-mission cycles spawn no workers.'

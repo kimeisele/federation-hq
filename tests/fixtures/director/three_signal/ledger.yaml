@@ -1,0 +1,13 @@
+# NON-CANONICAL fixture Ledger (Issue #33) — never the live mission/ledger.yaml.
+kind: federation_hq_mission_ledger
+schema_version: "0.1.0"
+items:
+  - signal_id: sig-director-fixture-b
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_fixture_director_b.py::test_legacy_fallback
+    disposition: wont_fix
+    related_run_ids: []
+    last_observed_evidence: "Fixture: deliberate legacy behavior; no new evidence supplied."
+    updated_at: "2026-08-10T09:00:00Z"
+updated_at: "2026-08-10T09:00:00Z"

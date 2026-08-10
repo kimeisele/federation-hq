@@ -1,0 +1,6 @@
+# NON-CANONICAL Director fixture (Issue #33): recon boundary.
+- signal_id: sig-director-fixture-i
+  source_kind: github_issue
+  repository: kimeisele/agent-city
+  source_native_ref: "kimeisele/agent-city#99997"
+  last_observed_evidence: "There may be a defect, but deciding whether production or test is wrong requires source-code/history inspection."

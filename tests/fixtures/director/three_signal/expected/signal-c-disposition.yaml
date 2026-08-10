@@ -1,0 +1,23 @@
+# NON-CANONICAL expected Director output (Issue #33): signal C is POL-02.
+kind: federation_hq_mission_candidate
+candidate_id: cand-director-fixture-c
+signal_refs:
+  - signal_id: sig-director-fixture-c
+    source_kind: human_request
+    repository: kimeisele/agent-city
+    source_native_ref: "fixture-request-improve-repo"
+target_repository: kimeisele/agent-city
+problem_statement: >
+  Unbounded request to improve the whole repository; no bounded evidence-backed
+  discrepancy.
+disposition: no_mission_warranted
+policy_eligibility:
+  policy_reference: docs/HQ_MISSION_POLICY.md
+  eligible: false
+  reasons:
+    - "POL-02 no 'improve this repo' missions"
+    - "POL-01 no bounded evidence-backed discrepancy"
+evidence:
+  - tests/fixtures/director/three_signal/signals.yaml
+source: "Director cycle (director@0.1.0) — NON-CANONICAL fixture"
+created_at: "2026-08-10T09:00:00Z"
