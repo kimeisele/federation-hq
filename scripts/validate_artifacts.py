@@ -1560,6 +1560,27 @@ def _mission_signal_id(missions_dir: Path, mission_id: str) -> str | None:
     return None
 
 
+def check_assessment_locations(paths, errors: list[str]) -> None:
+    """Reject committed run-assessment files outside the two canonical
+    locations. *paths* is a list of repository-relative path strings."""
+    for rel in paths:
+        p = Path(rel)
+        parts = p.parts
+        # Canonical executed assessment: runs/<run-id>/run-assessment.yaml
+        if len(parts) == 3 and parts[0] == "runs" and parts[2] == "run-assessment.yaml":
+            continue
+        # Canonical pre-run rejection: missions/<mission-id>/run-assessment.yaml
+        if len(parts) == 3 and parts[0] == "missions" and parts[2] == "run-assessment.yaml":
+            continue
+        # examples/ and tests/ are the non-canonical fixtures trees.
+        if parts and parts[0] in ("examples", "tests"):
+            continue
+        errors.append(
+            f"{rel}: run-assessment outside the canonical locations "
+            f"(runs/<run-id>/ or missions/<mission-id>/)"
+        )
+
+
 def check_terminal_feedback(runs_dir: Path, missions_dir: Path, ledger: dict | None,
                             schemas_dir: Path, repo_root: Path, errors: list[str]) -> None:
     """Canonical terminal RunAssessment <-> Mission Ledger agreement, and the
@@ -1567,9 +1588,16 @@ def check_terminal_feedback(runs_dir: Path, missions_dir: Path, ledger: dict | N
 
     Executed runs: runs/<run-id>/run-assessment.yaml. Pre-run rejections:
     missions/<mission-id>/run-assessment.yaml (run_id null, no execution
-    artifacts). One canonical assessment per terminal mission attempt. The
-    live Ledger must agree on mission_id, disposition, and (for executed
-    runs) the related run id. Assessments anywhere else fail.
+    artifacts, and NO run manifest may exist with the same mission_id —
+    rejection happened BEFORE run initialization). One canonical assessment
+    per terminal mission attempt.
+
+    Time semantics: a RunAssessment is historical terminal truth; the Ledger
+    is CURRENT signal state. If the current Ledger item still points to the
+    assessed mission, the disposition must agree; if the signal was
+    legitimately reopened (POL-04 override) into a newer mission, the
+    historical assessment stays valid — only the immutable signal identity
+    and the historical run linkage (related_run_ids) are required.
     """
     ledger_by_signal = {i.get("signal_id"): i for i in (ledger or {}).get("items", [])}
 
@@ -1613,16 +1641,17 @@ def check_terminal_feedback(runs_dir: Path, missions_dir: Path, ledger: dict | N
                 f"Mission Ledger item"
             )
             continue
-        if item.get("mission_id") != mission_id:
-            errors.append(
-                f"runs/{run_dir.name}/run-assessment.yaml: Ledger mission_id does not match"
-            )
-        if item.get("disposition") != doc.get("ledger_disposition"):
-            errors.append(
-                f"runs/{run_dir.name}/run-assessment.yaml: Ledger disposition "
-                f"{item.get('disposition')!r} does not match assessment "
-                f"{doc.get('ledger_disposition')!r}"
-            )
+        if item.get("mission_id") == mission_id:
+            # The Ledger still represents this terminal mission as CURRENT
+            # state: disposition must agree.
+            if item.get("disposition") != doc.get("ledger_disposition"):
+                errors.append(
+                    f"runs/{run_dir.name}/run-assessment.yaml: Ledger disposition "
+                    f"{item.get('disposition')!r} does not match assessment "
+                    f"{doc.get('ledger_disposition')!r}"
+                )
+        # If the Ledger now points to a newer mission (POL-04 reopen), the
+        # historical disposition is not compared; the run linkage remains.
         related = item.get("related_run_ids") or []
         if isinstance(run_id, str) and run_id not in related:
             errors.append(
@@ -1664,6 +1693,26 @@ def check_terminal_feedback(runs_dir: Path, missions_dir: Path, ledger: dict | N
                     f"duplicate canonical terminal assessment for mission {mission_id!r}: both "
                     f"a pre-run rejection (missions/) and an executed run assessment (runs/)"
                 )
+            # A pre-run rejection claims NO run was initialized: no run
+            # manifest may reference this mission.
+            if runs_dir.is_dir():
+                for run_dir in sorted(p for p in runs_dir.iterdir() if p.is_dir()):
+                    manifest_path = run_dir / "run-manifest.yaml"
+                    if not manifest_path.exists():
+                        continue
+                    try:
+                        manifest = load_document(manifest_path)
+                    except Exception:
+                        continue
+                    if not isinstance(manifest, dict):
+                        continue
+                    mi = manifest.get("mission_input")
+                    if isinstance(mi, dict) and mi.get("mission_id") == mission_id:
+                        errors.append(
+                            f"missions/{mission_dir.name}/run-assessment.yaml: rejected BEFORE "
+                            f"run initialization but runs/{run_dir.name}/run-manifest.yaml "
+                            f"references mission {mission_id!r}"
+                        )
             signal_id = _mission_signal_id(missions_dir, mission_id)
             if signal_id is None:
                 errors.append(
@@ -1678,16 +1727,13 @@ def check_terminal_feedback(runs_dir: Path, missions_dir: Path, ledger: dict | N
                     f"has no Mission Ledger item"
                 )
                 continue
-            if item.get("mission_id") != mission_id:
-                errors.append(
-                    f"missions/{mission_dir.name}/run-assessment.yaml: Ledger mission_id "
-                    f"does not match"
-                )
-            if item.get("disposition") != "rejected":
+            if item.get("mission_id") == mission_id and item.get("disposition") != "rejected":
                 errors.append(
                     f"missions/{mission_dir.name}/run-assessment.yaml: Ledger disposition must "
                     f"be rejected for a pre-run rejection, got {item.get('disposition')!r}"
                 )
+            # If the signal was legitimately reopened into a newer mission,
+            # the historical rejection remains valid (no forcing).
 
     # Arbitrary assessment locations fail: only the two canonical patterns.
     try:
@@ -1697,23 +1743,7 @@ def check_terminal_feedback(runs_dir: Path, missions_dir: Path, ledger: dict | N
         ).stdout.splitlines()
     except Exception:
         committed = []
-    for rel in committed:
-        p = Path(rel)
-        parts = p.parts
-        # Canonical executed assessment: runs/<run-id>/run-assessment.yaml
-        if len(parts) == 3 and parts[0] == "runs" and parts[2] == "run-assessment.yaml":
-            continue
-        # Canonical pre-run rejection: missions/<mission-id>/run-assessment.yaml
-        if len(parts) == 3 and parts[0] == "missions" and parts[2] == "run-assessment.yaml":
-            continue
-        # examples/ is the non-canonical fixtures tree (retrospective and
-        # negative projections); those are examples, not canonical state.
-        if parts and parts[0] == "examples":
-            continue
-        errors.append(
-            f"{rel}: run-assessment outside the canonical locations "
-            f"(runs/<run-id>/ or missions/<mission-id>/)"
-        )
+    check_assessment_locations(committed, errors)
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────

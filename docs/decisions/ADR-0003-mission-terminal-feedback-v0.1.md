@@ -51,7 +51,10 @@ terminal feedback without guessing storage paths or reading Issue prose.
 - A future Director can deterministically resolve mission terminal state:
   MissionContract → canonical RunAssessment → matching Ledger disposition.
 - The real Pilot 01 assessment is the primary acceptance fixture and remains
-  unchanged; a NON-CANONICAL rejection fixture proves the no-run path.
+  unchanged; a NON-CANONICAL rejection fixture under
+  `tests/fixtures/mission_terminal_feedback/rejected_pre_run/` (used by
+  pytest with temporary/in-memory ledgers) proves the no-run path without
+  polluting live canonical state.
 - Validator (`scripts/validate_artifacts.py`) enforces the identity and
   ledger agreement chains; arbitrary assessment locations fail.
 - No prompt release change: `operator@0.3.0` already produced the correct

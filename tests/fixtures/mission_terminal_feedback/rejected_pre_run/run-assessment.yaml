@@ -1,0 +1,15 @@
+# NON-CANONICAL test fixture (Issue #31): pre-run rejection assessment.
+kind: federation_hq_run_assessment
+assessment_id: assess-fixture-rejected-pre-run
+mission_id: mission-fixture-rejected-pre-run
+run_id: null
+target_repository: kimeisele/agent-city
+terminal_outcome: mission_rejected
+rejection_reason_code: invalid_framing
+rejection_reason: >
+  POL-02 no 'improve this repo' missions; the contract's unbounded scope
+  does not match a bounded signal (fixture).
+ledger_disposition: rejected
+evidence_locations:
+  - "tests/fixtures/mission_terminal_feedback/rejected_pre_run/mission-contract.yaml"
+created_at: "2026-08-10T08:00:00Z"
