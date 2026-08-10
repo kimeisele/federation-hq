@@ -1,0 +1,117 @@
+kind: federation_hq_review_result
+review_id: run-20260810-agent-city-brainvoice-fact-checking-recon-v1
+run_id: run-20260810-agent-city-brainvoice-fact-checking-recon
+candidate_id: run-20260810-agent-city-brainvoice-fact-checking-recon-c1
+result_id: run-20260810-agent-city-brainvoice-fact-checking-recon-r1
+target_repository: kimeisele/agent-city
+reviewer_head_sha: 0fddd1bbe859867d0fa1966620854877bee1a5dd
+verdict: approved
+created_at: "2026-08-10T18:06:51Z"
+baseline_failures_checked:
+  - "collection error: tests/federation_v1/test_golden_wire.py (missing tests/fixtures/federation_v1/keys/test_keys.json)"
+  - "collection error: tests/federation_v1/test_golden_wire_01a.py (missing tests/fixtures/federation_v1/keys/test_keys.json)"
+  - "collection error: tests/test_federation_v1_admission.py (missing tests/fixtures/federation_v1/keys/test_keys.json)"
+  - "collection error: tests/test_federation_v1_assignment.py (missing tests/fixtures/federation_v1/keys/test_keys.json)"
+  - "collection error: tests/test_federation_v1_hardening.py (missing tests/fixtures/federation_v1/keys/test_keys.json)"
+  - "collection error: tests/test_federation_v1_ready_work_item.py (missing tests/fixtures/federation_v1/keys/test_keys.json)"
+  - "tests/review_governance/test_b1.py::test_import_is_side_effect_free"
+  - "tests/test_layer1.py::test_jiva_derivation"
+  - "tests/test_layer1.py::test_pokedex_discover"
+  - "tests/test_layer1.py::test_pokedex_register"
+  - "tests/test_layer1.py::test_pokedex_zones"
+  - "tests/test_layer6.py::test_full_rotation_with_federation"
+  - "tests/test_layer6.py::test_bridge_post_cooldown"
+  - "tests/test_layer6.py::test_bridge_post_format"
+  - "tests/test_layer6.py::test_bridge_mission_result_post"
+  - "tests/test_layer6.py::test_bridge_directive_acks_in_content"
+  - "tests/test_layer6.py::test_create_mission_directive_creates_mission_and_proposal"
+  - "tests/test_mayor_context.py::test_context_bridge_builds_phase_context_and_syncs_services"
+  - "tests/test_mayor_execution.py::test_execution_bridge_routes_genesis"
+  - "tests/test_mayor_execution.py::test_execution_bridge_runs_moksha_self_diagnostics"
+  - "tests/test_mayor_execution.py::test_heartbeat_updates_persisted_totals"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_verdict_reads_from_real_nadi_inbox"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_full_pipeline_scanner_to_verdict"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_full_pipeline_core_file_escalation"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_full_pipeline_rejection"
+newly_introduced_failures_checked: []
+blockers: []
+evidence_checked:
+  - >-
+    PINS: prompts/review/v0.2.0.md sha256 53ca110b92ded24522b04c247ea1abd808180047dd84f64304eb5591e70dad5e
+    == run-manifest prompt_pins.review; missions/mission-20260810-agent-city-brainvoice-fact-checking-recon/mission-contract.yaml
+    @390b96df sha256 119a783dc3522add5c1a2fca13e16243bd1b523bad15d30156aebdc49ba56fc0 == manifest
+    mission_input.contract.sha256; runs/.../repair-candidate.yaml sha256 a269d069256303e16d20bc82495a48dbe2481fc8b69bcaab4453dabf42a410f2
+    == manifest + acceptance msg-brainvoice-0003; runs/.../repair-result.yaml sha256
+    dd8383f6e7e5f9aa4f067dbe435e3f4d2015a1fd8f7898ecf8638d57dd020539 == manifest + acceptance
+    msg-brainvoice-0005. Coordination Issue kimeisele/federation-hq#37 read in full (msg-brainvoice-0001..0006);
+    active assignment msg-brainvoice-0006 (operator -> review, state_after independent_review).
+  - >-
+    REMOTE HEAD: fresh clone kimeisele/agent-city to /tmp/brainvoice-review; origin/main
+    head == a975b7da810b22587efd826411d08fb7d4b7d36b (== manifest baseline_sha);
+    fetch + checkout 0fddd1bbe859867d0fa1966620854877bee1a5dd (exists remotely); git rev-parse
+    HEAD == 0fddd1b. gh pr view 2718: OPEN, headRefName repair/run-20260810-brainvoice-fact-checking-grounding-gate,
+    headRefOid 0fddd1b, baseRefName main, baseRefOid a975b7da, mergeable MERGEABLE,
+    mergedAt null, 1 commit.
+  - >-
+    DIFF SCOPE: git diff --stat a975b7da..0fddd1b = 7 files, +651/-13 (matches repair_result);
+    city/brain_gates.py (+408, Gate 4), city/brain_context.py (+19), city/brain_voice.py (+44),
+    city/hooks/moksha/reflection_stats.py (+21/-4), city/karma_handlers/brain_health.py (+44),
+    tests/test_brain_context.py (+23), tests/test_brain_gates.py (+101). Deterministic digest/anomaly
+    machinery unchanged (city/brain_digest.py, city/thread_state.py NOT in diff).
+  - >-
+    GROUNDING GATE (candidate c1): city/brain_gates.py Gate 4 — GroundingVerdict / check_grounding /
+    build_grounding_evidence: deterministic claim-token extraction (digest anomaly vocabulary,
+    metric=value pairs, natural-language phrase variants) checked against generation-time evidence
+    (digest cells, field summary, context snapshot, city_stats, extra, heartbeat); any untraceable
+    claim -> grounded=False (caller suppresses). Wired at every posting boundary: brain_health.py
+    health (check_repetition AND check_grounding(snapshot, heartbeat)) and critique (AND
+    check_grounding(snapshot, field_summary, heartbeat)), suppression logged in operations;
+    reflection_stats.py brainstream reflection (check_grounding(snapshot, outcome_diff));
+    brain_voice.py narrate + narrate_event fail-closed return ("","") on ungrounded — callers verified:
+    moltbook_assistant.py skips publishing, hooks/moksha/outbound.py falls back to deterministic
+    technical brief. Issue #137's proposed post-processing approach NOT implemented (pre-posting
+    deterministic gate instead, per candidate c1 and MissionContract hard constraint).
+  - >-
+    HEALTH AGGREGATE FIX (candidate secondary evidence, within scope): city/brain_context.py
+    build_context_snapshot derives thread_stats human_comments/agent_responses/unresolved from
+    active_threads() (comment_stats() key mismatch), covered by new test_build_snapshot_thread_stats_aggregates.
+  - >-
+    BASELINE CLAIM-VERIFICATION ABSENCE (candidate evidence): grep fact_check|verify_claim|claim_verify|traceab
+    over city/ + tests/ at baseline -> only unrelated "traceability" docstrings (federation_nadi.py,
+    git_client.py, visa.py, test_immigration_visa.py); zero claim-verification code.
+  - >-
+    FOCUSED TESTS: HEAD python -m pytest tests/test_brain_gates.py tests/test_brain_context.py
+    tests/test_brain.py tests/test_brain_digest.py tests/test_thread_state.py -q -> 185 passed
+    (test_brain_gates.py collects 31 = 19 baseline + 12 new TestGroundingGate; 1 new context aggregate
+    test). BASELINE same 5 files -> 172 passed; 4-file set (without gates) -> 153 passed, matching
+    the repair_result's command claims.
+  - >-
+    FULL REST-OF-SUITE (reviewer run at HEAD, load ~20-57 on 4 cores): 33 failed / 1934 passed /
+    1 skipped; the 33 = 19 byte-identical baseline IDs + 14 Timeout(>30.0s) from pytest-timeout.
+    FULL REST-OF-SUITE (reviewer run at BASELINE): 22 failed / 1932 passed / 1 skipped = 19 claimed
+    baseline IDs + 3 Timeout-class (test_campaign_cli_apply_list_show, test_heartbeat_campaign_bootstrap,
+    test_scalable_metabolism — IDs recovered from pytest cache) -> timeouts reproduce on baseline.
+    18/19 claimed baseline IDs re-verified failing at baseline in isolation with identical error
+    messages; the 19th (review_governance/test_b1.py::test_import_is_side_effect_free) is a
+    collection-order artifact — passes in small-scope runs at BOTH SHAs, fails in full-suite collection
+    context at BOTH SHAs (tests/test_runtime.py top-level-imports city.runtime; module not in diff),
+    so baseline-identical.
+  - >-
+    NEWLY INTRODUCED FAILURES: none deterministic. Head-only extra failures are 14/14 Timeout(>30.0s),
+    a load-induced class reproducible on baseline (3 observed in the reviewer's baseline run; repairer's
+    isolated re-runs: 21 passed / 1 timeout on the SAME test at both SHAs under load). No deterministic
+    new failure vs baseline.
+  - >-
+    CI: no PR CI configured in kimeisele/agent-city (.github/workflows contains only
+    agent-city-heartbeat.yml and manifest-world-wiki.yml; no pull_request trigger; gh pr checks 2718:
+    no checks reported) — determinate absence, not indeterminate state.
+  - >-
+    INFRASTRUCTURE INCIDENT (honest record): severe host saturation — load average peaked 630+
+    (repairer window) and ~300-337 during review runs on a 4-core shared box (6 users); full-suite
+    results non-representative under this load; timeout sets vary run-to-run on the same load-sensitive
+    tests (repairer head 22, reviewer head 14, reviewer baseline 3); head full suite wall 1704s; one
+    baseline run 879s; a second baseline full-suite re-run was SIGTERM'd by the host at 687s under load
+    337; repeated whole-suite retries extended wall-clock; human operational circuit breaker applied
+    (authorized via Main) halting further full-suite runs; bounded verification only thereafter; no
+    semantic role replaced. Human role handoffs after initial instruction: 0; human operational
+    interventions: 1.
