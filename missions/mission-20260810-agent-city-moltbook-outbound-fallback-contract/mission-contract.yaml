@@ -1,0 +1,53 @@
+kind: federation_hq_mission_contract
+mission_version: "0.1.0"
+mission_id: mission-20260810-agent-city-moltbook-outbound-fallback-contract
+source_candidate_id: cand-20260810-agent-city-moltbook-outbound-fallback-contract
+signal_refs:
+  - signal_id: sig-20260810-agent-city-moltbook-outbound-fallback-test
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_treasury.py::TestMoltbookOutboundFallback::test_fallback_path_exists
+target_repository: kimeisele/agent-city
+objective: >
+  Determine whether the Moltbook outbound fallback discrepancy represented by
+  tests/test_treasury.py::TestMoltbookOutboundFallback::test_fallback_path_exists
+  is a production defect, stale test contract, lost compatibility contract,
+  or another single bounded cause at the exact pinned baseline.
+decision_question: >
+  What is the authoritative current contract for Moltbook outbound fallback
+  behavior, and which single bounded artifact or implementation is wrong?
+bounded_scope: >
+  Investigate the focused test, the current MOKSHA outbound hook
+  implementation and registration, the relevant Moltbook outbound/outbox or
+  bridge path, and the history that replaced or removed the referenced
+  MoltbookOutboundHook. Select at most one repair candidate.
+scope_enforcement: declared
+prescribes_repair: false
+hard_constraints:
+  - Reproduce the focused test behavior before selecting a repair.
+  - Do not reintroduce MoltbookOutboundHook merely to satisfy an obsolete test.
+  - Do not remove or redesign the current outbound architecture merely because the old class is absent.
+  - Determine intended behavior from current callers, hook registration, tests, documentation, and git history.
+  - Preserve working event-driven/outbox semantics unless evidence proves they are defective.
+  - Exactly one bounded repair candidate.
+  - No Federation HQ architecture changes.
+  - No Review Gate changes.
+stop_conditions:
+  - The focused signal does not reproduce or no longer exists at the pinned baseline.
+  - An active overlapping PR already owns the same defect.
+  - Evidence shows the question requires a broader product-policy decision rather than a bounded repair.
+  - Required repository evidence cannot be verified.
+expected_allowed_outcomes:
+  - approved
+  - changes_requested
+  - blocked
+  - invalid_candidate
+  - mission_rejected
+policy_reference: docs/HQ_MISSION_POLICY.md
+policy_version: "0.1.0"
+policy_sha256: "7d3c4eb4b6528e4aef515b429aafcdb6d9dc228d6feea098582b10a2a4f2241d"
+status: proposed
+creation_provenance:
+  author_role: human_operator
+  source_reference: "kimeisele/federation-hq#27 (MissionContract Pilot 01 formulation)"
+created_at: "2026-08-10T05:34:17Z"

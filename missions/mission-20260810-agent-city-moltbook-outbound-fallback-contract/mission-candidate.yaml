@@ -1,0 +1,41 @@
+kind: federation_hq_mission_candidate
+candidate_id: cand-20260810-agent-city-moltbook-outbound-fallback-contract
+signal_refs:
+  - signal_id: sig-20260810-agent-city-moltbook-outbound-fallback-test
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_treasury.py::TestMoltbookOutboundFallback::test_fallback_path_exists
+    last_observed_evidence: >
+      At the exact pinned Agent City baseline (e01d011b), the test imports
+      city.hooks.moksha.outbound.MoltbookOutboundHook and asserts
+      _post_insight_or_fallback; the focused test fails with ImportError.
+      Current outbound implementation must be inspected to determine whether
+      this represents stale test contract, lost compatibility behavior, or
+      another bounded defect.
+target_repository: kimeisele/agent-city
+problem_statement: >
+  A current treasury/outbound test references MoltbookOutboundHook and its
+  _post_insight_or_fallback behavior, while the current MOKSHA outbound
+  implementation appears to use a different outbound-hook architecture.
+  Determine whether the discrepancy is a stale test contract, an unintended
+  compatibility/API regression, a missing fallback behavior, or another
+  single bounded defect.
+disposition: selected
+mission_id: mission-20260810-agent-city-moltbook-outbound-fallback-contract
+policy_eligibility:
+  policy_reference: docs/HQ_MISSION_POLICY.md
+  eligible: true
+  reasons:
+    - bounded concrete test-node signal
+    - exact target repository and baseline can be pinned
+    - one evidence-backed discrepancy
+    - no repair is prescribed
+overlap_refs:
+  - "kimeisele/agent-city#2571 (open PR, PR-lifecycle only, no overlap)"
+blocker_refs: []
+evidence:
+  - tests/test_treasury.py::TestMoltbookOutboundFallback::test_fallback_path_exists
+  - city/hooks/moksha/outbound.py
+source: >
+  Human-authored Federation HQ MissionContract Pilot 01 instruction.
+created_at: "2026-08-10T05:34:17Z"
