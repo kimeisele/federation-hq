@@ -314,7 +314,7 @@ def test_formulation_must_be_canonical_before_operator_handoff():
     assert "exact formulation merge commit C" in flat
     assert "unmerged PR head" in flat and "mutable branch name" in flat
     wrapper = (REPO_ROOT / ".omp" / "agents" / "hq-director.md").read_text()
-    assert "NORMAL-merge" in wrapper and "resolve the exact merged HQ commit" in wrapper
+    assert "NORMAL-merged" in wrapper and "exact merged commit C" in wrapper
 
 
 def test_operator_handoff_payload_uses_exact_merged_commit():
@@ -495,3 +495,81 @@ def test_director_prompt_records_before_formulation_ordering():
 def test_full_validator_green():
     result = _run_cli()
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+# ── No-mission Ledger persistence (final symmetry fix) ────────────────────
+
+
+def test_nm1_new_no_mission_warranted_persistence():
+    """NM1: the no-mission cycle projects a NEW no_mission_warranted signal
+    into the Ledger (candidate_id present, schema-valid), with zero
+    MissionContracts."""
+    after = _load(FIX / "no_mission/expected/ledger-after-nm.yaml")
+    e = next(i for i in after["items"] if i["signal_id"] == "sig-director-fixture-e")
+    assert e["disposition"] == "no_mission_warranted"
+    assert e["candidate_id"] == "cand-director-fixture-e"
+    schema = json.loads((REPO_ROOT / "contracts" / "mission" / "mission-ledger.schema.json")
+                        .read_text(encoding="utf-8"))
+    errors: list[str] = []
+    validate_artifacts.validate_value(after, schema, "ledger-after-nm", errors)
+    assert not errors, errors
+    assert list((FIX / "no_mission/expected").glob("mission-contract*.yaml")) == []
+
+
+def test_nm2_new_duplicate_persistence():
+    """NM2: D remains completed; F (new duplicate of D) gains a terminal
+    duplicate projection; Ledger stays schema-valid."""
+    after = _load(FIX / "no_mission/expected/ledger-after-nm.yaml")
+    by_id = {i["signal_id"]: i for i in after["items"]}
+    assert by_id["sig-director-fixture-d"]["disposition"] == "completed"
+    assert by_id["sig-director-fixture-d"]["related_run_ids"] == ["run-director-fixture-d"]
+    f = by_id["sig-director-fixture-f"]
+    assert f["disposition"] == "duplicate"
+    assert f["duplicate_of"] == "sig-director-fixture-d"
+    assert f["candidate_id"] == "cand-director-fixture-f"
+
+
+def test_nm3_already_terminal_no_rewrite():
+    """NM3: D's disposition/mission_id/related_run_ids are unchanged by the
+    cycle — the fixture Ledger's D item is byte-identical before and after."""
+    before = _load(FIX / "no_mission/ledger.yaml")
+    after = _load(FIX / "no_mission/expected/ledger-after-nm.yaml")
+    d_before = next(i for i in before["items"] if i["signal_id"] == "sig-director-fixture-d")
+    d_after = next(i for i in after["items"] if i["signal_id"] == "sig-director-fixture-d")
+    # disposition, mission_id, related_run_ids and updated_at are untouched.
+    for key in ("disposition", "mission_id", "related_run_ids", "updated_at"):
+        assert d_before.get(key) == d_after.get(key), key
+
+
+def test_nm4_no_operator_handoff_for_no_mission_cycle():
+    """NM4: a no-mission terminal cycle spawns no Operator and opens no
+    MissionContract (structural expected state)."""
+    after = _load(FIX / "no_mission/expected/ledger-after-nm.yaml")
+    assert not any(i.get("mission_id") for i in after["items"])
+    # The director prompt requires no worker spawns on no-mission cycles.
+    prompt = (REPO_ROOT / "prompts" / "director" / "v0.1.0.md").read_text()
+    flat = " ".join(prompt.split())
+    assert "No-mission cycles spawn NO workers" in flat
+    assert "BLOCKED — Director decision persistence" in flat
+
+
+def test_nm5_ambiguity_not_terminalized():
+    """NM5: the ambiguous cycle stays BLOCKED with zero mission artifacts and
+    neither eligible signal is projected into a terminal disposition."""
+    expected_dir = FIX / "ambiguous/expected"
+    assert list(expected_dir.glob("mission-contract*.yaml")) == []
+    assert list(expected_dir.glob("*candidate*.yaml")) == []
+    assert "BLOCKED" in (expected_dir / "decision.md").read_text()
+    # No expected Ledger projection exists for the ambiguous signals.
+    assert list(expected_dir.glob("ledger*.yaml")) == []
+    prompt = (REPO_ROOT / "prompts" / "director" / "v0.1.0.md").read_text()
+    assert "do NOT invent terminal Ledger dispositions" in " ".join(prompt.split())
+
+
+def test_no_or_true_in_director_tests():
+    """No unconditional placeholder asserts in Director tests (self-excluded)."""
+    src = (REPO_ROOT / "tests" / "test_hq_director.py").read_text()
+    src = src.split("def test_no_or_true_in_director_tests():", 1)[0]
+    token = "or " + "True"
+    assert token not in src
+    assert "\n    assert True\n" not in src

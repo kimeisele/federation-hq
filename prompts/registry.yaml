@@ -155,7 +155,7 @@ prompts:
   versions:
   - version: 0.1.0
     file: director/v0.1.0.md
-    sha256: 509c47ba121baf39b607015f52bf123c785a164313f405014f7b1819eb1fd0d2
+    sha256: 69f5e26c9411c6f466fc873356f6a50911c633900849af54d966572d5d24126e
     status: released
     released: '2026-08-10'
     changelog: 'Initial release (Issue #33, ADR-0002 step 4): HQ Mission Director
@@ -175,4 +175,9 @@ prompts:
       Ledger basis B is captured at the exact pre-formulation HQ main commit and hashed
       BEFORE any formulation mutation; the Operator handoff uses Candidate@C + Contract@C
       + AdmissionLedger@B (mixed-commit pins expected); blocked variants BLOCKED —
-      formulation integration / BLOCKED — admission ledger basis.'
+      formulation integration / BLOCKED — admission ledger basis. PR-local persistence
+      fix: explicit no-mission Ledger persistence — NEW terminal non-mission decisions
+      project into mission/ledger.yaml ONLY and are NORMAL-merged as the Director''s
+      Ledger-only decision PR (BLOCKED — Director decision persistence if unmergeable);
+      already-terminal signals are reported without redundant mutation; ambiguous
+      cycles are never terminalized; no-mission cycles spawn no workers.'

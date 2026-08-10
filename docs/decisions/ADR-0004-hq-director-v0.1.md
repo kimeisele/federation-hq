@@ -19,9 +19,13 @@ canonical prompt and OMP adapters.
    Scout/Repair/Review/Operator work and never publishes the Review Gate.
    The Director never performs target/run-record integration and never acts
    as the repair Integrator. The sole merge exception in v0.1 is the NORMAL
-   merge of its own validated Federation HQ formulation PR, required to
-   canonicalize MissionCandidate + MissionContract + Ledger state before
-   Operator handoff — no admin bypass, no force, no Gate publication.
+   merge of its OWN current-cycle HQ decision PR — either the selected
+   formulation PR (MissionCandidate + MissionContract + Ledger) or the
+   terminal no-mission Ledger-only decision PR — required to canonicalize
+   Director-owned HQ mission state (selected) or remembered non-mission
+   dispositions (no-mission) — no admin bypass, no force, no Gate
+   publication. Director-owned canonical state persistence is explicitly
+   distinct from target/run-record integration.
 2. **Inputs:** a finite explicit signal set (existing `signal_ref`
    vocabulary) + exact canonical `docs/HQ_MISSION_POLICY.md` +
    `mission/ledger.yaml` (+ canonical terminal RunAssessments where
@@ -47,6 +51,13 @@ canonical prompt and OMP adapters.
    the four execution workers; canonical role stays `operator@0.3.0`).
    Handoff = canonical references only; the Operator independently performs
    `operator@0.3.0` admission (may return `mission_rejected` before Scout).
+7b. **No-mission persistence:** a REAL cycle with a NEW terminal
+   non-mission decision projects the disposition into `mission/ledger.yaml`
+   ONLY and NORMAL-merges the Director's Ledger-only decision PR, then
+   STOPS (no Operator/workers). Already-terminal signals are reported
+   without redundant mutation; ambiguous cycles are never terminalized;
+   unmergeable Ledger-only PRs are `BLOCKED — Director decision
+   persistence`.
 8. **Admission time ordering:** the POL-04 admission Ledger basis B is the
    exact pre-formulation HQ main commit, hashed BEFORE any formulation
    mutation; the formulation merge yields commit C; the Operator handoff is

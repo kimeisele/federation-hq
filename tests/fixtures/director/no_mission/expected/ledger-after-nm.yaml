@@ -1,0 +1,36 @@
+# NON-CANONICAL expected Ledger state after the no-mission cycle (Issue #33).
+# D remains completed (no redundant rewrite); E (new unbounded) and F (new
+# duplicate of D) gain terminal projections. Validates against the ledger
+# schema. This is the fixture EXPECTATION — tests never touch the live
+# mission/ledger.yaml.
+kind: federation_hq_mission_ledger
+schema_version: "0.1.0"
+items:
+  - signal_id: sig-director-fixture-d
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_fixture_director_d.py::test_completed
+    disposition: completed
+    related_run_ids: ["run-director-fixture-d"]
+    last_observed_evidence: "Fixture: previously completed run; reported, not redispositioned."
+    updated_at: "2026-08-10T09:00:00Z"
+  - signal_id: sig-director-fixture-e
+    source_kind: human_request
+    repository: kimeisele/agent-city
+    source_native_ref: "fixture-request-improve-everything"
+    disposition: no_mission_warranted
+    candidate_id: cand-director-fixture-e
+    related_run_ids: []
+    last_observed_evidence: "Director no-mission decision: POL-02 unbounded request."
+    updated_at: "2026-08-10T09:00:00Z"
+  - signal_id: sig-director-fixture-f
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_fixture_director_f.py::test_duplicate
+    disposition: duplicate
+    candidate_id: cand-director-fixture-f
+    duplicate_of: sig-director-fixture-d
+    related_run_ids: []
+    last_observed_evidence: "Director no-mission decision: duplicate of sig-director-fixture-d."
+    updated_at: "2026-08-10T09:00:00Z"
+updated_at: "2026-08-10T09:00:00Z"

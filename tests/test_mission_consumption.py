@@ -576,5 +576,4 @@ def test_no_director_auto_execution_infrastructure():
         if any(k in rel.lower() for k in
                ("scheduler", "crawler", "daemon", "queue", "ranking")):
             assert False, f"unexpected infrastructure artifact in this slice: {rel}"
-    assert not (REPO_ROOT / ".omp" / "agents" / "hq-director.md").exists() or True  # now exists; bounded
     assert (REPO_ROOT / ".omp" / "agents" / "hq-director.md").exists()

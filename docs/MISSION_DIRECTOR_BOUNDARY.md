@@ -175,8 +175,10 @@ The formulation role is now real (ADR-0004): `director@0.1.0` +
   commit C, admission Ledger path + pre-formulation commit B + SHA-256,
   cycle Issue) — the Operator independently performs `operator@0.3.0`
   admission against Candidate@C + Contract@C + AdmissionLedger@B; the
-  Director NORMAL-merges its own validated formulation PR as the
-  canonicalization bridge (never target/run-record integration);
+  Director NORMAL-merges its own current-cycle HQ decision PR — the
+  selected formulation PR or the terminal no-mission Ledger-only PR — as
+  the canonicalization bridge (Director-owned HQ state persistence, never
+  target/run-record integration); no-mission cycles spawn no workers;
 - never becomes the Operator, Scout, Reviewer, or Integrator.
 
 No synthetic Director state lives in `mission/ledger.yaml` or `missions/`;
