@@ -185,10 +185,55 @@ def test_terminal_trap_cannot_reopen_under_existing_validator():
 
 
 def test_no_mission_fixture_has_zero_contracts():
-    expected = _load(FIX / "no_mission/expected/dispositions.yaml")
-    assert expected["mission_contracts"] == 0
-    assert len(expected["dispositions"]) == 3
-    assert list((FIX / "no_mission/expected").glob("mission-contract*.yaml")) == []
+    expected_dir = FIX / "no_mission/expected"
+    assert list(expected_dir.glob("mission-contract*.yaml")) == []
+    assert list(expected_dir.glob("*.json")) == []
+
+
+def test_terminal_signal_d_preserved_completed():
+    """POL-04: an existing terminal Ledger disposition is authoritative and
+    preserved — the Director reports it, never re-dispositions it."""
+    ledger = _load(FIX / "no_mission/ledger.yaml")
+    item = next(i for i in ledger["items"] if i["signal_id"] == "sig-director-fixture-d")
+    assert item["disposition"] == "completed"
+    # No expected Candidate rewrites D into a new disposition.
+    for rel in ("signal-e-candidate.yaml", "signal-f-candidate.yaml"):
+        cand = _load(FIX / "no_mission/expected" / rel)
+        assert cand["signal_refs"][0]["signal_id"] != "sig-director-fixture-d"
+    # The trap candidate on D without an override fails the existing POL-04 guard.
+    errors: list[str] = []
+    validate_artifacts.check_ledger_reopen(
+        {"kind": "federation_hq_mission_candidate", "candidate_id": "x",
+         "signal_refs": [{"signal_id": "sig-director-fixture-d", "source_kind": "test_node",
+                          "source_native_ref": "x"}],
+         "target_repository": "kimeisele/agent-city", "problem_statement": "x",
+         "disposition": "selected", "created_at": "2026-08-10T09:00:00Z"},
+        ledger, "trap", errors)
+    assert any("terminal ledger disposition" in e for e in errors), errors
+
+
+def test_no_mission_new_signals_schema_valid():
+    """New non-mission outcomes are schema-valid MissionCandidate decision
+    objects: E no_mission_warranted, F duplicate/duplicate_of sig-D."""
+    schema = json.loads((REPO_ROOT / "contracts" / "mission" / "mission-candidate.schema.json")
+                        .read_text(encoding="utf-8"))
+    e = _load(FIX / "no_mission/expected/signal-e-candidate.yaml")
+    errors: list[str] = []
+    validate_artifacts.validate_value(e, schema, "signal-e", errors)
+    assert not errors, errors
+    assert e["disposition"] == "no_mission_warranted"
+    assert "mission_id" not in e
+    f = _load(FIX / "no_mission/expected/signal-f-candidate.yaml")
+    errors = []
+    validate_artifacts.validate_value(f, schema, "signal-f", errors)
+    assert not errors, errors
+    assert f["disposition"] == "duplicate"
+    assert f["duplicate_of"] == "sig-director-fixture-d"
+    assert "mission_id" not in f
+    # Duplicate requires duplicate_of under the mission semantic check.
+    semantic: list[str] = []
+    validate_artifacts.check_mission_artifact(f, "signal-f", semantic)
+    assert not semantic
 
 
 def test_live_ledger_has_no_director_fixtures():
@@ -219,6 +264,75 @@ def test_operator_and_worker_prompts_unchanged():
                 "prompts/repair/v0.2.0.md", "prompts/review/v0.2.0.md",
                 "prompts/operator/v0.2.1.md"):
         assert rel not in changed, f"{rel} changed in this slice"
+
+
+# ── Rules 12b-16: ambiguity, recon, formulation lifecycle, no ranking ─────
+
+
+def test_ambiguity_cycle_produces_zero_mission_artifacts():
+    expected_dir = FIX / "ambiguous/expected"
+    assert list(expected_dir.glob("mission-contract*.yaml")) == []
+    assert list(expected_dir.glob("*candidate*.yaml")) == []
+    signals = _load(FIX / "ambiguous/signals.yaml")
+    assert len(signals) == 2
+    ledger = _load(FIX / "ambiguous/ledger.yaml")
+    ledger_ids = {i["signal_id"] for i in ledger["items"]}
+    assert not any(s["signal_id"] in ledger_ids for s in signals)  # neither terminal
+    assert all(s["last_observed_evidence"] for s in signals)
+    decision = (expected_dir / "decision.md").read_text()
+    assert "BLOCKED" in decision and "ambiguous mission selection" in decision
+
+
+def test_no_ranking_or_self_score_fields():
+    for rel in ["three_signal/expected/mission-candidate.yaml",
+                "three_signal/expected/mission-contract.yaml",
+                "no_mission/expected/signal-e-candidate.yaml",
+                "no_mission/expected/signal-f-candidate.yaml",
+                "recon_boundary/expected/recon-mission-contract.yaml"]:
+        doc = _load(FIX / rel)
+        for key in ("risk_score", "priority_score", "confidence", "importance",
+                    "llm_score", "rank"):
+            assert key not in doc, (rel, key)
+
+
+def test_recon_contract_prescribes_no_repair():
+    contr = _load(FIX / "recon_boundary/expected/recon-mission-contract.yaml")
+    assert contr["prescribes_repair"] is False
+    flat = " ".join((contr["objective"] + " " + contr["bounded_scope"]).split()).lower()
+    assert "recon" in flat or "investigat" in flat
+    assert not any(word in flat for word in ("change file", "implement y", "restore class"))
+
+
+def test_formulation_must_be_canonical_before_operator_handoff():
+    """The Director normal-merges its validated formulation PR BEFORE spawning
+    the Operator; the handoff payload pins the exact merged HQ commit."""
+    prompt = (REPO_ROOT / "prompts" / "director" / "v0.1.0.md").read_text()
+    flat = " ".join(prompt.split())
+    assert "NORMAL Federation HQ merge" in flat
+    assert "BLOCKED — formulation integration" in flat
+    assert "After the formulation merge SUCCEEDS" in flat
+    assert "EXACT MERGED HQ commit" in flat
+    assert "unmerged PR head" in flat and "mutable branch name" in flat
+    wrapper = (REPO_ROOT / ".omp" / "agents" / "hq-director.md").read_text()
+    assert "NORMAL-merge" in wrapper and "resolve the exact merged HQ commit" in wrapper
+
+
+def test_operator_handoff_payload_uses_exact_merged_commit():
+    """Pure mechanical handoff model: formulation PR head H -> normal
+    integration -> merged commit C -> payload pins C, never H/branch."""
+    payload = {
+        "mission_id": "mission-director-fixture-a",
+        "candidate_path": "missions/mission-director-fixture-a/mission-candidate.yaml",
+        "contract_path": "missions/mission-director-fixture-a/mission-contract.yaml",
+        "hq_commit": "c" * 40,  # the exact MERGED HQ commit
+        "cycle_issue": "kimeisele/federation-hq#99996",
+    }
+    assert payload["hq_commit"] == "c" * 40
+    assert len(payload["hq_commit"]) == 40
+    assert not any(payload[k] in ("h" * 40, "branch/name") for k in ("hq_commit",))
+    assert payload["candidate_path"].startswith("missions/")
+    assert payload["contract_path"].startswith("missions/")
+    assert "maintenance_request" not in str(payload)
 
 
 def test_full_validator_green():

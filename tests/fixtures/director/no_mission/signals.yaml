@@ -8,9 +8,9 @@
   source_kind: human_request
   repository: kimeisele/agent-city
   source_native_ref: "fixture-request-improve-everything"
-  last_observed_evidence: "Unbounded request."
+  last_observed_evidence: "Unbounded request: 'Improve the entire repository.'"
 - signal_id: sig-director-fixture-f
   source_kind: test_node
   repository: kimeisele/agent-city
   source_native_ref: tests/test_fixture_director_f.py::test_duplicate
-  last_observed_evidence: "Duplicates an already-completed signal."
+  last_observed_evidence: "Evidence establishes this duplicates sig-director-fixture-d."

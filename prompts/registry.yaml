@@ -155,7 +155,7 @@ prompts:
   versions:
   - version: 0.1.0
     file: director/v0.1.0.md
-    sha256: 746f70c40ebf5661ecec1d1eb41baa196f9d5bb9aff0a680a159a591aaa42b56
+    sha256: c2633a0171cf0b4e84629ffbcca92893513b9cc999eaef665168fa94f965cf94
     status: released
     released: '2026-08-10'
     changelog: 'Initial release (Issue #33, ADR-0002 step 4): HQ Mission Director
@@ -165,4 +165,10 @@ prompts:
       Operator); no self-scoring; POL-01..07, 10, 11, 14, 15; v0.1 tie boundary (ambiguous
       selection -> BLOCKED/no selection); terminal prior dispositions never silently
       reopened (POL-04 override required); no-mission is a valid outcome; canonical
-      handoff to an isolated Operator (operator@0.3.0 admission).'
+      handoff to an isolated Operator (operator@0.3.0 admission). PR-local review
+      fix: explicit formulation-integration authority — the Director NORMAL-merges
+      its own validated formulation PR (missions/<mission-id>/{mission-candidate,mission-contract}.yaml
+      + mission/ledger.yaml only; no --admin/force/protection changes; blocked ->
+      BLOCKED — formulation integration, no Operator spawn) and hands the Operator
+      ONLY the exact merged HQ commit + canonical references (never a PR head or branch
+      name).'

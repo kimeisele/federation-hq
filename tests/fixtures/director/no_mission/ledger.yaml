@@ -1,4 +1,5 @@
-# NON-CANONICAL fixture Ledger (Issue #33).
+# NON-CANONICAL fixture Ledger (Issue #33). Only D is terminal; E and F are
+# NEW signals not present in the Ledger.
 kind: federation_hq_mission_ledger
 schema_version: "0.1.0"
 items:
@@ -9,13 +10,5 @@ items:
     disposition: completed
     related_run_ids: ["run-director-fixture-d"]
     last_observed_evidence: "Fixture: previously completed run."
-    updated_at: "2026-08-10T09:00:00Z"
-  - signal_id: sig-director-fixture-f
-    source_kind: test_node
-    repository: kimeisele/agent-city
-    source_native_ref: tests/test_fixture_director_f.py::test_duplicate
-    disposition: completed
-    related_run_ids: ["run-director-fixture-d"]
-    last_observed_evidence: "Fixture: same work as sig-director-fixture-d."
     updated_at: "2026-08-10T09:00:00Z"
 updated_at: "2026-08-10T09:00:00Z"
