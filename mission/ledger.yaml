@@ -69,17 +69,22 @@ items:
     source_kind: github_issue
     repository: kimeisele/agent-city
     source_native_ref: kimeisele/agent-city#137
-    disposition: active
+    disposition: completed
     candidate_id: cand-20260810-agent-city-brainvoice-fact-checking-recon
     mission_id: mission-20260810-agent-city-brainvoice-fact-checking-recon
-    related_run_ids: []
+    related_run_ids:
+      - run-20260810-agent-city-brainvoice-fact-checking-recon
     last_observed_evidence: >
-      Director cycle #35 (2026-08-10): Issue #137 open (labels brain,
-      help-wanted), reports Brain/BrainVoice event claims unsupported by
-      city_stats/thread_state evidence; selected as a bounded Recon Mission —
-      validity/root cause requires source/history/testing, Director does not
-      diagnose (POL-11).
-    updated_at: "2026-08-10T13:38:00Z"
+      Director cycle #35 recon mission completed (federation-hq#37, run
+      run-20260810-agent-city-brainvoice-fact-checking-recon): #137 report
+      REPRODUCED at baseline a975b7da as a structural missing-grounding-gate
+      defect — Brain/BrainVoice could post event claims (e.g. "severe agent
+      unresponsiveness crisis") not tracing to city_stats/thread_state
+      evidence; deterministic Grounding Gate (Gate 4) added at the
+      Brain/BrainVoice posting boundary; target PR kimeisele/agent-city#2718
+      merged df486b90. Canonical evidence:
+      runs/run-20260810-agent-city-brainvoice-fact-checking-recon/.
+    updated_at: "2026-08-10T18:25:00Z"
   - signal_id: sig-20260810-agent-city-review-request-2711-wcfa-scaling
     source_kind: github_issue
     repository: kimeisele/agent-city
@@ -96,4 +101,4 @@ items:
       federation research review request is not bounded Agent City
       repair/recon work for the HQ pipeline.
     updated_at: "2026-08-10T13:38:00Z"
-updated_at: "2026-08-10T13:38:00Z"
+updated_at: "2026-08-10T18:25:00Z"
