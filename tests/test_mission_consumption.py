@@ -105,10 +105,14 @@ def test_historical_runs_remain_valid():
 
 
 def test_legacy_manifests_still_valid():
+    legacy = 0
     for manifest in REPO_ROOT.glob("runs/run-*/run-manifest.yaml"):
         doc = _load(manifest)
-        assert "maintenance_request" in doc
-        assert "mission_input" not in doc
+        # Mode rule: exactly one of maintenance_request | mission_input.
+        assert ("maintenance_request" in doc) != ("mission_input" in doc), manifest
+        if "maintenance_request" in doc:
+            legacy += 1
+    assert legacy >= 3  # #17/#19/#21 remain legacy
     # Mode rule: exactly one of the two.
     legacy = {"maintenance_request": {"text": "x"}}
     errors = []
