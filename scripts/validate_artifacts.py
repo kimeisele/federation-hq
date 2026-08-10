@@ -1704,7 +1704,7 @@ def check_terminal_feedback(runs_dir: Path, missions_dir: Path, ledger: dict | N
         if len(parts) == 3 and parts[0] == "runs" and parts[2] == "run-assessment.yaml":
             continue
         # Canonical pre-run rejection: missions/<mission-id>/run-assessment.yaml
-        if len(parts) == 2 and parts[0] == "missions" and parts[1] == "run-assessment.yaml":
+        if len(parts) == 3 and parts[0] == "missions" and parts[2] == "run-assessment.yaml":
             continue
         # examples/ is the non-canonical fixtures tree (retrospective and
         # negative projections); those are examples, not canonical state.
