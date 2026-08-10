@@ -302,6 +302,50 @@ def test_rejection_valid_without_run_manifest(tmp_path):
     assert _feedback_errors(tmp_repo, ledger) == []
 
 
+# ── Pre-run assessment schema validation (final review fix) ──────────────
+
+
+def test_pre_run_assessment_schema_violation_invalid(tmp_path):
+    """A canonical-shaped pre-run rejection that violates the RunAssessment
+    schema (unexpected field under additionalProperties: false) is INVALID —
+    the test fails if schema validation of pre-run assessments is removed."""
+    tmp_repo = tmp_path / "repo"
+    _write_mission(tmp_repo, "mission-A", "sig-X")
+    _write_rejection(tmp_repo, "mission-A")
+    assessment = _rejection_assessment("mission-A")
+    assessment["invented_confidence"] = 0.99
+    (tmp_repo / "missions" / "mission-A" / "run-assessment.yaml").write_text(
+        yaml.safe_dump(assessment, sort_keys=False))
+    ledger = _ledger([_ledger_item("sig-X", "mission-A", "rejected")])
+    errors = _feedback_errors(tmp_repo, ledger)
+    assert any("invented_confidence" in e for e in errors), errors
+
+
+def test_pre_run_assessment_missing_reason_code_invalid(tmp_path):
+    """Schema + mission semantic checks require rejection_reason_code on a
+    mission_rejected assessment."""
+    tmp_repo = tmp_path / "repo"
+    _write_mission(tmp_repo, "mission-A", "sig-X")
+    _write_rejection(tmp_repo, "mission-A")
+    assessment = _rejection_assessment("mission-A")
+    del assessment["rejection_reason_code"]
+    (tmp_repo / "missions" / "mission-A" / "run-assessment.yaml").write_text(
+        yaml.safe_dump(assessment, sort_keys=False))
+    ledger = _ledger([_ledger_item("sig-X", "mission-A", "rejected")])
+    errors = _feedback_errors(tmp_repo, ledger)
+    assert any("rejection_reason_code" in e for e in errors), errors
+
+
+def test_valid_rejection_fixture_still_valid(tmp_path):
+    """The valid rejection path (schema-valid, no run initialized, Ledger
+    rejected) remains VALID."""
+    tmp_repo = tmp_path / "repo"
+    _write_mission(tmp_repo, "mission-A", "sig-X")
+    _write_rejection(tmp_repo, "mission-A")
+    ledger = _ledger([_ledger_item("sig-X", "mission-A", "rejected")])
+    assert _feedback_errors(tmp_repo, ledger) == []
+
+
 # ── Legacy grandfathering ─────────────────────────────────────────────────
 
 

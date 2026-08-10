@@ -1581,6 +1581,23 @@ def check_assessment_locations(paths, errors: list[str]) -> None:
         )
 
 
+def _validate_run_assessment_doc(doc: dict, schemas_dir: Path, where: str,
+                                 errors: list[str]) -> None:
+    """Schema-validate a canonical RunAssessment through the repository-native
+    machinery (contracts/mission/run-assessment.schema.json + mission
+    semantic checks) BEFORE terminal-feedback semantics are evaluated."""
+    try:
+        schema = json.loads(
+            (schemas_dir / "mission" / "run-assessment.schema.json")
+            .read_text(encoding="utf-8")
+        )
+    except (json.JSONDecodeError, OSError) as exc:
+        errors.append(f"{where}: cannot read run-assessment schema: {exc}")
+        return
+    validate_value(doc, schema, where, errors)
+    check_mission_artifact(doc, where, errors)
+
+
 def check_terminal_feedback(runs_dir: Path, missions_dir: Path, ledger: dict | None,
                             schemas_dir: Path, repo_root: Path, errors: list[str]) -> None:
     """Canonical terminal RunAssessment <-> Mission Ledger agreement, and the
@@ -1616,6 +1633,8 @@ def check_terminal_feedback(runs_dir: Path, missions_dir: Path, ledger: dict | N
         if not isinstance(doc, dict):
             errors.append(f"runs/{run_dir.name}/run-assessment.yaml: must be an object")
             continue
+        _validate_run_assessment_doc(
+            doc, schemas_dir, f"runs/{run_dir.name}/run-assessment.yaml", errors)
         if doc.get("terminal_outcome") == "mission_rejected":
             errors.append(
                 f"runs/{run_dir.name}/run-assessment.yaml: pre-run rejection must live at "
@@ -1676,6 +1695,9 @@ def check_terminal_feedback(runs_dir: Path, missions_dir: Path, ledger: dict | N
                     f"missions/{mission_dir.name}/run-assessment.yaml: must be an object"
                 )
                 continue
+            # Schema validation FIRST (repository-native), then semantics.
+            _validate_run_assessment_doc(
+                doc, schemas_dir, f"missions/{mission_dir.name}/run-assessment.yaml", errors)
             if doc.get("terminal_outcome") != "mission_rejected" or \
                     doc.get("run_id") is not None:
                 errors.append(
