@@ -1,0 +1,111 @@
+kind: federation_hq_repair_candidate
+candidate_id: run-20260810-agent-city-brainvoice-fact-checking-recon-c1
+run_id: run-20260810-agent-city-brainvoice-fact-checking-recon
+target_repository: kimeisele/agent-city
+baseline_sha: a975b7da810b22587efd826411d08fb7d4b7d36b
+repository_checkout: /tmp/brainvoice-scout
+defect_description: >-
+  The agent-city#137 report REPRODUCES at the pinned baseline as a structural
+  gap: Brain/BrainVoice outputs can present event claims (e.g. a "severe agent
+  unresponsiveness crisis") that do not trace to concrete city_stats/
+  thread_state evidence, because no verification exists between LLM-generated
+  text and posting.
+
+  Claim-generation path (verified at baseline):
+  1. city/brain_digest.py::digest_thread_state (lines 334-376) deterministically
+     digests each active thread into a DigestCell whose key_metrics are
+     metric-backed (energy, human_comments, agent_responses, unresolved) and
+     flags WARNING "unresponsive_thread(N human, 0 agent)" when
+     human_count > 3 and response_count == 0. Reproduced: thread #26 with
+     5 human comments / 0 agent responses / unresolved renders
+     "metrics: energy=0.5, human_comments=5, agent_responses=0, unresolved=True"
+     with "severity=WARNING: unresponsive_thread(5 human, 0 agent)".
+  2. These cells are embedded verbatim in the LLM prompt via
+     city/brain_context.py::build_field_digest (lines 200-221) and
+     city/prompt_builders/critique.py::build_payload (FIELD DIGEST block).
+     Reproduced the full critique system prompt at Heartbeat #726 (matching the
+     issue's example format "[Brain] Heartbeat #726") containing the WARNING
+     cell above.
+  3. The LLM then writes the free-form `comprehension` field (up to 800 chars).
+     city/brain.py::_parse_json_thought (lines 733-860) accepts it verbatim;
+     the `evidence` list is model-supplied, truncated to 3x100 chars, and NEVER
+     validated against the metrics present in the prompt.
+  4. city/brain.py::Thought.format_for_post (~line 264) renders comprehension
+     verbatim as the post body; city/discussions_bridge.py::_build_brain_thought_body
+     (744-752) and post_brain_thought (1176-1190) post it as "[Brain] Heartbeat #N".
+  5. The ONLY posting gates are confidence and repetition:
+     city/karma_handlers/brain_health.py lines 133-143 (health: confidence >= 0.7)
+     and 196-204 (critique: confidence >= 0.6), each followed by
+     city/brain_gates.py::check_repetition (lines 73-145), which keys on the
+     action_hint VERB only. No factual/claim verification exists: grep across
+     city/ and tests/ for fact_check|verify_claim|claim_verify|traceab returns
+     zero claim-verification code (only unrelated "traceability" strings in
+     git_client.py, federation_nadi.py, visa.py).
+  6. city/brain_voice.py::narrate (lines 165-207) has the same gap for Moltbook
+     posts: build_events (77-155) is deterministic and metric-backed, but the
+     CONTENT text is LLM-written free prose parsed by _parse_response (279-305)
+     and posted without any grounding check.
+
+  Root cause (single bounded): Thought.comprehension (and BrainVoice CONTENT)
+  is unconstrained LLM prose that is accepted, formatted, and posted verbatim
+  with no deterministic verification that its event claims trace to the
+  city_stats/thread_state metrics available at claim-generation time. The
+  evidence infrastructure that WOULD ground claims (DigestCell.key_metrics,
+  snapshot fields) exists, but nothing enforces comprehension against it.
+
+  Secondary evidence: the health_check payload's aggregate thread line is
+  always "Threads: 0 human comments, 0 agent responses, 0 unresolved." —
+  city/prompt_builders/health.py lines 68-70 read keys that
+  city/thread_state.py::comment_stats (lines 627-639) never returns (verified
+  empirically: comment_stats() on an engine with a 5-human/0-agent unresolved
+  thread returns only {"total": ...}). This hides aggregate thread metrics from
+  the health prompt; only the critique field digest carries accurate per-thread
+  metrics.
+
+  Not a finding: the issue's secondary claim that the 0 agent_responses were
+  caused by "a pipeline bug" is UNVERIFIED at baseline — record_agent_response
+  is invoked at city/karma_handlers/gateway.py:544 and
+  city/karma_handlers/triage.py:104, and no baseline evidence of a recording
+  failure was found. The defect is the missing grounding gate, independent of
+  why a thread may have 0 responses.
+
+  Minimal expected behavior: before a Brain thought/reflection or BrainVoice
+  narration is posted, every event claim in the output must be traceable to a
+  concrete metric in the generation-time context (digest cells / snapshot);
+  outputs whose claims cannot be so traced must be suppressed or flagged rather
+  than posted unverified. The deterministic digest vocabulary
+  (unresponsive_thread, economy_collapsed, chain_integrity_broken, etc.) and
+  DigestCell.key_metrics are the existing evidence substrate to build on.
+
+  Scope note: bounded to the Brain/BrainVoice posting boundary. Does NOT
+  require changing LLM semantics, removing comprehension, or changing the
+  deterministic digest/anomaly machinery (POL-08 respected: the defect is
+  proven by the absence of any grounding gate combined with the reproduced
+  ungrounded-claim posting path).
+baseline_failures:
+  - >-
+    No failing baseline tests (tests/test_brain.py, test_brain_context.py,
+    test_brain_digest.py, test_thread_state.py: 188 passed). The defect is a
+    missing-verification gap with no test coverage: no test asserts that a
+    posted comprehension/claim traces to a metric (tests/test_brain_digest.py
+    line 174 asserts only the digest classification).
+  - >-
+    Latent broken behavior at baseline: health_check payload aggregate thread
+    line always reads zeros (city/prompt_builders/health.py:68-70 reads keys
+    comment_stats() never returns; city/thread_state.py:627-639).
+evidence_locations:
+  - city/brain.py
+  - city/brain_voice.py
+  - city/brain_context.py
+  - city/brain_digest.py
+  - city/brain_gates.py
+  - city/thread_state.py
+  - city/discussions_bridge.py
+  - city/karma_handlers/brain_health.py
+  - city/prompt_builders/comprehension.py
+  - city/prompt_builders/critique.py
+  - city/prompt_builders/health.py
+  - tests/test_brain_digest.py
+  - tests/test_brain.py
+selected_by: scout
+created_at: '2026-08-10T14:36:19Z'
