@@ -22,7 +22,9 @@
       "pattern": "^[A-Za-z0-9._-]+$"
     },
     "signal_refs": {
+      "description": "At least one structured signal (POL-01): a candidate is only formulated from evidence. Empty signal_refs is invalid.",
       "type": "array",
+      "minItems": 1,
       "items": {
         "$ref": "#/$defs/signal_ref"
       }
@@ -93,6 +95,40 @@
       "items": {
         "type": "string"
       }
+    },
+    "prior_disposition_override": {
+      "description": "Explicit evidence-backed exception (POL-04): reopen a signal whose ledger disposition is terminal (completed/wont_fix/no_mission_warranted/duplicate/rejected/superseded) as selected. Requires at least one concrete new-evidence reference; no vague reconsideration free-text-only override.",
+      "type": "object",
+      "required": [
+        "ledger_signal_id",
+        "prior_disposition",
+        "new_evidence_refs"
+      ],
+      "properties": {
+        "ledger_signal_id": {
+          "description": "The immutable ledger signal identity whose prior disposition is being superseded.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "prior_disposition": {
+          "enum": [
+            "completed",
+            "wont_fix",
+            "no_mission_warranted",
+            "duplicate",
+            "rejected",
+            "superseded"
+          ]
+        },
+        "new_evidence_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
     },
     "evidence": {
       "description": "Observation references supporting the candidate. Facts, not self-scoring.",

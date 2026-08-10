@@ -8,6 +8,8 @@
     "kind",
     "mission_version",
     "mission_id",
+    "source_candidate_id",
+    "signal_refs",
     "target_repository",
     "objective",
     "bounded_scope",
@@ -15,6 +17,8 @@
     "stop_conditions",
     "expected_allowed_outcomes",
     "policy_reference",
+    "policy_version",
+    "policy_sha256",
     "status",
     "creation_provenance",
     "created_at"
@@ -31,11 +35,13 @@
       "pattern": "^[A-Za-z0-9._-]+$"
     },
     "source_candidate_id": {
-      "description": "Candidate this contract was opened from, when applicable.",
+      "description": "The MissionCandidate this contract was opened from (required — signal -> candidate -> contract is the only provenance path; a human request is itself represented as a candidate with source_kind: human_request).",
       "type": "string"
     },
     "signal_refs": {
+      "description": "At least one structured signal (POL-01): a normal MissionContract must not float free from formulation provenance.",
       "type": "array",
+      "minItems": 1,
       "items": {
         "$ref": "#/$defs/signal_ref"
       }
@@ -90,8 +96,17 @@
       }
     },
     "policy_reference": {
-      "description": "Canonical policy artifact the executing roles must respect (docs/HQ_MISSION_POLICY.md).",
+      "description": "Canonical policy artifact the executing roles must respect (docs/HQ_MISSION_POLICY.md) — single source of policy truth; the policy is never duplicated into the contract.",
       "type": "string"
+    },
+    "policy_version": {
+      "description": "Immutable version identifier of the governing policy at formulation time.",
+      "type": "string"
+    },
+    "policy_sha256": {
+      "description": "SHA-256 of the exact UTF-8 bytes of the canonical policy artifact at formulation time, so a historical contract resolves to the exact governing product-intent policy.",
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "status": {
       "description": "mission_rejected is a terminal framing disposition: the mission framing/scope itself is invalid, unsafe, duplicate, unsupported, or evidence-inadequate. Distinct from Scout finding no defect.",

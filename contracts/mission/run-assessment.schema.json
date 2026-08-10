@@ -2,21 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/kimeisele/federation-hq/main/contracts/mission/run-assessment.schema.json",
   "title": "Run Assessment",
-  "description": "Compact machine-readable terminal assessment created AFTER an Operator run. Contains facts useful to future mission selection and dedup. Facts only: every field is either directly derivable from the canonical run record or omitted. No free-form confidence/self-scoring fields (no system_confidence, no LLM scores) — by design.",
+  "description": "Compact machine-readable terminal assessment created AFTER an Operator run (or after a mission is rejected before execution). Contains facts useful to future mission selection and dedup. Facts only: every field is either directly derivable from the canonical run record or omitted. The mission_rejected branch represents a pre-execution framing rejection: it carries a rejection_reason_code and MUST NOT fabricate normal execution facts (review_verdict/gate/target/run-record/handoffs). No free-form confidence/self-scoring fields (no system_confidence, no LLM scores) — by design.",
   "type": "object",
   "required": [
     "kind",
     "assessment_id",
     "mission_id",
-    "run_id",
     "target_repository",
     "terminal_outcome",
-    "repair_class",
-    "review_verdict",
-    "gate_verified",
-    "target_merged",
-    "run_record_merged",
-    "human_role_handoffs",
     "ledger_disposition",
     "created_at"
   ],
@@ -33,8 +26,11 @@
       "pattern": "^[A-Za-z0-9._-]+$"
     },
     "run_id": {
-      "type": "string",
-      "pattern": "^[A-Za-z0-9._-]+$"
+      "description": "Canonical run id. Absent/null for the pre-execution mission_rejected branch (no run was initialized).",
+      "type": [
+        "string",
+        "null"
+      ]
     },
     "target_repository": {
       "type": "string",
@@ -45,12 +41,22 @@
       "pattern": "^[0-9a-f]{40}$"
     },
     "terminal_outcome": {
+      "description": "mission_rejected is the terminal outcome of a framing rejection before normal execution (POL-10); the other values are executed-run outcomes.",
       "enum": [
         "approved",
         "changes_requested",
         "blocked",
-        "invalid_candidate"
+        "invalid_candidate",
+        "mission_rejected"
       ]
+    },
+    "rejection_reason_code": {
+      "description": "Machine-readable reason for terminal_outcome: mission_rejected (invalid_framing, unsafe_scope, duplicate_mission, unsupported, evidence_inadequate, other).",
+      "type": "string"
+    },
+    "rejection_reason": {
+      "description": "Optional evidence-backed explanation for the rejection.",
+      "type": "string"
     },
     "diagnosis": {
       "description": "Short evidence-backed diagnosis / defect disposition text.",

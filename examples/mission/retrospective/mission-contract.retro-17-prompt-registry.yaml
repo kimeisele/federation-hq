@@ -39,6 +39,8 @@ expected_allowed_outcomes:
   - blocked
   - invalid_candidate
 policy_reference: docs/HQ_MISSION_POLICY.md
+policy_version: "0.1.0"
+policy_sha256: "7d3c4eb4b6528e4aef515b429aafcdb6d9dc228d6feea098582b10a2a4f2241d"
 status: completed
 creation_provenance:
   author_role: human_operator

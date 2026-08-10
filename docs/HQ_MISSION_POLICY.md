@@ -1,6 +1,7 @@
 # HQ Mission Policy — v0.1
 
-**Status:** canonical, hand-maintained. **Reference:** `docs/HQ_MISSION_POLICY.md`.
+**Status:** canonical, hand-maintained. **Policy version:** `0.1.0`.
+**Reference:** `docs/HQ_MISSION_POLICY.md`.
 This is the SINGLE canonical policy artifact that mission formulation (human
 or future Director) MUST read before deciding whether bounded work is
 warranted and before opening a MissionContract. Do not maintain a second

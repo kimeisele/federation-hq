@@ -702,8 +702,16 @@ def validate_artifact(
         check_coordination_reference(doc, path.name, errors)
     if "coordination-message" in path.name:
         check_coordination_message(doc, path.name, errors)
-    if "mission-candidate" in path.name or "mission-contract" in path.name:
+    if "mission-candidate" in path.name or "mission-contract" in path.name \
+            or "run-assessment" in path.name:
         check_mission_artifact(doc, path.name, errors)
+    # The live POL-04 reopen guard applies to current formulations. The
+    # documented NON-CANONICAL retrospective projection directory
+    # (examples/mission/retrospective/) is exempt: those files snapshot the
+    # pre-run decision moment, predating the ledger entries their signals now
+    # hold. The guard applies everywhere else, including all real candidates.
+    if "mission-candidate" in path.name and "retrospective" not in path.parts:
+        check_ledger_reopen(doc, _load_ledger(repo_root), path.name, errors)
 
 
 def validate_examples(
@@ -723,17 +731,26 @@ def validate_examples(
 def check_mission_artifact(doc: dict, where: str, errors: list[str]) -> None:
     """Mission-layer semantic checks beyond structural schema validation.
 
-    Policy semantics (docs/HQ_MISSION_POLICY.md POL-04/05/06):
-    - no_mission_warranted must not carry a mission_id (no MissionContract
-      is opened);
+    Policy semantics (docs/HQ_MISSION_POLICY.md):
+    - POL-01: signal_refs must have at least one entry (the minimal schema
+      subset validator does not enforce minItems);
+    - provenance chain signal -> candidate -> contract is the only path
+      (source_candidate_id required on contracts);
+    - POL-05: no_mission_warranted must not carry a mission_id (no
+      MissionContract is opened);
     - duplicate must reference the existing ledger item it duplicates;
     - superseded must reference what supersedes it;
-    - RunAssessment has no free-form confidence/self-scoring fields (the
-      schema already forbids them via additionalProperties: false; nothing
-      further to check here).
+    - POL-10: mission_rejected (contract) requires rejection_reason;
+    - RunAssessment: the mission_rejected branch requires a
+      rejection_reason_code and must not fabricate normal execution facts;
+      the executed-run branch keeps requiring its run facts.
     """
     kind = doc.get("kind")
     if kind == "federation_hq_mission_candidate":
+        if not isinstance(doc.get("signal_refs"), list) or not doc["signal_refs"]:
+            errors.append(
+                f"{where}: signal_refs must contain at least one structured signal (POL-01)"
+            )
         disposition = doc.get("disposition")
         if disposition == "no_mission_warranted" and doc.get("mission_id") is not None:
             errors.append(
@@ -744,11 +761,130 @@ def check_mission_artifact(doc: dict, where: str, errors: list[str]) -> None:
             errors.append(f"{where}: duplicate disposition requires duplicate_of")
         if disposition == "superseded" and not doc.get("superseded_by"):
             errors.append(f"{where}: superseded disposition requires superseded_by")
+        override = doc.get("prior_disposition_override")
+        if override is not None:
+            if not isinstance(override, dict):
+                errors.append(f"{where}: prior_disposition_override must be an object")
+            elif not isinstance(override.get("new_evidence_refs"), list) \
+                    or not override["new_evidence_refs"]:
+                errors.append(
+                    f"{where}: prior_disposition_override requires at least one "
+                    f"concrete new_evidence_ref (no vague reconsideration override)"
+                )
     if kind == "federation_hq_mission_contract":
+        if not isinstance(doc.get("source_candidate_id"), str) or not doc["source_candidate_id"]:
+            errors.append(
+                f"{where}: source_candidate_id is required (signal -> candidate -> contract "
+                f"provenance; human requests are candidates with source_kind: human_request)"
+            )
+        if not isinstance(doc.get("signal_refs"), list) or not doc["signal_refs"]:
+            errors.append(
+                f"{where}: signal_refs must contain at least one structured signal (POL-01)"
+            )
         if doc.get("status") == "mission_rejected" and not doc.get("rejection_reason"):
             errors.append(
                 f"{where}: mission_rejected requires rejection_reason "
                 f"(framing invalid/unsafe/duplicate/unsupported/evidence-inadequate)"
+            )
+    if kind == "federation_hq_run_assessment":
+        _check_run_assessment(doc, where, errors)
+
+
+_EXECUTED_RUN_FACTS = frozenset({
+    "run_id", "repair_class", "review_verdict", "gate_verified",
+    "target_merged", "run_record_merged", "human_role_handoffs",
+})
+
+
+def _check_run_assessment(doc: dict, where: str, errors: list[str]) -> None:
+    """RunAssessment branch semantics: pre-execution mission_rejected vs an
+    executed run. The rejection branch must not pretend review/gate/merge
+    facts constitute a normal execution run."""
+    outcome = doc.get("terminal_outcome")
+    if outcome == "mission_rejected":
+        if not isinstance(doc.get("rejection_reason_code"), str) \
+                or not doc["rejection_reason_code"]:
+            errors.append(
+                f"{where}: terminal_outcome mission_rejected requires a machine-readable "
+                f"rejection_reason_code"
+            )
+        # run_id may be present as null (no run was initialized) but must not
+        # name a canonical run.
+        if doc.get("run_id") is not None:
+            errors.append(
+                f"{where}: mission_rejected assessment run_id must be null/absent "
+                f"(no run was initialized)"
+            )
+        fabricated = sorted(set(_EXECUTED_RUN_FACTS - {"run_id"}) & set(doc))
+        if fabricated:
+            errors.append(
+                f"{where}: mission_rejected assessment must not carry executed-run facts "
+                f"(no review_verdict/gate/target/run-record/handoffs), got {fabricated}"
+            )
+        return
+    missing = sorted(f for f in _EXECUTED_RUN_FACTS if f not in doc)
+    if missing:
+        errors.append(
+            f"{where}: executed-run assessment requires run facts {missing}"
+        )
+    elif not isinstance(doc.get("run_id"), str) or not doc["run_id"]:
+        errors.append(f"{where}: executed-run assessment requires a canonical run_id")
+
+
+def _load_ledger(repo_root: Path) -> dict | None:
+    """Load the persistent Mission Ledger, or None when absent/unreadable."""
+    path = repo_root / "mission" / "ledger.yaml"
+    if not path.exists():
+        return None
+    try:
+        doc = load_document(path)
+    except Exception:
+        return None
+    return doc if isinstance(doc, dict) else None
+
+
+_TERMINAL_LEDGER_DISPOSITIONS = frozenset({
+    "completed", "wont_fix", "no_mission_warranted",
+    "duplicate", "rejected", "superseded",
+})
+
+
+def check_ledger_reopen(doc: dict, ledger: dict | None, where: str, errors: list[str]) -> None:
+    """POL-04 reopen guard: a signal with a terminal ledger disposition must
+    not silently become a selectable mission.
+
+    Validation happens against the live repository-native ledger. A candidate
+    may reopen a terminal signal as selected ONLY via an explicit
+    prior_disposition_override carrying at least one concrete new-evidence
+    reference and the old ledger signal identity.
+    """
+    if doc.get("kind") != "federation_hq_mission_candidate":
+        return
+    if doc.get("disposition") != "selected":
+        return
+    if ledger is None:
+        return  # no ledger to guard against; nothing to enforce
+    ledger_by_signal = {item.get("signal_id"): item for item in ledger.get("items", [])}
+    overrides = doc.get("prior_disposition_override")
+    override_map = {}
+    if isinstance(overrides, dict):
+        override_map = {
+            overrides.get("ledger_signal_id"): overrides.get("prior_disposition")
+        }
+    for ref in doc.get("signal_refs", []) or []:
+        signal_id = ref.get("signal_id") if isinstance(ref, dict) else None
+        item = ledger_by_signal.get(signal_id)
+        if item is None:
+            continue  # new signal: no prior disposition
+        prior = item.get("disposition")
+        if prior not in _TERMINAL_LEDGER_DISPOSITIONS:
+            continue
+        if override_map.get(signal_id) != prior:
+            errors.append(
+                f"{where}: signal {signal_id!r} has terminal ledger disposition "
+                f"{prior!r}; reopening as selected requires an explicit "
+                f"prior_disposition_override for ledger_signal_id {signal_id!r} "
+                f"matching prior_disposition {prior!r} with new evidence (POL-04)"
             )
 
 

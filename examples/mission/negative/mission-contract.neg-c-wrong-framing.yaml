@@ -6,6 +6,7 @@
 kind: federation_hq_mission_contract
 mission_version: "0.1.0"
 mission_id: mission-neg-c-wrong-framing
+source_candidate_id: cand-neg-c-wrong-framing
 signal_refs:
   - signal_id: sig-neg-c-unknown
     source_kind: github_issue
@@ -25,6 +26,8 @@ stop_conditions: []
 expected_allowed_outcomes:
   - mission_rejected
 policy_reference: docs/HQ_MISSION_POLICY.md
+policy_version: "0.1.0"
+policy_sha256: "7d3c4eb4b6528e4aef515b429aafcdb6d9dc228d6feea098582b10a2a4f2241d"
 status: mission_rejected
 rejection_reason: >
   POL-02 no 'improve this repo' missions; scope does not match a bounded

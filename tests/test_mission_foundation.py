@@ -92,6 +92,9 @@ def test_mission_contract_accepts_retrospectives():
             assert doc["mission_id"] == run_id
             assert doc["status"] == "completed"
             assert doc["prescribes_repair"] is False
+            assert doc["source_candidate_id"]
+            assert doc["policy_version"] == "0.1.0"
+            assert len(doc["policy_sha256"]) == 64
 
 
 def test_run_assessment_accepts_real_terminal_facts():
@@ -117,6 +120,24 @@ def test_run_assessment_accepts_real_terminal_facts():
             target_merge, gate_run = expected[issue]
             assert doc["target_merge_sha"] == target_merge
             assert doc["gate_check_run_id"] == gate_run
+
+
+# ── Rule 3b: historical contracts pin the governing policy ────────────────
+
+
+def test_contracts_pin_exact_policy_bytes():
+    import hashlib
+
+    policy = REPO_ROOT / "docs" / "HQ_MISSION_POLICY.md"
+    policy_sha = hashlib.sha256(policy.read_bytes()).hexdigest()
+    for issue in RUNS:
+        for f in _retro_files("mission-contract", issue):
+            doc = _load(f)
+            assert doc["policy_version"] == "0.1.0"
+            assert doc["policy_sha256"] == policy_sha, \
+                f"{f.name}: policy pin must equal the exact current policy bytes"
+    neg_c = _load(NEG / "mission-contract.neg-c-wrong-framing.yaml")
+    assert neg_c["policy_sha256"] == policy_sha
 
 
 # ── Rule 4: signal IDs are immutable internal identities ──────────────────
@@ -181,7 +202,37 @@ def test_no_mission_warranted_requires_no_mission_contract():
     assert any("no_mission_warranted must not carry a mission_id" in e for e in semantic)
 
 
-# ── Rule 8: wont_fix does not silently reopen ─────────────────────────────
+# ── Rule 8: signal provenance is enforced (POL-01) ─────────────────────────
+
+
+def test_empty_candidate_signal_refs_is_invalid():
+    base = _load(_retro_files("mission-candidate", "17")[0])
+    bad = dict(base)
+    bad["signal_refs"] = []
+    semantic = []
+    validate_artifacts.check_mission_artifact(bad, "test", semantic)
+    assert any("signal_refs must contain at least one" in e for e in semantic)
+
+
+def test_contract_without_source_candidate_is_invalid():
+    base = _load(_retro_files("mission-contract", "17")[0])
+    bad = dict(base)
+    bad.pop("source_candidate_id")
+    semantic = []
+    validate_artifacts.check_mission_artifact(bad, "test", semantic)
+    assert any("source_candidate_id is required" in e for e in semantic)
+
+
+def test_contract_without_signal_refs_is_invalid():
+    base = _load(_retro_files("mission-contract", "17")[0])
+    bad = dict(base)
+    bad["signal_refs"] = []
+    semantic = []
+    validate_artifacts.check_mission_artifact(bad, "test", semantic)
+    assert any("signal_refs must contain at least one" in e for e in semantic)
+
+
+# ── Rule 8b: wont_fix does not silently reopen; real ledger reopen guard ──
 
 
 def test_wont_fix_does_not_silently_reopen():
@@ -192,7 +243,78 @@ def test_wont_fix_does_not_silently_reopen():
     assert "mission_id" not in doc
 
 
-# ── Rule 9: mission_rejected is representable ─────────────────────────────
+def _ledger_with(*items) -> dict:
+    return {"kind": "federation_hq_mission_ledger", "schema_version": "0.1.0",
+            "items": list(items), "updated_at": "2026-08-09T19:00:00Z"}
+
+
+def _ledger_item(signal_id: str, disposition: str) -> dict:
+    return {"signal_id": signal_id, "source_kind": "test_node",
+            "source_native_ref": f"tests/example_{signal_id}.py",
+            "disposition": disposition, "updated_at": "2026-08-09T19:00:00Z"}
+
+
+def _candidate_selected(signal_id: str, override: dict | None = None) -> dict:
+    doc = {
+        "kind": "federation_hq_mission_candidate",
+        "candidate_id": f"cand-{signal_id}",
+        "signal_refs": [{"signal_id": signal_id, "source_kind": "test_node",
+                          "source_native_ref": f"tests/example_{signal_id}.py"}],
+        "target_repository": "kimeisele/agent-city",
+        "problem_statement": "bounded problem",
+        "disposition": "selected",
+        "created_at": "2026-08-09T19:30:00Z",
+    }
+    if override is not None:
+        doc["prior_disposition_override"] = override
+    return doc
+
+
+_VALID_OVERRIDE = {
+    "ledger_signal_id": "sig-X", "prior_disposition": "wont_fix",
+    "new_evidence_refs": ["https://example.com/evidence/1"],
+}
+
+
+def test_reopen_guard_wont_fix_blocks_without_override():
+    ledger = _ledger_with(_ledger_item("sig-X", "wont_fix"))
+    errors = []
+    validate_artifacts.check_ledger_reopen(_candidate_selected("sig-X"), ledger, "test", errors)
+    assert any("terminal ledger disposition" in e and "sig-X" in e for e in errors)
+
+
+def test_reopen_guard_valid_override_supersedes():
+    ledger = _ledger_with(_ledger_item("sig-X", "wont_fix"))
+    errors = []
+    cand = _candidate_selected("sig-X", dict(_VALID_OVERRIDE))
+    validate_artifacts.check_ledger_reopen(cand, ledger, "test", errors)
+    assert not errors
+
+
+def test_reopen_guard_completed_signal_cannot_silently_reopen():
+    ledger = _ledger_with(_ledger_item("sig-Y", "completed"))
+    errors = []
+    validate_artifacts.check_ledger_reopen(_candidate_selected("sig-Y"), ledger, "test", errors)
+    assert any("completed" in e for e in errors)
+
+
+def test_reopen_guard_unrelated_signal_remains_selectable():
+    ledger = _ledger_with(_ledger_item("sig-X", "wont_fix"))
+    errors = []
+    validate_artifacts.check_ledger_reopen(_candidate_selected("sig-NEW"), ledger, "test", errors)
+    assert not errors
+
+
+def test_reopen_guard_override_requires_new_evidence():
+    bad_override = {"ledger_signal_id": "sig-X", "prior_disposition": "wont_fix",
+                    "new_evidence_refs": []}
+    semantic = []
+    validate_artifacts.check_mission_artifact(
+        _candidate_selected("sig-X", bad_override), "test", semantic)
+    assert any("new_evidence_ref" in e for e in semantic)
+
+
+# ── Rule 9: mission_rejected is representable and closes the loop ─────────
 
 
 def test_mission_rejected_is_representable():
@@ -201,12 +323,47 @@ def test_mission_rejected_is_representable():
     assert not errors
     assert doc["status"] == "mission_rejected"
     assert doc["rejection_reason"]
+    assert doc["source_candidate_id"]
     # Validator requires a rejection_reason on mission_rejected.
     bad = dict(doc)
     bad.pop("rejection_reason", None)
     semantic = []
     validate_artifacts.check_mission_artifact(bad, "test", semantic)
     assert any("mission_rejected requires rejection_reason" in e for e in semantic)
+
+
+def test_mission_rejected_run_assessment_closes_loop():
+    """Contract mission_rejected -> RunAssessment terminal_outcome
+    mission_rejected -> ledger_disposition rejected, without fabricated
+    executed-run facts."""
+    doc = _load(NEG / "run-assessment.neg-c-wrong-framing.yaml")
+    errors = _errors_for("run-assessment.schema.json", doc)
+    assert not errors
+    assert doc["terminal_outcome"] == "mission_rejected"
+    assert doc["rejection_reason_code"] == "invalid_framing"
+    assert doc["ledger_disposition"] == "rejected"
+    assert doc["run_id"] is None
+    for forbidden in ("review_verdict", "gate_verified", "target_merged",
+                      "run_record_merged", "human_role_handoffs", "repair_class"):
+        assert forbidden not in doc
+
+
+def test_mission_rejected_assessment_requires_reason_code():
+    base = _load(NEG / "run-assessment.neg-c-wrong-framing.yaml")
+    bad = dict(base)
+    bad.pop("rejection_reason_code")
+    semantic = []
+    validate_artifacts.check_mission_artifact(bad, "test", semantic)
+    assert any("rejection_reason_code" in e for e in semantic)
+
+
+def test_mission_rejected_assessment_forbids_fabricated_run_facts():
+    base = _load(NEG / "run-assessment.neg-c-wrong-framing.yaml")
+    bad = dict(base)
+    bad["review_verdict"] = "blocked"
+    semantic = []
+    validate_artifacts.check_mission_artifact(bad, "test", semantic)
+    assert any("must not carry executed-run facts" in e for e in semantic)
 
 
 # ── Rule 10: RunAssessment forbids fake free-form confidence scoring ──────
