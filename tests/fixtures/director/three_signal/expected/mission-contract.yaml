@@ -1,0 +1,42 @@
+# NON-CANONICAL expected Director output (Issue #33): the one MissionContract.
+kind: federation_hq_mission_contract
+mission_version: "0.1.0"
+mission_id: mission-director-fixture-a
+source_candidate_id: cand-director-fixture-a
+signal_refs:
+  - signal_id: sig-director-fixture-a
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_fixture_director_a.py::test_bounded_discrepancy
+target_repository: kimeisele/agent-city
+objective: >
+  Determine whether the enum-vocabulary vs count-test discrepancy is a stale
+  test contract, a production defect, or another single bounded cause at the
+  pinned baseline.
+decision_question: >
+  Which side of the discrepancy is the defect, if any?
+bounded_scope: >
+  Investigate the focused test, the enum definition, callers and history;
+  select at most one repair candidate.
+scope_enforcement: declared
+prescribes_repair: false
+hard_constraints:
+  - "Do not assume which side should change."
+  - "Exactly one bounded repair candidate."
+stop_conditions:
+  - "The signal does not reproduce or no longer exists at the pinned baseline."
+  - "An active overlapping PR owns the same defect."
+expected_allowed_outcomes:
+  - approved
+  - changes_requested
+  - blocked
+  - invalid_candidate
+  - mission_rejected
+policy_reference: docs/HQ_MISSION_POLICY.md
+policy_version: "0.1.0"
+policy_sha256: "7d3c4eb4b6528e4aef515b429aafcdb6d9dc228d6feea098582b10a2a4f2241d"
+status: proposed
+creation_provenance:
+  author_role: other
+  source_reference: "Director cycle (director@0.1.0) — NON-CANONICAL fixture (Issue #33)"
+created_at: "2026-08-10T09:00:00Z"

@@ -1,0 +1,5 @@
+# NON-CANONICAL fixture Ledger (Issue #33): neither signal present.
+kind: federation_hq_mission_ledger
+schema_version: "0.1.0"
+items: []
+updated_at: "2026-08-10T09:00:00Z"

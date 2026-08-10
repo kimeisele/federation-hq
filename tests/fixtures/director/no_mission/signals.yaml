@@ -1,0 +1,16 @@
+# NON-CANONICAL Director fixture (Issue #33): all inputs policy-ineligible.
+- signal_id: sig-director-fixture-d
+  source_kind: test_node
+  repository: kimeisele/agent-city
+  source_native_ref: tests/test_fixture_director_d.py::test_completed
+  last_observed_evidence: "Signal whose Ledger item is already completed; no new evidence."
+- signal_id: sig-director-fixture-e
+  source_kind: human_request
+  repository: kimeisele/agent-city
+  source_native_ref: "fixture-request-improve-everything"
+  last_observed_evidence: "Unbounded request."
+- signal_id: sig-director-fixture-f
+  source_kind: test_node
+  repository: kimeisele/agent-city
+  source_native_ref: tests/test_fixture_director_f.py::test_duplicate
+  last_observed_evidence: "Duplicates an already-completed signal."

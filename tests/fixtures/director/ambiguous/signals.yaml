@@ -1,0 +1,11 @@
+# NON-CANONICAL Director fixture (Issue #33): two eligible, no distinction.
+- signal_id: sig-director-fixture-g
+  source_kind: ci
+  repository: kimeisele/agent-city
+  source_native_ref: "https://github.com/kimeisele/agent-city/actions/runs/1111111111"
+  last_observed_evidence: "Deterministic known-red CI node; bounded discrepancy; no Ledger disposition; no overlap."
+- signal_id: sig-director-fixture-h
+  source_kind: test_node
+  repository: kimeisele/agent-city
+  source_native_ref: tests/test_fixture_director_h.py::test_bounded
+  last_observed_evidence: "Deterministic known-red test node; bounded discrepancy; no Ledger disposition; no overlap."

@@ -1,0 +1,17 @@
+# NON-CANONICAL Director fixture (Issue #33): three-signal acceptance cycle.
+# Finite explicit signal set supplied to one Director invocation.
+- signal_id: sig-director-fixture-a
+  source_kind: test_node
+  repository: kimeisele/agent-city
+  source_native_ref: tests/test_fixture_director_a.py::test_bounded_discrepancy
+  last_observed_evidence: "Synthetic known-red test node; bounded discrepancy between the enum vocabulary and its count test."
+- signal_id: sig-director-fixture-b
+  source_kind: test_node
+  repository: kimeisele/agent-city
+  source_native_ref: tests/test_fixture_director_b.py::test_legacy_fallback
+  last_observed_evidence: "Same failure signature as the previously wont_fix disposition; no new evidence."
+- signal_id: sig-director-fixture-c
+  source_kind: human_request
+  repository: kimeisele/agent-city
+  source_native_ref: "fixture-request-improve-repo"
+  last_observed_evidence: "Unbounded request: 'Improve the whole repository.'"

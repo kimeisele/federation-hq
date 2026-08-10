@@ -1,0 +1,22 @@
+# NON-CANONICAL expected Director output (Issue #33): signal B MUST NOT reopen.
+kind: federation_hq_mission_candidate
+candidate_id: cand-director-fixture-b
+signal_refs:
+  - signal_id: sig-director-fixture-b
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_fixture_director_b.py::test_legacy_fallback
+target_repository: kimeisele/agent-city
+problem_statement: >
+  The same legacy fallback test failure reappears; the Ledger holds a
+  wont_fix disposition and no new evidence was supplied.
+disposition: wont_fix
+policy_eligibility:
+  policy_reference: docs/HQ_MISSION_POLICY.md
+  eligible: false
+  reasons:
+    - "POL-04 prior terminal disposition (wont_fix); no prior_disposition_override with new evidence"
+evidence:
+  - tests/fixtures/director/three_signal/ledger.yaml
+source: "Director cycle (director@0.1.0) — NON-CANONICAL fixture"
+created_at: "2026-08-10T09:00:00Z"

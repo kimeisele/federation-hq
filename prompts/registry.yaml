@@ -147,3 +147,22 @@ prompts:
       no Director. PR-local review fix: admission evaluated against the exact point-in-time
       admission-time ledger snapshot (mission_input.admission_ledger pin); live-ledger
       mutations never change historical admission validity.'
+- id: director
+  name: HQ Mission Director
+  description: HQ Mission Director — selects at most one bounded mission from explicit
+    structured signals using canonical Policy, Ledger and terminal feedback; may legitimately
+    select none; never performs Scout/Operator/Review work.
+  versions:
+  - version: 0.1.0
+    file: director/v0.1.0.md
+    sha256: 746f70c40ebf5661ecec1d1eb41baa196f9d5bb9aff0a680a159a591aaa42b56
+    status: released
+    released: '2026-08-10'
+    changelog: 'Initial release (Issue #33, ADR-0002 step 4): HQ Mission Director
+      v0.1. Bounded mission-formulation role: one invocation = one decision cycle,
+      at most one MissionContract; finite explicit signal set + canonical Policy/Ledger/terminal
+      feedback; cheap evidence only (no deep recon; Recon Missions route through the
+      Operator); no self-scoring; POL-01..07, 10, 11, 14, 15; v0.1 tie boundary (ambiguous
+      selection -> BLOCKED/no selection); terminal prior dispositions never silently
+      reopened (POL-04 override required); no-mission is a valid outcome; canonical
+      handoff to an isolated Operator (operator@0.3.0 admission).'
