@@ -6,7 +6,7 @@ coordination:
   protocol_version: 0.1.0
   issue_number: 29
   issue_url: https://github.com/kimeisele/federation-hq/issues/29
-pipeline_state: repair_submitted
+pipeline_state: approved
 prompt_pins:
   operator:
     id: operator
