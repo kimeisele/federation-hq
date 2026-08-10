@@ -1,0 +1,50 @@
+kind: federation_hq_run_manifest
+run_id: run-20260810-agent-city-brainvoice-fact-checking-recon
+target_repository: kimeisele/agent-city
+baseline_sha: a975b7da810b22587efd826411d08fb7d4b7d36b
+coordination:
+  protocol_version: 0.1.0
+  issue_number: 37
+  issue_url: https://github.com/kimeisele/federation-hq/issues/37
+pipeline_state: approved
+prompt_pins:
+  operator:
+    id: operator
+    version: 0.3.0
+    sha256: c06adf517332b57aa7e300bf7cac43bd2ac2e6131181add5b85f39356e9cac79
+  scout:
+    id: scout
+    version: 0.2.0
+    sha256: eb93cbb94d489df94cd64cde59316fcb650f344244c097c11e024b0093011837
+  repair:
+    id: repair
+    version: 0.2.0
+    sha256: d997d221e88cd5904a62ac2580aa1a91197e96c48587a43b3200e459c26064c7
+  review:
+    id: review
+    version: 0.2.0
+    sha256: 53ca110b92ded24522b04c247ea1abd808180047dd84f64304eb5591e70dad5e
+mission_input:
+  mission_id: mission-20260810-agent-city-brainvoice-fact-checking-recon
+  candidate:
+    path: missions/mission-20260810-agent-city-brainvoice-fact-checking-recon/mission-candidate.yaml
+    hq_commit_sha: 390b96df71a1876c0cce7ed729d7e231d5368e64
+    sha256: d01f06073d2ba4e95a2140d8c5cc262d4fb76827b5c7ce3d6228d9755beb8e41
+  contract:
+    path: missions/mission-20260810-agent-city-brainvoice-fact-checking-recon/mission-contract.yaml
+    hq_commit_sha: 390b96df71a1876c0cce7ed729d7e231d5368e64
+    sha256: 119a783dc3522add5c1a2fca13e16243bd1b523bad15d30156aebdc49ba56fc0
+  admission_ledger:
+    path: mission/ledger.yaml
+    hq_commit_sha: e061c1a71da2f37794969e1e28c6c2461b263769
+    sha256: 9d5dd6ffd149ffb12124df038c5033454e0b405baa7e46bb3d0f6fbf5dfc501f
+created_at: '2026-08-10T16:05:00Z'
+notes: "Director cycle director-cycle-20260810-agent-city-live-pilot-01 (federation-hq#35)
+  selected bounded Recon Mission mission-20260810-agent-city-brainvoice-fact-checking-recon;
+  formulation merged at 390b96df (PR #36). Admission evaluated against Candidate@C +
+  Contract@C + AdmissionLedger@B (e061c1a7, sha256 9d5dd6ff...) — mixed-commit pins per
+  operator@0.3.0; ledger@B has no prior disposition for sig-20260810-agent-city-issue-137-brainvoice-fact-checking
+  (POL-04 reopen guard passes); all schemas and the policy pin (7d3c4eb4 @ C) verified.
+  ADMITTED; run opened. Target kimeisele/agent-city main verified live at run opening
+  to resolve to baseline SHA a975b7da (main head a975b7da810b22587efd826411d08fb7d4b7d36b).
+  HQ main at run opening: 390b96df.\n"

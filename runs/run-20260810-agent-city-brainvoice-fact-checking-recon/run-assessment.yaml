@@ -1,0 +1,48 @@
+# RunAssessment — run-20260810-agent-city-brainvoice-fact-checking-recon
+#
+# Terminal assessment of the Director-cycle recon mission
+# (director-cycle-20260810-agent-city-live-pilot-01, federation-hq#35).
+# Facts only; derived from the canonical run record in this directory.
+# The Mission Foundation defines the schema
+# (contracts/mission/run-assessment.schema.json); this artifact is recorded
+# in the run's canonical record directory.
+kind: federation_hq_run_assessment
+assessment_id: assess-20260810-agent-city-brainvoice-fact-checking-recon
+mission_id: mission-20260810-agent-city-brainvoice-fact-checking-recon
+run_id: run-20260810-agent-city-brainvoice-fact-checking-recon
+target_repository: kimeisele/agent-city
+baseline_sha: "a975b7da810b22587efd826411d08fb7d4b7d36b"
+terminal_outcome: approved
+diagnosis: >
+  Recon confirmed agent-city#137 REPRODUCES at the pinned baseline as a
+  structural missing-verification defect: Brain/BrainVoice posted event
+  claims (e.g. "severe agent unresponsiveness crisis") that did not trace to
+  concrete city_stats/thread_state evidence — comprehension CONTENT is
+  unconstrained LLM prose accepted verbatim by _parse_json_thought, rendered
+  verbatim by format_for_post, and posted gated only by confidence and
+  action_hint-verb repetition; zero claim-verification code existed in
+  city/ or tests/ (reproduced deterministically: unresponsive_thread WARNING
+  cell reached the critique FIELD DIGEST at Heartbeat #726). The Issue's
+  "pipeline bug" explanation for 0 agent_responses was UNVERIFIED and not
+  adopted. Repair: deterministic Grounding Gate (Gate 4, city/brain_gates.py)
+  at every Brain/BrainVoice posting boundary — event claims must trace to
+  generation-time metrics or be suppressed/flagged; digest/anomaly machinery
+  unchanged; Issue-proposed post-processing NOT implemented; secondary health
+  aggregate thread-line zeros fixed within candidate scope.
+defect_disposition: production_defect
+repair_class: production
+review_verdict: approved
+gate_verified: true
+gate_check_run_id: "93550878330"
+target_merged: true
+target_merge_sha: "df486b90dfe95376a5b5e4ed4c6924a8e7efeb57"
+run_record_merged: true
+human_role_handoffs: 0
+rework_count: 0
+ledger_disposition: completed
+evidence_locations:
+  - "runs/run-20260810-agent-city-brainvoice-fact-checking-recon/run-manifest.yaml"
+  - "runs/run-20260810-agent-city-brainvoice-fact-checking-recon/repair-candidate.yaml"
+  - "runs/run-20260810-agent-city-brainvoice-fact-checking-recon/repair-result.yaml"
+  - "runs/run-20260810-agent-city-brainvoice-fact-checking-recon/review-result.yaml"
+created_at: "2026-08-10T18:25:00Z"
