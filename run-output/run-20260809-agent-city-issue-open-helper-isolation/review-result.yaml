@@ -1,0 +1,34 @@
+kind: federation_hq_review_result
+review_id: run-20260809-agent-city-issue-open-helper-isolation-v1
+run_id: run-20260809-agent-city-issue-open-helper-isolation
+candidate_id: run-20260809-agent-city-issue-open-helper-isolation-c1
+result_id: run-20260809-agent-city-issue-open-helper-isolation-r1
+target_repository: kimeisele/agent-city
+reviewer_head_sha: "599735f69a33af6485c1d1307f098240b0b27ec8"
+verdict: approved
+baseline_failures_checked:
+  - "tests/test_issue_binding.py::test_issue_open_and_bound_helpers - AssertionError: assert True is False at tests/test_issue_binding.py:107 (independently reproduced on pinned baseline 89bf10eea690617f38627e63554a89457a90ed71 from a fresh clone: focused -> 1 failed in 4.18s; whole file -> 1 failed, 6 passed in 8.30s). is_issue_open(99) returned True because the untracked-number path falls back to live GitHub and kimeisele/agent-city issue #99 is OPEN live ('[Campaign] Internet adaptation', verified via gh issue view 99)."
+  - "6 federation_v1 collection errors, all FileNotFoundError for the gitignored tests/fixtures/federation_v1/keys/test_keys.json (git check-ignore exit 0; fixture absent from the working tree) - independently confirmed IDENTICAL at both SHAs (head worktree /tmp/agent-city-s01-review-head and baseline worktree /tmp/agent-city-s01-review-base, 6 errors each, same six modules: tests/federation_v1/test_golden_wire.py, test_golden_wire_01a.py, tests/test_federation_v1_admission.py, tests/test_federation_v1_assignment.py, tests/test_federation_v1_hardening.py, tests/test_federation_v1_ready_work_item.py)"
+  - "tests/test_heartbeat_campaign_bootstrap.py::test_heartbeat_cli_smoke_with_campaign_manifest - independently rerun in isolation at baseline: 1 passed in 35.07s (with test_scalable_metabolism flake pair), confirming the repair result's characterization of the concurrent-run SIGKILL as a resource-contention artifact, not a deterministic baseline failure"
+  - "tests/test_scalable_metabolism.py::test_metabolize_all_scales_to_100_agents - independently rerun in isolation at baseline: passed (pytest-timeout >30.0s concurrent-run artifact; passes in isolation), confirming not a deterministic baseline failure"
+newly_introduced_failures_checked: []
+blockers: []
+evidence_checked:
+  - "runs/run-20260809-agent-city-issue-open-helper-isolation/run-manifest.yaml (prompt_pins.review sha256 82b9cc37176304d418a934b261fa5efa2374d4e886c5afdec3789eaa264479e9 matches prompts/review/v0.1.0.md exactly; pins baseline 89bf10eea690617f38627e63554a89457a90ed71 and repair head 599735f69a33af6485c1d1307f098240b0b27ec8)"
+  - "runs/run-20260809-agent-city-issue-open-helper-isolation/repair-candidate.yaml (sha256 d8bfd57d8c1741989ea12083e11c152feda13e5ce10bf5b7a68d16c23aaa299e) and repair-result.yaml (sha256 448c96e05ea24e176440c71b19ed69047832884c14c8b41db509e0d8e4ebe405), both matching the pinned hashes"
+  - "Issue kimeisele/federation-hq#19 read in full (body + all 8 comments); active assignment msg-stab01-0008 (operator -> review, state_after independent_review, baseline 89bf10ee, references canonical repair_result SHA-256 448c96e0...)"
+  - "gh pr view 2715 --repo kimeisele/agent-city -> state OPEN, baseRef main, baseRefOid 89bf10eea690617f38627e63554a89457a90ed71 (equals pinned baseline), headRefOid 599735f69a33af6485c1d1307f098240b0b27ec8, mergeable MERGEABLE, 1 commit, changedFiles 1, additions 9, deletions 2"
+  - "gh pr diff 2715 -> only tests/test_issue_binding.py changed: adds 'from unittest.mock import patch', @patch(\"city.issues._gh_run\", return_value=None) decorator, mock_gh_run parameter, extended docstring; NO assertion changes, NO issue-number changes, NO production code"
+  - "Fresh clone /tmp/agent-city-s01-review (main resolves to 89bf10ee == pinned baseline); head SHA 599735f verified to exist remotely (git ls-remote); worktrees /tmp/agent-city-s01-review-base (89bf10ee) and /tmp/agent-city-s01-review-head (599735f); git log --oneline 89bf10ee..599735f -> exactly 1 commit; git rev-parse 599735f^ -> 89bf10ee; git show --stat 599735f -> only tests/test_issue_binding.py, +9 -2"
+  - "git diff 89bf10ee..599735f -> only tests/test_issue_binding.py (1 file, 9 insertions, 2 deletions); city/issues.py byte-identical at base and head (diff empty) - production live-GitHub fallback in CityIssueManager.is_issue_open() INTACT: local _issue_cells check first, then _gh_run([\"issue\",\"view\",str(issue_number),\"--json\",\"state\",\"-q\",\".state\"]) and return out == 'OPEN', Issue #743 fix comment preserved; __post_init__ unchanged (handles _gh_run None via 'out or \"\"')"
+  - "python3 -m pytest tests/test_issue_binding.py::test_issue_open_and_bound_helpers -q at head: 1 passed in 2.60s (deterministic, no network/live-GitHub dependence)"
+  - "python3 -m pytest tests/test_issue_binding.py -q at head: 7 passed in 5.83s"
+  - "python3 -m pytest tests/test_issue_binding.py::test_issue_open_and_bound_helpers -q at baseline: 1 failed in 4.18s (AssertionError: assert True is False at tests/test_issue_binding.py:107)"
+  - "python3 -m pytest tests/test_issue_binding.py -q at baseline: 1 failed, 6 passed in 8.30s"
+  - "python3 -m pytest tests/test_campaigns.py tests/test_campaign_recruitment.py -q at head: 19 passed in 5.11s (primary production callers of is_issue_open via CampaignRegistry unaffected)"
+  - "python3 -m pytest tests/test_scalable_metabolism.py::test_metabolize_all_scales_to_100_agents tests/test_heartbeat_campaign_bootstrap.py::test_heartbeat_cli_smoke_with_campaign_manifest -q: head 2 passed in 35.78s; baseline 2 passed in 35.07s - both concurrent-run flakes pass in isolation at BOTH SHAs, confirming not introduced by the repair"
+  - "python3 -m pytest --collect-only -q on the six federation_v1 modules: 6 errors at head and 6 identical errors at baseline (FileNotFoundError: tests/fixtures/federation_v1/keys/test_keys.json); git check-ignore tests/fixtures/federation_v1/keys/test_keys.json exit 0 at both SHAs and fixture absent from both working trees"
+  - "Repo isolation convention check: tests/test_layer3.py:136,401 already use mock.patch(\"city.issues._gh_run\", ...); tests/test_discussions.py patches city.discussions_bridge._gh_graphql (multiple tests); tests/test_campaign_recruitment.py:91,110 patch city.bounty.create_bounty - the repair's @patch(\"city.issues._gh_run\", return_value=None) follows the established module-level gh-wrapper patch convention, is test-scoped (auto-restored), and does not globally mock the fallback"
+  - "gh issue view 99 --repo kimeisele/agent-city -> state OPEN, title '[Campaign] Internet adaptation' - confirms the live fallback answer that drives the baseline failure"
+  - "Test body at head unchanged from baseline: assert mgr.is_issue_open(42) is True; assert mgr.is_issue_open(99) is False; assert mgr.get_bound_mission(42) == 'issue_42_10'; assert mgr.get_bound_mission(99) is None"
+created_at: "2026-08-09T16:46:59Z"

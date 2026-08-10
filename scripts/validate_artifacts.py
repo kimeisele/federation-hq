@@ -1347,6 +1347,7 @@ RUN_ARTIFACT_PREFIXES = (
     "repair-candidate",
     "repair-result",
     "review-result",
+    "run-assessment",
 )
 
 
@@ -1489,6 +1490,231 @@ def validate_run_bundles(
                     "repair-result repair_head_sha"
                 )
 
+        # Canonical terminal RunAssessment (Mission terminal feedback v0.1).
+        assessment_path = _resolve_single(run_dir, "run-assessment", where, errors)
+        assessment = _load_if_valid(assessment_path, schemas_dir, repo_root, errors, registry)
+        if assessment is not None:
+            # Executed-run identity chain: assessment.run_id == directory
+            # run-id == run-manifest.run_id; target and mission_id agree.
+            if assessment.get("run_id") != run_dir.name:
+                errors.append(
+                    f"{where}.run-assessment: run_id {assessment.get('run_id')!r} does not "
+                    f"match the directory run id {run_dir.name!r}"
+                )
+            if manifest is not None and assessment.get("run_id") != manifest.get("run_id"):
+                errors.append(
+                    f"{where}.run-assessment: run_id does not match the run manifest"
+                )
+            if manifest is not None and assessment.get("target_repository") != manifest.get("target_repository"):
+                errors.append(
+                    f"{where}.run-assessment: target_repository does not match the run manifest"
+                )
+            if manifest is not None and "baseline_sha" in assessment and \
+                    assessment.get("baseline_sha") != manifest.get("baseline_sha"):
+                errors.append(
+                    f"{where}.run-assessment: baseline_sha does not match the run manifest"
+                )
+            if manifest is not None:
+                mission_input = manifest.get("mission_input")
+                if isinstance(mission_input, dict) and isinstance(mission_input.get("mission_id"), str) \
+                        and assessment.get("mission_id") != mission_input.get("mission_id"):
+                    errors.append(
+                        f"{where}.run-assessment: mission_id does not match mission_input.mission_id"
+                    )
+        # MissionContract-native terminal runs REQUIRE a canonical assessment;
+        # legacy maintenance_request runs are grandfathered.
+        if manifest is not None and isinstance(manifest.get("mission_input"), dict) \
+                and manifest.get("pipeline_state") in _TERMINAL_STATES \
+                and assessment is None:
+            errors.append(
+                f"{where}: MissionContract-native terminal run requires a canonical "
+                f"run-assessment.yaml"
+            )
+
+
+# ── Mission terminal feedback (v0.1): assessment <-> ledger agreement ─────
+
+
+def _ledger_item_by_signal(ledger: dict | None, signal_id: str) -> dict | None:
+    if ledger is None:
+        return None
+    for item in ledger.get("items", []):
+        if item.get("signal_id") == signal_id:
+            return item
+    return None
+
+
+def _mission_signal_id(missions_dir: Path, mission_id: str) -> str | None:
+    """The first signal identity of a committed mission package, or None."""
+    cand = missions_dir / mission_id / "mission-candidate.yaml"
+    if not cand.exists():
+        return None
+    try:
+        doc = load_document(cand)
+    except Exception:
+        return None
+    refs = doc.get("signal_refs", []) if isinstance(doc, dict) else []
+    for ref in refs:
+        if isinstance(ref, dict) and isinstance(ref.get("signal_id"), str):
+            return ref["signal_id"]
+    return None
+
+
+def check_terminal_feedback(runs_dir: Path, missions_dir: Path, ledger: dict | None,
+                            schemas_dir: Path, repo_root: Path, errors: list[str]) -> None:
+    """Canonical terminal RunAssessment <-> Mission Ledger agreement, and the
+    canonical assessment locations (Mission terminal feedback v0.1).
+
+    Executed runs: runs/<run-id>/run-assessment.yaml. Pre-run rejections:
+    missions/<mission-id>/run-assessment.yaml (run_id null, no execution
+    artifacts). One canonical assessment per terminal mission attempt. The
+    live Ledger must agree on mission_id, disposition, and (for executed
+    runs) the related run id. Assessments anywhere else fail.
+    """
+    ledger_by_signal = {i.get("signal_id"): i for i in (ledger or {}).get("items", [])}
+
+    executed: dict[str, dict] = {}   # mission_id -> assessment doc (runs/)
+    for run_dir in sorted(runs_dir.iterdir()) if runs_dir.is_dir() else []:
+        if not run_dir.is_dir():
+            continue
+        assessment_path = run_dir / "run-assessment.yaml"
+        if not assessment_path.exists():
+            continue
+        try:
+            doc = load_document(assessment_path)
+        except Exception as exc:
+            errors.append(f"runs/{run_dir.name}/run-assessment.yaml: could not load: {exc}")
+            continue
+        if not isinstance(doc, dict):
+            errors.append(f"runs/{run_dir.name}/run-assessment.yaml: must be an object")
+            continue
+        if doc.get("terminal_outcome") == "mission_rejected":
+            errors.append(
+                f"runs/{run_dir.name}/run-assessment.yaml: pre-run rejection must live at "
+                f"missions/<mission-id>/run-assessment.yaml, not in a run directory"
+            )
+            continue
+        mission_id = doc.get("mission_id")
+        run_id = doc.get("run_id")
+        if isinstance(mission_id, str):
+            if mission_id in executed:
+                errors.append(
+                    f"duplicate canonical terminal assessment for mission {mission_id!r} "
+                    f"(runs/{run_dir.name}/run-assessment.yaml and another run)"
+                )
+            executed[mission_id] = doc
+        signal_id = _mission_signal_id(missions_dir, mission_id) if isinstance(mission_id, str) else None
+        if signal_id is None:
+            continue  # legacy assessment without a mission package: grandfathered
+        item = ledger_by_signal.get(signal_id)
+        if item is None:
+            errors.append(
+                f"runs/{run_dir.name}/run-assessment.yaml: signal {signal_id!r} has no "
+                f"Mission Ledger item"
+            )
+            continue
+        if item.get("mission_id") != mission_id:
+            errors.append(
+                f"runs/{run_dir.name}/run-assessment.yaml: Ledger mission_id does not match"
+            )
+        if item.get("disposition") != doc.get("ledger_disposition"):
+            errors.append(
+                f"runs/{run_dir.name}/run-assessment.yaml: Ledger disposition "
+                f"{item.get('disposition')!r} does not match assessment "
+                f"{doc.get('ledger_disposition')!r}"
+            )
+        related = item.get("related_run_ids") or []
+        if isinstance(run_id, str) and run_id not in related:
+            errors.append(
+                f"runs/{run_dir.name}/run-assessment.yaml: Ledger related_run_ids does not "
+                f"contain the executed run id {run_id!r}"
+            )
+
+    if missions_dir.is_dir():
+        for mission_dir in sorted(p for p in missions_dir.iterdir() if p.is_dir()):
+            assessment_path = mission_dir / "run-assessment.yaml"
+            if not assessment_path.exists():
+                continue
+            try:
+                doc = load_document(assessment_path)
+            except Exception as exc:
+                errors.append(
+                    f"missions/{mission_dir.name}/run-assessment.yaml: could not load: {exc}"
+                )
+                continue
+            if not isinstance(doc, dict):
+                errors.append(
+                    f"missions/{mission_dir.name}/run-assessment.yaml: must be an object"
+                )
+                continue
+            if doc.get("terminal_outcome") != "mission_rejected" or \
+                    doc.get("run_id") is not None:
+                errors.append(
+                    f"missions/{mission_dir.name}/run-assessment.yaml: pre-run rejection must "
+                    f"use terminal_outcome mission_rejected with run_id null"
+                )
+            mission_id = mission_dir.name
+            if doc.get("mission_id") != mission_id:
+                errors.append(
+                    f"missions/{mission_dir.name}/run-assessment.yaml: mission_id does not "
+                    f"match the package directory"
+                )
+            if mission_id in executed:
+                errors.append(
+                    f"duplicate canonical terminal assessment for mission {mission_id!r}: both "
+                    f"a pre-run rejection (missions/) and an executed run assessment (runs/)"
+                )
+            signal_id = _mission_signal_id(missions_dir, mission_id)
+            if signal_id is None:
+                errors.append(
+                    f"missions/{mission_dir.name}/run-assessment.yaml: mission package has no "
+                    f"signal identity"
+                )
+                continue
+            item = ledger_by_signal.get(signal_id)
+            if item is None:
+                errors.append(
+                    f"missions/{mission_dir.name}/run-assessment.yaml: signal {signal_id!r} "
+                    f"has no Mission Ledger item"
+                )
+                continue
+            if item.get("mission_id") != mission_id:
+                errors.append(
+                    f"missions/{mission_dir.name}/run-assessment.yaml: Ledger mission_id "
+                    f"does not match"
+                )
+            if item.get("disposition") != "rejected":
+                errors.append(
+                    f"missions/{mission_dir.name}/run-assessment.yaml: Ledger disposition must "
+                    f"be rejected for a pre-run rejection, got {item.get('disposition')!r}"
+                )
+
+    # Arbitrary assessment locations fail: only the two canonical patterns.
+    try:
+        committed = subprocess.run(
+            ["git", "ls-files", "*run-assessment*.yaml", "*run-assessment*.yml"],
+            capture_output=True, text=True, cwd=repo_root,
+        ).stdout.splitlines()
+    except Exception:
+        committed = []
+    for rel in committed:
+        p = Path(rel)
+        parts = p.parts
+        # Canonical executed assessment: runs/<run-id>/run-assessment.yaml
+        if len(parts) == 3 and parts[0] == "runs" and parts[2] == "run-assessment.yaml":
+            continue
+        # Canonical pre-run rejection: missions/<mission-id>/run-assessment.yaml
+        if len(parts) == 2 and parts[0] == "missions" and parts[1] == "run-assessment.yaml":
+            continue
+        # examples/ is the non-canonical fixtures tree (retrospective and
+        # negative projections); those are examples, not canonical state.
+        if parts and parts[0] == "examples":
+            continue
+        errors.append(
+            f"{rel}: run-assessment outside the canonical locations "
+            f"(runs/<run-id>/ or missions/<mission-id>/)"
+        )
+
 
 # ── CLI ───────────────────────────────────────────────────────────────────
 
@@ -1565,6 +1791,10 @@ def main(argv: list[str] | None = None) -> int:
                 validate_static_mission_package(
                     cand_doc, contr_doc, schemas_dir, repo_root,
                     f"missions/{mission_dir.name}", errors)
+        # Canonical terminal RunAssessment <-> Mission Ledger agreement and
+        # canonical assessment locations (Mission terminal feedback v0.1).
+        check_terminal_feedback(runs_dir, missions_dir, ledger_doc, schemas_dir,
+                                repo_root, errors)
 
     if errors:
         if not args.quiet:

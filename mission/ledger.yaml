@@ -65,4 +65,16 @@ items:
       (technical brief -> outbox); target PR kimeisele/agent-city#2717 merged
       a975b7da. Canonical evidence: runs/run-20260810-agent-city-moltbook-outbound-fallback-contract/.
     updated_at: "2026-08-10T07:25:00Z"
-updated_at: "2026-08-10T07:25:00Z"
+  - signal_id: sig-mission-fixture-rejected-pre-run
+    source_kind: github_issue
+    repository: kimeisele/agent-city
+    source_native_ref: "kimeisele/agent-city#99998"
+    disposition: rejected
+    candidate_id: cand-mission-fixture-rejected-pre-run
+    mission_id: mission-fixture-rejected-pre-run
+    related_run_ids: []
+    last_observed_evidence: >
+      NON-CANONICAL fixture (Issue #31): pre-run rejection terminal-feedback
+      path (POL-02 wrong framing); no real repository evidence.
+    updated_at: "2026-08-10T08:00:00Z"
+updated_at: "2026-08-10T08:00:00Z"

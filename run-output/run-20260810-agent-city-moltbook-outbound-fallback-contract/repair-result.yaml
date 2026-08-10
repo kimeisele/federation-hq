@@ -1,0 +1,91 @@
+kind: federation_hq_repair_result
+result_id: run-20260810-agent-city-moltbook-outbound-fallback-contract-r1
+run_id: run-20260810-agent-city-moltbook-outbound-fallback-contract
+candidate_id: run-20260810-agent-city-moltbook-outbound-fallback-contract-c1
+target_repository: kimeisele/agent-city
+baseline_sha: "e01d011bd563e964afb55901a4ed9474191aec59"
+repair_head_sha: "668260de46a316f48d3feef54f5883a936814adb"
+branch: repair/run-20260810-moltbook-outbound-fallback-test
+pull_request:
+  number: 2717
+  url: https://github.com/kimeisele/agent-city/pull/2717
+commands:
+  - command: "git clone https://github.com/kimeisele/agent-city.git /tmp/agent-city-mcp01-repair && git checkout e01d011bd563e964afb55901a4ed9474191aec59"
+    exit_code: 0
+    outcome: "Baseline checkout verified; HEAD == e01d011bd563e964afb55901a4ed9474191aec59 (clean)."
+  - command: "python -m pytest tests/test_treasury.py::TestMoltbookOutboundFallback::test_fallback_path_exists -q (baseline e01d011b)"
+    exit_code: 1
+    outcome: "1 failed — ImportError: cannot import name 'MoltbookOutboundHook' from 'city.hooks.moksha.outbound' at tests/test_treasury.py:287. Focused baseline failure reproduced exactly as recorded in the accepted candidate."
+  - command: "python -m pytest tests/test_treasury.py -q (baseline e01d011b)"
+    exit_code: 1
+    outcome: "1 failed (TestMoltbookOutboundFallback::test_fallback_path_exists, ImportError), 26 passed. Matches candidate baseline (1 failed, 26 passed)."
+  - command: "python -m pytest tests/test_layer6.py -q (baseline e01d011b)"
+    exit_code: 1
+    outcome: "6 failed, 42 passed. Pre-existing stale MoltbookBridge tests (test_full_rotation_with_federation; test_bridge_post_cooldown; test_bridge_post_format; test_bridge_mission_result_post; test_bridge_directive_acks_in_content; test_create_mission_directive_creates_mission_and_proposal) — identical at head; unrelated to this candidate."
+  - command: "python -m pytest --collect-only -q (baseline e01d011b)"
+    exit_code: 2
+    outcome: "1955 tests collected, 6 collection errors: tests/federation_v1/test_golden_wire.py, test_golden_wire_01a.py, tests/test_federation_v1_admission.py, test_federation_v1_assignment.py, test_federation_v1_hardening.py, test_federation_v1_ready_work_item.py — FileNotFoundError tests/fixtures/federation_v1/keys/test_keys.json (keys/ is gitignored; fixture is environment-provisioned)."
+  - command: "python -m pytest -q --continue-on-collection-errors (baseline e01d011b)"
+    exit_code: 1
+    outcome: "Full suite: 22 failed, 1932 passed, 1 skipped, 6 collection errors (same 6 federation_v1 files). Pre-existing suite failures; none touch the repaired node."
+  - command: "git checkout -b repair/run-20260810-moltbook-outbound-fallback-test && edit tests/test_treasury.py"
+    exit_code: 0
+    outcome: "Branch created from baseline; migrated TestMoltbookOutboundFallback::test_fallback_path_exists to assert the current EventDrivenOutboundHook fallback contract (technical brief enqueued to outbox when BrainVoice unavailable). Only tests/test_treasury.py changed; no production code touched."
+  - command: "python -m pytest tests/test_treasury.py::TestMoltbookOutboundFallback::test_fallback_enqueues_technical_brief_when_voice_unavailable -q (head 668260d)"
+    exit_code: 0
+    outcome: "1 passed — migrated focused node green at head."
+  - command: "python -m pytest tests/test_treasury.py -q (head 668260d)"
+    exit_code: 0
+    outcome: "27 passed at head (baseline: 1 failed + 26 passed)."
+  - command: "python -m pytest tests/test_layer6.py -q (head 668260d)"
+    exit_code: 1
+    outcome: "6 failed, 42 passed — byte-for-byte the same 6 pre-existing failures as baseline (verified identical node ids at baseline worktree e01d011b). Not newly introduced."
+  - command: "python -m pytest tests/test_moltbook_assistant.py tests/test_service_factory.py -q (head 668260d)"
+    exit_code: 0
+    outcome: "51 passed — relevant Moltbook/outbound-registration tests green."
+  - command: "python -m pytest --collect-only -q (head 668260d)"
+    exit_code: 2
+    outcome: "1955 tests collected, 6 collection errors — identical to baseline (same 6 federation_v1 files, missing environment-provisioned keys fixture). Collection-error environment limitation recorded as identical at both SHAs."
+  - command: "python -m pytest -q --continue-on-collection-errors (head 668260d)"
+    exit_code: 1
+    outcome: "Full suite: 26 failed, 1928 passed, 1 skipped, 6 collection errors (same 6 federation_v1 files). 20 deterministic pre-existing failures in common with baseline; 6 head-only entries (test_heartbeat_campaign_bootstrap.py::test_heartbeat_cli_smoke_with_campaign_manifest; test_layer3.py::test_audit_runs_in_moksha; test_critical_finding_creates_mission; test_healing_mission_created_from_failing_contract; test_reflection_patterns_analyzed; test_sankalpa_evaluated_in_karma) verified FLAKY: all 6 pass in isolation at head (6 passed) and at baseline (7 passed incl. baseline-only test_scalable_metabolism.py::test_metabolize_all_scales_to_100_agents, which also failed only in the baseline full-suite run)."
+  - command: "python -m pytest tests/test_heartbeat_campaign_bootstrap.py::test_heartbeat_cli_smoke_with_campaign_manifest tests/test_layer3.py::test_audit_runs_in_moksha tests/test_layer3.py::test_critical_finding_creates_mission tests/test_layer3.py::test_healing_mission_created_from_failing_contract tests/test_layer3.py::test_reflection_patterns_analyzed tests/test_layer3.py::test_sankalpa_evaluated_in_karma -q (head 668260d)"
+    exit_code: 0
+    outcome: "6 passed in isolation at head — flaky/order-dependent, not caused by the repair (repair touches only tests/test_treasury.py)."
+  - command: "python -m pytest tests/test_heartbeat_campaign_bootstrap.py::test_heartbeat_cli_smoke_with_campaign_manifest tests/test_layer3.py::test_audit_runs_in_moksha tests/test_layer3.py::test_critical_finding_creates_mission tests/test_layer3.py::test_healing_mission_created_from_failing_contract tests/test_layer3.py::test_reflection_patterns_analyzed tests/test_layer3.py::test_sankalpa_evaluated_in_karma tests/test_scalable_metabolism.py::test_metabolize_all_scales_to_100_agents -q (baseline e01d011b)"
+    exit_code: 0
+    outcome: "7 passed in isolation at baseline — confirms flakiness, not determinism."
+  - command: "git commit -m 'test(treasury): migrate stale MoltbookOutboundHook fallback test to EventDrivenOutboundHook contract' && git push -u origin repair/run-20260810-moltbook-outbound-fallback-test && gh pr create --repo kimeisele/agent-city --base main --head repair/run-20260810-moltbook-outbound-fallback-test"
+    exit_code: 0
+    outcome: "Repair committed at 668260de46a316f48d3feef54f5883a936814adb; branch pushed; PR #2717 opened (https://github.com/kimeisele/agent-city/pull/2717, state OPEN, mergeable, base main)."
+baseline_failures:
+  - "tests/test_treasury.py::TestMoltbookOutboundFallback::test_fallback_path_exists — ImportError: cannot import name 'MoltbookOutboundHook' from 'city.hooks.moksha.outbound' at tests/test_treasury.py:287 (reproduced on pinned baseline e01d011b; 1 failed, 26 passed in tests/test_treasury.py; REPAIRED at head — test migrated to current EventDrivenOutboundHook fallback contract)"
+  - "tests/test_layer1.py::test_jiva_derivation (pre-existing; failed at both baseline and head full-suite runs)"
+  - "tests/test_layer1.py::test_pokedex_discover (pre-existing; failed at both baseline and head full-suite runs)"
+  - "tests/test_layer1.py::test_pokedex_register (pre-existing; failed at both baseline and head full-suite runs)"
+  - "tests/test_layer1.py::test_pokedex_zones (pre-existing; failed at both baseline and head full-suite runs)"
+  - "tests/test_layer6.py::test_full_rotation_with_federation (pre-existing stale MoltbookBridge test; failed at both baseline and head full-suite runs)"
+  - "tests/test_layer6.py::test_bridge_post_cooldown (pre-existing; AttributeError: 'MoltbookBridge' object has no attribute 'post_city_update'; failed at both SHAs)"
+  - "tests/test_layer6.py::test_bridge_post_format (pre-existing; AttributeError: 'MoltbookBridge' object has no attribute 'post_city_update'; failed at both SHAs)"
+  - "tests/test_layer6.py::test_bridge_mission_result_post (pre-existing; AttributeError: 'MoltbookBridge' object has no attribute 'post_mission_results'; failed at both SHAs)"
+  - "tests/test_layer6.py::test_bridge_directive_acks_in_content (pre-existing; AttributeError: 'MoltbookBridge' object has no attribute 'post_city_update'; failed at both SHAs)"
+  - "tests/test_layer6.py::test_create_mission_directive_creates_mission_and_proposal (pre-existing; failed at both SHAs)"
+  - "tests/test_mayor_context.py::test_context_bridge_builds_phase_context_and_syncs_services (pre-existing; failed at both SHAs)"
+  - "tests/test_mayor_execution.py::test_execution_bridge_routes_genesis (pre-existing; failed at both SHAs)"
+  - "tests/test_mayor_execution.py::test_execution_bridge_runs_moksha_self_diagnostics (pre-existing; failed at both SHAs)"
+  - "tests/test_mayor_execution.py::test_heartbeat_updates_persisted_totals (pre-existing; failed at both SHAs)"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_verdict_reads_from_real_nadi_inbox (pre-existing; failed at both SHAs)"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_full_pipeline_scanner_to_verdict (pre-existing; failed at both SHAs)"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_full_pipeline_core_file_escalation (pre-existing; failed at both SHAs)"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_full_pipeline_rejection (pre-existing; failed at both SHAs)"
+  - "tests/review_governance/test_b1.py::test_import_is_side_effect_free (pre-existing; failed at both SHAs)"
+  - "tests/test_campaign_cli.py::test_campaign_cli_apply_list_show (pre-existing; failed at both SHAs)"
+  - "tests/test_scalable_metabolism.py::test_metabolize_all_scales_to_100_agents (failed in baseline full-suite run only; passed at head full-suite and in isolation at both SHAs — flaky, not a baseline/head difference caused by the repair)"
+  - "COLLECTION-ERROR ENVIRONMENT LIMITATION (identical at baseline and head): 6 files cannot be collected — tests/federation_v1/test_golden_wire.py, tests/federation_v1/test_golden_wire_01a.py, tests/test_federation_v1_admission.py, tests/test_federation_v1_assignment.py, tests/test_federation_v1_hardening.py, tests/test_federation_v1_ready_work_item.py — FileNotFoundError: tests/fixtures/federation_v1/keys/test_keys.json (keys/ gitignored, environment-provisioned fixture absent in this checkout)"
+newly_introduced_failures: []
+evidence_locations:
+  - runs/run-20260810-agent-city-moltbook-outbound-fallback-contract/run-manifest.yaml
+  - runs/run-20260810-agent-city-moltbook-outbound-fallback-contract/repair-candidate.yaml
+  - run-output/run-20260810-agent-city-moltbook-outbound-fallback-contract/repair-candidate.yaml
+  - run-output/run-20260810-agent-city-moltbook-outbound-fallback-contract/repair-result.yaml
+created_at: "2026-08-10T06:48:13Z"

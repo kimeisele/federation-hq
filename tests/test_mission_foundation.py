@@ -510,7 +510,11 @@ def test_canonical_run_artifacts_unchanged():
     """The retro projections live in examples/, never in runs/; the actual
     run records must still validate as-is (full validator covers this)."""
     assert not list((REPO_ROOT / "runs").glob("*/mission-*.yaml"))
-    assert not list((REPO_ROOT / "runs").glob("*/run-assessment*.yaml"))
+    # run-assessment.yaml in runs/<run-id>/ is the canonical executed-run
+    # terminal feedback (Issue #31) since MissionContract Pilot 01; the
+    # retrospective projection artifacts never live in runs/.
+    for assessment in (REPO_ROOT / "runs").glob("*/run-assessment*.yaml"):
+        assert assessment.parent.name == "run-20260810-agent-city-moltbook-outbound-fallback-contract"
     result = _run_cli()
     assert result.returncode == 0, result.stdout + result.stderr
 

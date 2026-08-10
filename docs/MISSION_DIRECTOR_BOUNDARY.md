@@ -115,3 +115,41 @@ and the existing coordination protocol are unchanged. Retrospective fixtures
 in `examples/mission/retrospective/` project real past runs (#17 / #19 / #21)
 into the new representations and are clearly NON-CANONICAL examples — the
 historical run artifacts are never rewritten.
+
+## Terminal feedback interface (v0.1)
+
+A future mission formulation / Director resolves "what happened to mission
+X?" deterministically:
+
+```
+MissionContract
+→ canonical terminal RunAssessment
+→ matching Mission Ledger disposition
+```
+
+Canonical locations (validated by `scripts/validate_artifacts.py`):
+
+```
+Executed run:        runs/<run-id>/run-assessment.yaml
+Rejected before run: missions/<mission-id>/run-assessment.yaml
+Mission Ledger:      mission/ledger.yaml
+```
+
+Rules (see ADR-0003):
+
+- Executed assessments must agree with the run directory, the run manifest
+  (run_id, target_repository, mission_id via `mission_input`, baseline_sha)
+  and the Ledger (mission_id, disposition, related_run_ids).
+- Pre-run rejections use `terminal_outcome: mission_rejected`, `run_id:
+  null`, `ledger_disposition: rejected`, and require no run-manifest or
+  execution artifacts; no fabricated run id, no empty run directory.
+- One canonical terminal assessment per mission attempt (v0.1).
+- `run_record_merge_sha` need not be self-recorded: Git/PR history is
+  authoritative for the run-record merge commit.
+- Legacy `maintenance_request` runs (#17/#19/#21 and older) are
+  grandfathered — the canonical RunAssessment requirement begins with
+  MissionContract-native execution.
+
+RunAssessment + Ledger = the terminal feedback interface consumed by future
+mission formulation. The Director does not own or rewrite historical
+assessment facts.

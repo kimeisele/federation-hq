@@ -1,0 +1,86 @@
+kind: federation_hq_repair_result
+result_id: run-20260809-agent-city-prompt-registry-contract-drift-r1
+run_id: run-20260809-agent-city-prompt-registry-contract-drift
+candidate_id: run-20260809-agent-city-prompt-registry-contract-drift-c1
+target_repository: kimeisele/agent-city
+baseline_sha: "c1fc768a214d72674481014e1b117e6d63c96799"
+repair_head_sha: "2d8db2534acd8cea697697b8aa7597e3c35518b6"
+branch: repair/run-20260809-prompt-registry-test-contract
+pull_request:
+  number: 2714
+  url: https://github.com/kimeisele/agent-city/pull/2714
+commands:
+  - command: "git clone https://github.com/kimeisele/agent-city.git /tmp/agent-city-p03-repair && git checkout c1fc768a214d72674481014e1b117e6d63c96799"
+    exit_code: 0
+    outcome: "Checkout created at the exact pinned baseline SHA (HEAD == c1fc768a214d72674481014e1b117e6d63c96799, merge commit of PR #2713)."
+  - command: "python -m pytest tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_6_builders -q"
+    exit_code: 1
+    outcome: "BASELINE focused repro: 1 failed. AssertionError 'assert 7 == 6' (where 7 = len(<PromptRegistry>)) at tests/test_prompt_registry.py:410 — reproduces the accepted defect exactly."
+  - command: "python -m pytest tests/test_prompt_registry.py -q"
+    exit_code: 1
+    outcome: "BASELINE whole file tests/test_prompt_registry.py: 1 failed, 38 passed. Only failure is TestGetPromptRegistry::test_singleton_has_all_6_builders."
+  - command: "python -m pytest --co -q"
+    exit_code: 2
+    outcome: "BASELINE full-suite collection survey: 1955 tests collected, 6 collection errors. All 6 errors are the same environment limitation: FileNotFoundError for the gitignored tests/fixtures/federation_v1/keys/test_keys.json (rule 'keys/' in .gitignore line 13); no local tests were modified to collect. Errors occur identically at baseline and repair head."
+  - command: "python -m pytest tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_7_builders -q"
+    exit_code: 0
+    outcome: "REPAIR HEAD focused node (renamed per the accepted candidate so the test name matches the 7-builder contract): 1 passed."
+  - command: "python -m pytest tests/test_prompt_registry.py -q"
+    exit_code: 0
+    outcome: "REPAIR HEAD whole file tests/test_prompt_registry.py: 39 passed (baseline was 1 failed, 38 passed). No failures remaining in the file."
+  - command: "python -m pytest --continue-on-collection-errors -q"
+    exit_code: 1
+    outcome: "REPAIR HEAD full tests/ suite (repo testpaths + addopts): 29 failed, 1925 passed, 1 skipped, 6 errors (the 6 errors are the identical missing-keys-fixture collection errors). Compare baseline: 30 failed, 1924 passed, 1 skipped, 6 errors."
+  - command: "python -m pytest --continue-on-collection-errors -q"
+    exit_code: 1
+    outcome: "BASELINE full tests/ suite run from a separate worktree at c1fc768a (same command, same options): 30 failed, 1924 passed, 1 skipped, 6 errors. Difference vs head: baseline additionally fails tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_6_builders (the repaired contract, renamed+fixed at head) and tests/test_wiki_compiler.py::test_build_wiki_materializes_pages (passes at head; >30s pytest-timeout flake)."
+  - command: "python -m pytest tests/test_heartbeat_campaign_bootstrap.py::test_heartbeat_cli_smoke_with_campaign_manifest -q (x3 at repair head)"
+    exit_code: 1
+    outcome: "Determinism check of the only head-full-suite-vs-baseline-full-suite difference (fails in the head full run, passed in the baseline full run): fails 3/3 at repair head. Not related to the repair (repair touches only tests/test_prompt_registry.py); flagged for re-check at baseline."
+  - command: "python -m pytest tests/test_heartbeat_campaign_bootstrap.py::test_heartbeat_cli_smoke_with_campaign_manifest -q (x2 at baseline)"
+    exit_code: 1
+    outcome: "Same test at baseline SHA c1fc768a (worktree): fails 2/2. Conclusion: this heartbeat CLI smoke test (spawns scripts/heartbeat.py as a subprocess) is a timing/environment-sensitive flake that fails in isolation at BOTH SHAs; it is NOT a failure introduced by the repair. newly_introduced_failures is therefore empty."
+  - command: "git push -u origin repair/run-20260809-prompt-registry-test-contract && gh pr create --repo kimeisele/agent-city --base main --head repair/run-20260809-prompt-registry-test-contract --title 'test(prompt_registry): reconcile singleton builder-count contract to 7 builders' --body-file /tmp/pr_body.md"
+    exit_code: 0
+    outcome: "Branch pushed and normal PR opened: https://github.com/kimeisele/agent-city/pull/2714 (state OPEN, base main, head 2d8db2534acd8cea697697b8aa7597e3c35518b6, mergeable MERGEABLE). No admin, no force-push, no merge, no branch-protection changes."
+baseline_failures:
+  - "tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_6_builders - AssertionError 'assert 7 == 6' at tests/test_prompt_registry.py:410 (reproduced on pinned baseline c1fc768a: 1 failed focused; whole file 1 failed, 38 passed)"
+  - "tests/test_wiki_compiler.py::test_build_wiki_materializes_pages - Failed: Timeout (>30.0s) from pytest-timeout (baseline full suite; passes at repair head — unrelated timing flake)"
+  - "tests/test_heartbeat_campaign_bootstrap.py::test_heartbeat_cli_smoke_with_campaign_manifest - flaky heartbeat CLI smoke test: fails in isolation at both SHAs (baseline 2/2, head 3/3); environment/timing-sensitive, unrelated to the repair"
+  - "tests/test_scalable_metabolism.py::test_metabolize_all_scales_to_100_agents - Failed: Timeout (>30.0s) from pytest-timeout (identical at baseline and head)"
+  - "tests/test_treasury.py::TestMoltbookOutboundFallback::test_fallback_path_exists - ImportError: cannot import name 'MoltbookOutboundHook' from 'city.hooks.moksha.outbound' (identical at baseline and head)"
+  - "tests/review_governance/test_b1.py::test_import_is_side_effect_free (identical at baseline and head)"
+  - "tests/test_campaign_cli.py::test_campaign_cli_apply_list_show (identical at baseline and head)"
+  - "tests/test_issue_binding.py::test_issue_open_and_bound_helpers (identical at baseline and head)"
+  - "tests/test_layer1.py::test_jiva_derivation (identical at baseline and head)"
+  - "tests/test_layer1.py::test_pokedex_discover (identical at baseline and head)"
+  - "tests/test_layer1.py::test_pokedex_register (identical at baseline and head)"
+  - "tests/test_layer1.py::test_pokedex_zones (identical at baseline and head)"
+  - "tests/test_layer5.py::test_auto_vote_and_execute (identical at baseline and head)"
+  - "tests/test_layer5.py::test_contract_failure_creates_proposal (identical at baseline and head)"
+  - "tests/test_layer5.py::test_full_feedback_loop (identical at baseline and head)"
+  - "tests/test_layer5.py::test_full_rotation_with_council (identical at baseline and head)"
+  - "tests/test_layer5.py::test_mayor_runs_election_in_dharma (identical at baseline and head)"
+  - "tests/test_layer6.py::test_bridge_directive_acks_in_content (identical at baseline and head)"
+  - "tests/test_layer6.py::test_bridge_mission_result_post (identical at baseline and head)"
+  - "tests/test_layer6.py::test_bridge_post_cooldown (identical at baseline and head)"
+  - "tests/test_layer6.py::test_bridge_post_format (identical at baseline and head)"
+  - "tests/test_layer6.py::test_create_mission_directive_creates_mission_and_proposal (identical at baseline and head)"
+  - "tests/test_layer6.py::test_full_rotation_with_federation (identical at baseline and head)"
+  - "tests/test_mayor_context.py::test_context_bridge_builds_phase_context_and_syncs_services (identical at baseline and head)"
+  - "tests/test_mayor_execution.py::test_execution_bridge_routes_genesis (identical at baseline and head)"
+  - "tests/test_mayor_execution.py::test_execution_bridge_runs_moksha_self_diagnostics (identical at baseline and head)"
+  - "tests/test_mayor_execution.py::test_heartbeat_updates_persisted_totals (identical at baseline and head)"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_full_pipeline_core_file_escalation (identical at baseline and head)"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_full_pipeline_rejection (identical at baseline and head)"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_full_pipeline_scanner_to_verdict (identical at baseline and head)"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_verdict_reads_from_real_nadi_inbox (identical at baseline and head)"
+  - "documented as a deterministic baseline node in docs/MAINTENANCE_CAMPAIGN_RECRUITMENT_BASELINE.json (failure_cluster stale_test_contract_drift; base_present true, head_present true) and docs/MAINTENANCE_BASELINE_22_TRIAGE.md (Prompt Registry row: 'reconcile registry cardinality with the current builder contract')"
+newly_introduced_failures: []
+evidence_locations:
+  - run-output/run-20260809-agent-city-prompt-registry-contract-drift/repair-result.yaml
+  - run-output/run-20260809-agent-city-prompt-registry-contract-drift/repair-candidate.yaml
+  - run-output/run-20260809-agent-city-prompt-registry-contract-drift/scout-notes.txt
+  - runs/run-20260809-agent-city-prompt-registry-contract-drift/run-manifest.yaml
+  - runs/run-20260809-agent-city-prompt-registry-contract-drift/repair-candidate.yaml
+created_at: "2026-08-09T15:33:45Z"

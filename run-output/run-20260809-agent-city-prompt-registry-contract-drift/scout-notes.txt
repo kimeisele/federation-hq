@@ -1,0 +1,87 @@
+SCOUT FINDINGS — run-20260809-agent-city-prompt-registry-contract-drift
+======================================================================
+Role: hq-scout (isolated OMP worker, Pilot Run 03, Automated Role Execution v0.1)
+Assignment: msg-pilot03-0002 (operator -> scout, state_after: scouting)
+Canonical prompt: prompts/scout/v0.1.0.md (sha256 6940ea39da9799fa6595809cfce6a948427bdc07edba2e48774418642fe6eb8a — matches run-manifest pin)
+Target checkout: /tmp/agent-city-p03 @ c1fc768a214d72674481014e1b117e6d63c96799 (git rev-parse HEAD == baseline)
+
+CONCLUSION
+----------
+DiscoveryBuilder (kind "discovery") is DELIBERATE, ACTIVE and production-wired.
+The defect is a STALE TEST CONTRACT: test_singleton_has_all_6_builders asserts the
+pre-discovery 6-builder composition. Single repair candidate c1: reconcile the
+test contract to the intended 7-builder composition (including "discovery").
+Production code must NOT change.
+
+REPRODUCTION (exact pinned baseline, HEAD == c1fc768a)
+------------------------------------------------------
+$ python -m pytest tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_6_builders -q
+-> 1 failed: assert 7 == 6 (+ where 7 = len(<city.prompt_registry.PromptRegistry object>)) at tests/test_prompt_registry.py:410
+$ python -m pytest tests/test_prompt_registry.py -q
+-> 1 failed, 38 passed (only failure is test_singleton_has_all_6_builders)
+
+EVIDENCE — DiscoveryBuilder is intended and active
+--------------------------------------------------
+1. city/brain.py:49      ThoughtKind.DISCOVERY = "discovery"  # Step 3: semantic repo evaluation
+2. city/brain.py:84      _KIND_TIER["discovery"] = ModelTier.STANDARD (model routing)
+3. city/brain.py:616-640 Brain.evaluate_federation_fit(repo_name, description, readme_snippet)
+                         builds PromptContext(discovery_repo/discovery_description/
+                         discovery_readme) and calls self._think("discovery", ctx)
+4. city/hooks/genesis/active_discovery.py:128-163 ActiveDiscoveryHook._evaluate_candidates()
+                         calls brain.evaluate_federation_fit(); maps thought.action_hint
+                         (invite/reject/review) -> FIT/REJECTED/NEEDS_HUMAN_REVIEW in
+                         DiscoveryLedger; comment lines 150-151:
+                         "Senior Architect Mandate: FIT, REJECTED, NEEDS_HUMAN_REVIEW -
+                         Mapped from action_hint in DiscoveryBuilder"
+5. city/phases/genesis.py:70  registers ActiveDiscoveryHook()  # pri=58 active discovery (daily)
+6. city/prompt_registry.py:39-41  discovery-specific PromptContext fields
+7. city/brain_prompt.py:99,108  DiscoveryBuilder imported + registered in _build_registry()
+8. tests/verify_step3_semantic.py  dedicated semantic-discovery verification script
+9. city/prompt_builders/discovery.py  FederationFit StrEnum (FIT/REJECTED/NEEDS_HUMAN_REVIEW)
+                         + build_schema instructs action_hint invite/reject/review — exactly
+                         the vocabulary consumed by the ActiveDiscoveryHook
+10. Commit 099320d (2026-03-24) "Hardening Agent City Federation: Steps 1-3 Complete.
+    Signed NADI Bridge & Semantic Discovery implemented." — single deliberate feature
+    commit adding discovery.py + registration + brain wiring + genesis hook + verify script.
+
+If DiscoveryBuilder were removed: _think("discovery") would get empty payload and the
+comprehension fallback schema (prompt_registry.py build_schema fallback), so
+action_hint could never be produced -> every ledger evaluation would be corrupted.
+
+EVIDENCE — the test is stale
+----------------------------
+1. tests/test_prompt_registry.py:406-411 test_singleton_has_all_6_builders asserts
+   len(reg) == 6 and set without "discovery"; introduced with the original 6-builder
+   plugin architecture (commit e023bd0, 2026-03-05) and never updated since.
+2. git log --all -S "discovery" -- tests/test_prompt_registry.py -> no commits: no branch
+   ever reconciled this test after DiscoveryBuilder landed.
+3. Repository's own machine-readable baseline artifact docs/MAINTENANCE_CAMPAIGN_
+   RECRUITMENT_BASELINE.json classifies this exact node: failure_cluster
+   "stale_test_contract_drift", root_cause_hint "PromptRegistry contains 7 builders
+   while test expects 6", base_present=true, head_present=true,
+   deterministic_second_run=true.
+4. docs/MAINTENANCE_BASELINE_22_TRIAGE.md (Prompt Registry row, order 7): "reconcile
+   registry cardinality with the current builder contract"; smallest slice: "define
+   the current builder set and update either registry or contract test".
+5. Repo convention for this exact cluster is test-side reconciliation: PR #2713
+   (merged AT this baseline as c1fc768) fixed the analogous stale ActionVerb count
+   contract (test_all_9_verbs -> test_all_10_verbs) by updating the test only
+   (commit c42ffab, tests/test_brain_action.py).
+
+NOT CHECKED / SCOPE NOTES
+-------------------------
+- CI: baseline heartbeat check-runs on c1fc768a show heartbeat/publish jobs; heartbeat
+  runs the city runtime (scripts/heartbeat.py), not pytest — no pytest CI gate observed.
+- The social_strategy kind has production callers but no builder and no registry entry;
+  it is NOT part of this bounded discrepancy (test does not assert it either) — out of scope.
+- PR #2571 (open at run opening) touches only PR-lifecycle files; no overlap with
+  prompt registry (confirmed via gh pr view 2571 --json files).
+
+DELIVERABLE
+-----------
+Exactly one repair candidate:
+run-output/run-20260809-agent-city-prompt-registry-contract-drift/repair-candidate.yaml
+(candidate_id run-20260809-agent-city-prompt-registry-contract-drift-c1)
+
+STOP: scout does not accept its own artifact, does not advance pipeline state,
+does not modify target code, does not spawn workers.
