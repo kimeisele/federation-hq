@@ -311,7 +311,7 @@ def test_formulation_must_be_canonical_before_operator_handoff():
     assert "NORMAL Federation HQ merge" in flat
     assert "BLOCKED — formulation integration" in flat
     assert "After the formulation merge SUCCEEDS" in flat
-    assert "EXACT MERGED HQ commit" in flat
+    assert "exact formulation merge commit C" in flat
     assert "unmerged PR head" in flat and "mutable branch name" in flat
     wrapper = (REPO_ROOT / ".omp" / "agents" / "hq-director.md").read_text()
     assert "NORMAL-merge" in wrapper and "resolve the exact merged HQ commit" in wrapper
@@ -333,6 +333,163 @@ def test_operator_handoff_payload_uses_exact_merged_commit():
     assert payload["candidate_path"].startswith("missions/")
     assert payload["contract_path"].startswith("missions/")
     assert "maintenance_request" not in str(payload)
+
+
+
+# ── Final ordering fix: POL-04 admission basis B, mixed-commit pins ───────
+
+
+def _admission_contract(mission_id: str, signal_id: str) -> dict:
+    return {"kind": "federation_hq_mission_contract", "mission_version": "0.1.0",
+            "mission_id": mission_id, "source_candidate_id": f"cand-{mission_id}",
+            "signal_refs": [{"signal_id": signal_id, "source_kind": "test_node",
+                             "source_native_ref": f"tests/{signal_id}.py"}],
+            "target_repository": "kimeisele/agent-city", "objective": "bounded question",
+            "decision_question": "q", "bounded_scope": "scope",
+            "scope_enforcement": "declared", "prescribes_repair": False,
+            "hard_constraints": [], "stop_conditions": [],
+            "expected_allowed_outcomes": ["approved", "blocked"],
+            "policy_reference": "docs/HQ_MISSION_POLICY.md", "policy_version": "0.1.0",
+            "policy_sha256": "7d3c4eb4b6528e4aef515b429aafcdb6d9dc228d6feea098582b10a2a4f2241d",
+            "status": "proposed", "creation_provenance": {"author_role": "other",
+            "source_reference": "fixture"}, "created_at": "2026-08-10T09:00:00Z"}
+
+
+def _admission_candidate(signal_id: str, mission_id: str,
+                         override: dict | None = None) -> dict:
+    doc = {"kind": "federation_hq_mission_candidate", "candidate_id": f"cand-{mission_id}",
+           "signal_refs": [{"signal_id": signal_id, "source_kind": "test_node",
+                            "source_native_ref": f"tests/{signal_id}.py"}],
+           "target_repository": "kimeisele/agent-city", "problem_statement": "fixture",
+           "disposition": "selected", "mission_id": mission_id,
+           "created_at": "2026-08-10T09:00:00Z"}
+    if override is not None:
+        doc["prior_disposition_override"] = override
+    return doc
+
+
+def _b_ledger(items: list[dict]) -> dict:
+    return {"kind": "federation_hq_mission_ledger", "schema_version": "0.1.0",
+            "items": items, "updated_at": "2026-08-10T09:00:00Z"}
+
+
+def test_illegal_reopen_blocked_against_preformulation_ledger():
+    """Case A: Ledger B shows signal X completed; a selected Candidate at C
+    with NO override must be blocked when admission evaluates against B —
+    even if the post-formulation Ledger C would show the mission active."""
+    ledger_b = _b_ledger([{"signal_id": "sig-X", "source_kind": "test_node",
+                           "source_native_ref": "x", "disposition": "completed",
+                           "related_run_ids": ["run-1"],
+                           "updated_at": "2026-08-10T08:00:00Z"}])
+    cand = _admission_candidate("sig-X", "mission-new")
+    contr = _admission_contract("mission-new", "sig-X")
+    decision, problems = validate_artifacts.evaluate_mission_admission(
+        cand, contr, ledger_b, REPO_ROOT / "contracts", REPO_ROOT)
+    assert decision == "invalid_input", problems
+    assert any("terminal ledger disposition" in p for p in problems)
+
+
+def test_evidence_backed_reopen_admitted_against_b():
+    """Case B: the same Ledger B with an explicit prior_disposition_override
+    (completed + new evidence) admits."""
+    ledger_b = _b_ledger([{"signal_id": "sig-X", "source_kind": "test_node",
+                           "source_native_ref": "x", "disposition": "completed",
+                           "related_run_ids": ["run-1"],
+                           "updated_at": "2026-08-10T08:00:00Z"}])
+    cand = _admission_candidate("sig-X", "mission-new", {
+        "ledger_signal_id": "sig-X", "prior_disposition": "completed",
+        "new_evidence_refs": ["https://example.com/evidence/new"]})
+    contr = _admission_contract("mission-new", "sig-X")
+    decision, problems = validate_artifacts.evaluate_mission_admission(
+        cand, contr, ledger_b, REPO_ROOT / "contracts", REPO_ROOT)
+    assert decision == "admitted", problems
+
+
+def test_new_signal_admitted_against_b():
+    """Case C: Ledger B has no signal X -> selected Candidate admits."""
+    ledger_b = _b_ledger([])
+    cand = _admission_candidate("sig-X", "mission-new")
+    contr = _admission_contract("mission-new", "sig-X")
+    decision, problems = validate_artifacts.evaluate_mission_admission(
+        cand, contr, ledger_b, REPO_ROOT / "contracts", REPO_ROOT)
+    assert decision == "admitted", problems
+
+
+def test_mixed_commit_mission_input_valid():
+    """Candidate/Contract @ C and AdmissionLedger @ B with B != C validate
+    through the existing mission-pin machinery (feature, not inconsistency)."""
+    import subprocess as _sp
+    c = _sp.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+                cwd=REPO_ROOT).stdout.strip()
+    # B = the pre-slice main commit; it contains the same ledger bytes as HEAD
+    # (the ledger is unchanged in this slice) -> B != C, both real commits.
+    b = "af28e5b3cd1eefdb660c3a69da4bbd7397c0bcae"
+    assert b != c
+    ledger_bytes = (REPO_ROOT / "mission" / "ledger.yaml").read_bytes()
+    ledger_sha = hashlib.sha256(ledger_bytes).hexdigest()
+    doc = {
+        "kind": "federation_hq_run_manifest", "run_id": "run-mixed-pin",
+        "target_repository": "kimeisele/agent-city", "baseline_sha": "f" * 40,
+        "coordination": {"protocol_version": "0.1.0", "issue_number": 1,
+                         "issue_url": "https://github.com/kimeisele/federation-hq/issues/1"},
+        "pipeline_state": "requested",
+        "prompt_pins": {"operator": {"id": "operator", "version": "0.3.0",
+                                     "sha256": _released("operator", "0.3.0")["sha256"]},
+                        "scout": {"id": "scout", "version": "0.2.0",
+                                  "sha256": _released("scout", "0.2.0")["sha256"]},
+                        "repair": {"id": "repair", "version": "0.2.0",
+                                   "sha256": _released("repair", "0.2.0")["sha256"]},
+                        "review": {"id": "review", "version": "0.2.0",
+                                   "sha256": _released("review", "0.2.0")["sha256"]}},
+        "mission_input": {
+            "mission_id": "mission-fixture-bounded-recon",
+            "candidate": {"path": "missions/mission-fixture-bounded-recon/mission-candidate.yaml",
+                          "hq_commit_sha": c,
+                          "sha256": _sha256(REPO_ROOT / "missions" / "mission-fixture-bounded-recon"
+                                            / "mission-candidate.yaml")},
+            "contract": {"path": "missions/mission-fixture-bounded-recon/mission-contract.yaml",
+                         "hq_commit_sha": c,
+                         "sha256": _sha256(REPO_ROOT / "missions" / "mission-fixture-bounded-recon"
+                                           / "mission-contract.yaml")},
+            "admission_ledger": {"path": "mission/ledger.yaml",
+                                 "hq_commit_sha": b, "sha256": ledger_sha},
+        },
+        "created_at": "2026-08-10T09:00:00Z",
+    }
+    errors: list[str] = []
+    validate_artifacts.check_manifest_mission_mode(doc, "mixed", errors)
+    validate_artifacts.check_mission_pin(doc, REPO_ROOT, REPO_ROOT / "contracts", "mixed", errors)
+    assert not errors, errors
+
+
+def test_handoff_payload_b_not_c():
+    """The handoff payload carries formulation_commit C AND admission ledger
+    commit B, with B != C; candidate/contract pin to C, ledger to B."""
+    payload = {
+        "mission_id": "mission-director-fixture-a",
+        "candidate_path": "missions/mission-director-fixture-a/mission-candidate.yaml",
+        "contract_path": "missions/mission-director-fixture-a/mission-contract.yaml",
+        "formulation_commit": "c" * 40,
+        "admission_ledger_path": "mission/ledger.yaml",
+        "admission_ledger_commit": "b" * 40,
+        "admission_ledger_sha256": "0" * 64,
+        "cycle_issue": "kimeisele/federation-hq#99996",
+    }
+    assert payload["formulation_commit"] != payload["admission_ledger_commit"]
+    assert len(payload["formulation_commit"]) == 40 == len(payload["admission_ledger_commit"])
+    assert payload["admission_ledger_path"] == "mission/ledger.yaml"
+    assert "maintenance_request" not in str(payload)
+
+
+def test_director_prompt_records_before_formulation_ordering():
+    text = (REPO_ROOT / "prompts" / "director" / "v0.1.0.md").read_text()
+    flat = " ".join(text.split())
+    assert "BLOCKED — admission ledger basis" in flat
+    assert "admission_ledger" in flat and "hq_commit_sha: B" in flat
+    assert "Candidate@C + Contract@C + AdmissionLedger@B" in flat
+    assert "BLOCKED — formulation integration" in flat
+
+
 
 
 def test_full_validator_green():

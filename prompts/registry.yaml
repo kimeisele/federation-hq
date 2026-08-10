@@ -155,7 +155,7 @@ prompts:
   versions:
   - version: 0.1.0
     file: director/v0.1.0.md
-    sha256: c2633a0171cf0b4e84629ffbcca92893513b9cc999eaef665168fa94f965cf94
+    sha256: 509c47ba121baf39b607015f52bf123c785a164313f405014f7b1819eb1fd0d2
     status: released
     released: '2026-08-10'
     changelog: 'Initial release (Issue #33, ADR-0002 step 4): HQ Mission Director
@@ -171,4 +171,8 @@ prompts:
       + mission/ledger.yaml only; no --admin/force/protection changes; blocked ->
       BLOCKED — formulation integration, no Operator spawn) and hands the Operator
       ONLY the exact merged HQ commit + canonical references (never a PR head or branch
-      name).'
+      name). PR-local final review fix: explicit time ordering — the POL-04 admission
+      Ledger basis B is captured at the exact pre-formulation HQ main commit and hashed
+      BEFORE any formulation mutation; the Operator handoff uses Candidate@C + Contract@C
+      + AdmissionLedger@B (mixed-commit pins expected); blocked variants BLOCKED —
+      formulation integration / BLOCKED — admission ledger basis.'

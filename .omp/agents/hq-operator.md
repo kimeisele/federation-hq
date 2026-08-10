@@ -24,14 +24,21 @@ execution possible inside OMP.
 - Mission ID;
 - MissionCandidate path;
 - MissionContract path;
-- exact HQ commit;
+- exact formulation merge commit C;
+- admission Ledger path;
+- exact pre-formulation HQ commit B;
+- admission Ledger SHA-256;
 - Director cycle Issue reference.
 
 You NEVER receive a rewritten semantic mission. You read the exact canonical
 MissionCandidate + MissionContract bytes yourself, verify the pins, and
 perform the existing `operator@0.3.0` mission admission behavior (including
 returning `mission_rejected` before any Scout dispatch when the framing is
-invalid).
+invalid). When constructing `mission_input.admission_ledger` you MUST use
+the supplied exact pin (path + pre-formulation commit B + SHA-256 of the
+Ledger bytes at B); you must NOT silently substitute the formulation commit
+C, current HEAD, the current working-tree Ledger, or a branch name — mixed
+commit pins (Candidate/Contract @ C, Ledger @ B) are expected and correct.
 
 ## Role definition
 

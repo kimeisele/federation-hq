@@ -16,8 +16,12 @@ canonical prompt and OMP adapters.
 1. **Role boundary:** one Director invocation = one decision cycle; at most
    one MissionContract per cycle; selecting none is a valid outcome; no
    autonomous infinite generation (POL-14). The Director never performs
-   Scout/Repair/Review/Operator work, never merges, never publishes the
-   Review Gate.
+   Scout/Repair/Review/Operator work and never publishes the Review Gate.
+   The Director never performs target/run-record integration and never acts
+   as the repair Integrator. The sole merge exception in v0.1 is the NORMAL
+   merge of its own validated Federation HQ formulation PR, required to
+   canonicalize MissionCandidate + MissionContract + Ledger state before
+   Operator handoff — no admin bypass, no force, no Gate publication.
 2. **Inputs:** a finite explicit signal set (existing `signal_ref`
    vocabulary) + exact canonical `docs/HQ_MISSION_POLICY.md` +
    `mission/ledger.yaml` (+ canonical terminal RunAssessments where
@@ -43,7 +47,13 @@ canonical prompt and OMP adapters.
    the four execution workers; canonical role stays `operator@0.3.0`).
    Handoff = canonical references only; the Operator independently performs
    `operator@0.3.0` admission (may return `mission_rejected` before Scout).
-8. **No real Director mission in this slice:** no live `missions/` package,
+8. **Admission time ordering:** the POL-04 admission Ledger basis B is the
+   exact pre-formulation HQ main commit, hashed BEFORE any formulation
+   mutation; the formulation merge yields commit C; the Operator handoff is
+   Candidate@C + Contract@C + AdmissionLedger@B (mixed-commit pins
+   expected). `mission_input.admission_ledger` must pin B, never C/HEAD/
+   working-tree/branch.
+9. **No real Director mission in this slice:** no live `missions/` package,
    no target mutation; the first live Director-selected Pilot is a separate
    step after review/merge.
 
