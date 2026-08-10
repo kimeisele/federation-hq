@@ -1,0 +1,51 @@
+# NON-CANONICAL retrospective fixture (Issue #23).
+# Projects federation-hq#19 (Stabilization 01) into the MissionContract v0.1
+# representation. Facts from the actual run record.
+kind: federation_hq_mission_contract
+mission_version: "0.1.0"
+mission_id: run-20260809-agent-city-issue-open-helper-isolation
+source_candidate_id: cand-retro-19-issue-open
+signal_refs:
+  - signal_id: sig-20260809-issue-open-fallback
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_issue_binding.py::test_issue_open_and_bound_helpers
+target_repository: kimeisele/agent-city
+objective: >
+  Determine whether the CityIssueManager.is_issue_open() live-GitHub fallback
+  behavior vs the test expectation is a production live-fallback bug, a test
+  isolation/setup defect, API fallback semantics, or another single bounded
+  cause.
+decision_question: >
+  Which side of the issue-open discrepancy is the defect, if any, on the
+  pinned baseline?
+bounded_scope: >
+  Investigate city/issues.py (CityIssueManager.is_issue_open, get_bound_mission,
+  __post_init__, _repo, _gh_run, _issue_cells), tests/test_issue_binding.py,
+  production callers, history, and repository contracts; select exactly one
+  bounded repair candidate.
+scope_enforcement: declared
+prescribes_repair: false
+hard_constraints:
+  - "Do not prescribe removing the GitHub fallback, changing the assertion, mocking GitHub globally, or changing issue number 99."
+stop_conditions:
+  - "Evidence cannot be located or verified."
+  - "The failure cannot be reproduced on the pinned baseline."
+expected_allowed_outcomes:
+  - approved
+  - changes_requested
+  - blocked
+  - invalid_candidate
+policy_reference: docs/HQ_MISSION_POLICY.md
+policy_version: "0.1.0"
+policy_sha256: "7d3c4eb4b6528e4aef515b429aafcdb6d9dc228d6feea098582b10a2a4f2241d"
+status: completed
+creation_provenance:
+  author_role: other
+  source_reference: >-
+    NON-CANONICAL retrospective projection created by Federation HQ Issue
+    #23 (Mission Foundation v0.1). The formal MissionContract did not exist
+    at the original run opening; policy_version/policy_sha256 pin the policy
+    governing the PROJECTION, not a historical policy artifact. Historical
+    source: "Federation HQ Stabilization Run 01 instruction (protocol 0.1.0, automated role execution v0.1)"
+created_at: "2026-08-10T03:00:31Z"

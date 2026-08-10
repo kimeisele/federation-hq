@@ -1,0 +1,119 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/kimeisele/federation-hq/main/contracts/mission/mission-ledger.schema.json",
+  "title": "Mission Ledger",
+  "description": "The smallest persistent Mission Ledger: repository-native structured state (NOT a database) that prevents repeated or contradictory work. One ledger document contains items keyed by immutable signal_id; each item remembers disposition, related runs, and supersede/duplicate links. v0.1 identity: signal_id is assigned immutably at first ingestion; source-native references are indexed and may gain evidence-backed aliases; no semantic rename detection.",
+  "type": "object",
+  "required": [
+    "kind",
+    "schema_version",
+    "items",
+    "updated_at"
+  ],
+  "properties": {
+    "kind": {
+      "const": "federation_hq_mission_ledger"
+    },
+    "schema_version": {
+      "const": "0.1.0"
+    },
+    "items": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ledger_item"
+      }
+    },
+    "updated_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "ledger_item": {
+      "type": "object",
+      "required": [
+        "signal_id",
+        "source_kind",
+        "source_native_ref",
+        "disposition",
+        "updated_at"
+      ],
+      "properties": {
+        "signal_id": {
+          "description": "Immutable internal HQ signal identity assigned at first ingestion. Never changes.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "source_kind": {
+          "enum": [
+            "test_node",
+            "ci",
+            "github_issue",
+            "run_assessment",
+            "ledger_disposition",
+            "human_request",
+            "workflow_failure",
+            "other"
+          ]
+        },
+        "repository": {
+          "type": "string"
+        },
+        "source_native_ref": {
+          "type": "string"
+        },
+        "aliases": {
+          "description": "Evidence-backed alternative source-native references for the same signal.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "disposition": {
+          "description": "Stable disposition. wont_fix, no_mission_warranted, duplicate, rejected and superseded are terminal until new evidence explicitly supersedes them.",
+          "enum": [
+            "completed",
+            "wont_fix",
+            "no_mission_warranted",
+            "duplicate",
+            "rejected",
+            "superseded",
+            "active"
+          ]
+        },
+        "candidate_id": {
+          "type": "string"
+        },
+        "mission_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "related_run_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "duplicate_of": {
+          "description": "Ledger signal_id this item duplicates.",
+          "type": "string"
+        },
+        "superseded_by": {
+          "description": "Ledger signal_id or mission that supersedes this item.",
+          "type": "string"
+        },
+        "last_observed_evidence": {
+          "type": "string"
+        },
+        "updated_at": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

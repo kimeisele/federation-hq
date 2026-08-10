@@ -50,6 +50,10 @@ SCHEMA_MATCHERS: list[tuple[str, str]] = [
     ("repair-result", "repair-result.schema.json"),
     ("review-result", "review-result.schema.json"),
     ("coordination-message", "coordination-message.schema.json"),
+    ("mission-candidate", "mission/mission-candidate.schema.json"),
+    ("mission-contract", "mission/mission-contract.schema.json"),
+    ("run-assessment", "mission/run-assessment.schema.json"),
+    ("mission-ledger", "mission/mission-ledger.schema.json"),
 ]
 
 # Keys whose string values are repo-relative artifact paths and must not
@@ -698,6 +702,18 @@ def validate_artifact(
         check_coordination_reference(doc, path.name, errors)
     if "coordination-message" in path.name:
         check_coordination_message(doc, path.name, errors)
+    if "mission-candidate" in path.name or "mission-contract" in path.name \
+            or "run-assessment" in path.name:
+        check_mission_artifact(doc, path.name, errors)
+    if "mission-contract" in path.name:
+        check_mission_policy_pin(doc, repo_root, path.name, errors)
+    # The live POL-04 reopen guard applies to current formulations. The
+    # documented NON-CANONICAL retrospective projection directory
+    # (examples/mission/retrospective/) is exempt: those files snapshot the
+    # pre-run decision moment, predating the ledger entries their signals now
+    # hold. The guard applies everywhere else, including all real candidates.
+    if "mission-candidate" in path.name and "retrospective" not in path.parts:
+        check_ledger_reopen(doc, _load_ledger(repo_root), path.name, errors)
 
 
 def validate_examples(
@@ -707,11 +723,239 @@ def validate_examples(
     errors: list[str],
     registry: dict | None = None,
 ) -> None:
-    """Validate every example artifact against its schema."""
-    for path in sorted(examples_dir.iterdir()):
+    """Validate every example artifact (recursively) against its schema."""
+    for path in sorted(examples_dir.rglob("*")):
         if not path.is_file():
             continue
         validate_artifact(path, schemas_dir, repo_root, errors, registry)
+
+
+def check_mission_artifact(doc: dict, where: str, errors: list[str]) -> None:
+    """Mission-layer semantic checks beyond structural schema validation.
+
+    Policy semantics (docs/HQ_MISSION_POLICY.md):
+    - POL-01: signal_refs must have at least one entry (the minimal schema
+      subset validator does not enforce minItems);
+    - provenance chain signal -> candidate -> contract is the only path
+      (source_candidate_id required on contracts);
+    - POL-05: no_mission_warranted must not carry a mission_id (no
+      MissionContract is opened);
+    - duplicate must reference the existing ledger item it duplicates;
+    - superseded must reference what supersedes it;
+    - POL-10: mission_rejected (contract) requires rejection_reason;
+    - RunAssessment: the mission_rejected branch requires a
+      rejection_reason_code and must not fabricate normal execution facts;
+      the executed-run branch keeps requiring its run facts.
+    """
+    kind = doc.get("kind")
+    if kind == "federation_hq_mission_candidate":
+        if not isinstance(doc.get("signal_refs"), list) or not doc["signal_refs"]:
+            errors.append(
+                f"{where}: signal_refs must contain at least one structured signal (POL-01)"
+            )
+        disposition = doc.get("disposition")
+        if disposition == "no_mission_warranted" and doc.get("mission_id") is not None:
+            errors.append(
+                f"{where}: no_mission_warranted must not carry a mission_id "
+                f"(no MissionContract is opened)"
+            )
+        if disposition == "duplicate" and not doc.get("duplicate_of"):
+            errors.append(f"{where}: duplicate disposition requires duplicate_of")
+        if disposition == "superseded" and not doc.get("superseded_by"):
+            errors.append(f"{where}: superseded disposition requires superseded_by")
+        override = doc.get("prior_disposition_override")
+        if override is not None:
+            if not isinstance(override, dict):
+                errors.append(f"{where}: prior_disposition_override must be an object")
+            elif not isinstance(override.get("new_evidence_refs"), list) \
+                    or not override["new_evidence_refs"]:
+                errors.append(
+                    f"{where}: prior_disposition_override requires at least one "
+                    f"concrete new_evidence_ref (no vague reconsideration override)"
+                )
+    if kind == "federation_hq_mission_contract":
+        if not isinstance(doc.get("source_candidate_id"), str) or not doc["source_candidate_id"]:
+            errors.append(
+                f"{where}: source_candidate_id is required (signal -> candidate -> contract "
+                f"provenance; human requests are candidates with source_kind: human_request)"
+            )
+        if not isinstance(doc.get("signal_refs"), list) or not doc["signal_refs"]:
+            errors.append(
+                f"{where}: signal_refs must contain at least one structured signal (POL-01)"
+            )
+        if doc.get("status") == "mission_rejected" and not doc.get("rejection_reason"):
+            errors.append(
+                f"{where}: mission_rejected requires rejection_reason "
+                f"(framing invalid/unsafe/duplicate/unsupported/evidence-inadequate)"
+            )
+    if kind == "federation_hq_run_assessment":
+        _check_run_assessment(doc, where, errors)
+
+
+_EXECUTED_RUN_FACTS = frozenset({
+    "run_id", "repair_class", "review_verdict", "gate_verified",
+    "target_merged", "run_record_merged", "human_role_handoffs",
+})
+
+
+def _check_run_assessment(doc: dict, where: str, errors: list[str]) -> None:
+    """RunAssessment branch semantics: pre-execution mission_rejected vs an
+    executed run. The rejection branch must not pretend review/gate/merge
+    facts constitute a normal execution run."""
+    outcome = doc.get("terminal_outcome")
+    if outcome == "mission_rejected":
+        if not isinstance(doc.get("rejection_reason_code"), str) \
+                or not doc["rejection_reason_code"]:
+            errors.append(
+                f"{where}: terminal_outcome mission_rejected requires a machine-readable "
+                f"rejection_reason_code"
+            )
+        # run_id may be present as null (no run was initialized) but must not
+        # name a canonical run.
+        if doc.get("run_id") is not None:
+            errors.append(
+                f"{where}: mission_rejected assessment run_id must be null/absent "
+                f"(no run was initialized)"
+            )
+        fabricated = sorted(set(_EXECUTED_RUN_FACTS - {"run_id"}) & set(doc))
+        if fabricated:
+            errors.append(
+                f"{where}: mission_rejected assessment must not carry executed-run facts "
+                f"(no review_verdict/gate/target/run-record/handoffs), got {fabricated}"
+            )
+        return
+    missing = sorted(f for f in _EXECUTED_RUN_FACTS if f not in doc)
+    if missing:
+        errors.append(
+            f"{where}: executed-run assessment requires run facts {missing}"
+        )
+    elif not isinstance(doc.get("run_id"), str) or not doc["run_id"]:
+        errors.append(f"{where}: executed-run assessment requires a canonical run_id")
+
+
+def _load_ledger(repo_root: Path) -> dict | None:
+    """Load the persistent Mission Ledger, or None when absent/unreadable."""
+    path = repo_root / "mission" / "ledger.yaml"
+    if not path.exists():
+        return None
+    try:
+        doc = load_document(path)
+    except Exception:
+        return None
+    return doc if isinstance(doc, dict) else None
+
+
+_TERMINAL_LEDGER_DISPOSITIONS = frozenset({
+    "completed", "wont_fix", "no_mission_warranted",
+    "duplicate", "rejected", "superseded",
+})
+
+# Canonical policy artifact and its explicit machine-readable version marker.
+_CANONICAL_POLICY_PATH = Path("docs") / "HQ_MISSION_POLICY.md"
+_POLICY_VERSION_MARKER = re.compile(r"Policy version:\*\*\s*`([0-9]+\.[0-9]+\.[0-9]+)`")
+
+
+def _resolve_policy_version(text: str) -> str | None:
+    """Extract the policy's explicit version marker, or None."""
+    match = _POLICY_VERSION_MARKER.search(text)
+    return match.group(1) if match else None
+
+
+def check_mission_policy_pin(doc: dict, repo_root: Path, where: str, errors: list[str]) -> None:
+    """Prove a MissionContract's policy pin resolves to the canonical policy.
+
+    Fail closed when: the policy reference is missing or escapes the
+    repository, does not resolve to the canonical HQ Mission Policy, the
+    version marker cannot be resolved, the supplied policy_sha256 differs
+    from the actual canonical policy bytes, or the supplied policy_version
+    differs from the marker. The policy is never duplicated into the
+    contract; docs/HQ_MISSION_POLICY.md stays the single policy source.
+    """
+    if doc.get("kind") != "federation_hq_mission_contract":
+        return
+    reference = doc.get("policy_reference")
+    if not isinstance(reference, str) or not reference:
+        errors.append(f"{where}: policy_reference is required")
+        return
+    if is_escape_risk(reference):
+        errors.append(f"{where}: policy_reference {reference!r} escapes the repository")
+        return
+    policy_path = (repo_root / reference).resolve()
+    canonical = (repo_root / _CANONICAL_POLICY_PATH).resolve()
+    if not policy_path.exists():
+        errors.append(f"{where}: policy file not found: {reference}")
+        return
+    if policy_path != canonical:
+        errors.append(
+            f"{where}: policy_reference {reference!r} does not resolve to the canonical "
+            f"HQ Mission Policy ({_CANONICAL_POLICY_PATH.as_posix()})"
+        )
+        return
+    try:
+        policy_bytes = policy_path.read_bytes()
+    except OSError as exc:
+        errors.append(f"{where}: cannot read policy file {reference}: {exc}")
+        return
+    actual_hash = hashlib.sha256(policy_bytes).hexdigest()
+    supplied_hash = doc.get("policy_sha256")
+    if not isinstance(supplied_hash, str) or supplied_hash != actual_hash:
+        errors.append(
+            f"{where}: policy_sha256 {supplied_hash!r} does not match the canonical policy "
+            f"bytes ({actual_hash})"
+        )
+    try:
+        policy_text = policy_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        errors.append(f"{where}: policy file is not UTF-8 text")
+        return
+    actual_version = _resolve_policy_version(policy_text)
+    supplied_version = doc.get("policy_version")
+    if actual_version is None:
+        errors.append(f"{where}: cannot resolve the policy version marker in {reference}")
+    elif not isinstance(supplied_version, str) or supplied_version != actual_version:
+        errors.append(
+            f"{where}: policy_version {supplied_version!r} does not match the policy "
+            f"version marker ({actual_version})"
+        )
+
+
+def check_ledger_reopen(doc: dict, ledger: dict | None, where: str, errors: list[str]) -> None:
+    """POL-04 reopen guard: a signal with a terminal ledger disposition must
+    not silently become a selectable mission.
+
+    Validation happens against the live repository-native ledger. A candidate
+    may reopen a terminal signal as selected ONLY via an explicit
+    prior_disposition_override carrying at least one concrete new-evidence
+    reference and the old ledger signal identity.
+    """
+    if doc.get("kind") != "federation_hq_mission_candidate":
+        return
+    if doc.get("disposition") != "selected":
+        return
+    if ledger is None:
+        return  # no ledger to guard against; nothing to enforce
+    ledger_by_signal = {item.get("signal_id"): item for item in ledger.get("items", [])}
+    overrides = doc.get("prior_disposition_override")
+    override_map = {}
+    if isinstance(overrides, dict):
+        override_map = {
+            overrides.get("ledger_signal_id"): overrides.get("prior_disposition")
+        }
+    for ref in doc.get("signal_refs", []) or []:
+        signal_id = ref.get("signal_id") if isinstance(ref, dict) else None
+        item = ledger_by_signal.get(signal_id)
+        if item is None:
+            continue  # new signal: no prior disposition
+        prior = item.get("disposition")
+        if prior not in _TERMINAL_LEDGER_DISPOSITIONS:
+            continue
+        if override_map.get(signal_id) != prior:
+            errors.append(
+                f"{where}: signal {signal_id!r} has terminal ledger disposition "
+                f"{prior!r}; reopening as selected requires an explicit "
+                f"prior_disposition_override for ledger_signal_id {signal_id!r} "
+                f"matching prior_disposition {prior!r} with new evidence (POL-04)"
+            )
 
 
 # ── Committed run bundle checks ────────────────────────────────────────────
@@ -892,6 +1136,31 @@ def main(argv: list[str] | None = None) -> int:
         validate_examples(examples_dir, schemas_dir, repo_root, errors, registry)
         runs_dir = Path(args.runs_dir).resolve() if args.runs_dir else repo_root / "runs"
         validate_run_bundles(runs_dir, schemas_dir, repo_root, errors, registry)
+        # The persistent Mission Ledger is repository-native structured state.
+        # Its filename (ledger.yaml) does not match the mission-ledger prefix
+        # matcher, so it is validated explicitly against its schema.
+        ledger_path = repo_root / "mission" / "ledger.yaml"
+        if ledger_path.exists():
+            try:
+                ledger_doc = load_document(ledger_path)
+            except Exception as exc:
+                errors.append(f"mission/ledger.yaml: could not load: {exc}")
+            else:
+                if not isinstance(ledger_doc, dict):
+                    errors.append("mission/ledger.yaml: artifact must be an object")
+                else:
+                    try:
+                        ledger_schema = json.loads(
+                            (schemas_dir / "mission" / "mission-ledger.schema.json")
+                            .read_text(encoding="utf-8")
+                        )
+                    except (json.JSONDecodeError, OSError) as exc:
+                        errors.append(
+                            f"mission/ledger.yaml: cannot read ledger schema: {exc}"
+                        )
+                    else:
+                        validate_value(ledger_doc, ledger_schema, "mission/ledger.yaml", errors)
+                        check_paths(ledger_doc, repo_root, errors)
 
     if errors:
         if not args.quiet:

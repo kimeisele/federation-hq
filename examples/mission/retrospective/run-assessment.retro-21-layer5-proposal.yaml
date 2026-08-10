@@ -1,0 +1,29 @@
+# NON-CANONICAL retrospective fixture (Issue #23).
+# Projects federation-hq#21 (Stabilization 02, contract proposal service
+# sync) into the RunAssessment v0.1 representation. Terminal facts from the
+# actual run record:
+# runs/run-20260809-agent-city-contract-proposal-service-sync/.
+kind: federation_hq_run_assessment
+assessment_id: assess-retro-21-layer5-proposal
+mission_id: run-20260809-agent-city-contract-proposal-service-sync
+run_id: run-20260809-agent-city-contract-proposal-service-sync
+target_repository: kimeisele/agent-city
+baseline_sha: "1cc173eef57e408a17494b3d13d696dbf4e54edb"
+terminal_outcome: approved
+diagnosis: "Stale test contract (Model B registry-authoritative): Layer-5 Phase 5-7 tests encode pre-refactor assumptions (missing explicit ContractInvocation; one heartbeat = full MURALI cycle). Production service-ownership semantics correct and untouched."
+defect_disposition: stale_test_contract
+repair_class: test
+review_verdict: approved
+gate_verified: true
+gate_check_run_id: "93285178946"
+target_merged: true
+target_merge_sha: "e01d011bd563e964afb55901a4ed9474191aec59"
+run_record_merged: true
+run_record_merge_sha: "c5eb51d9a6f8bdc371ac4ea1af76ff2c33fcf966"
+human_role_handoffs: 0
+rework_count: 0
+ledger_disposition: completed
+evidence_locations:
+  - "runs/run-20260809-agent-city-contract-proposal-service-sync/run-manifest.yaml"
+  - "runs/run-20260809-agent-city-contract-proposal-service-sync/review-result.yaml"
+created_at: "2026-08-10T03:00:31Z"

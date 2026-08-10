@@ -1,0 +1,198 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/kimeisele/federation-hq/main/contracts/mission/mission-candidate.schema.json",
+  "title": "Mission Candidate",
+  "description": "Machine-readable representation of a possible piece of work BEFORE an executable mission exists. Produced by mission formulation (human or future Director); consumed by the policy + ledger decision. Explicit facts and enums only — no LLM self-scoring fields (risk_score/confidence/importance) unless mechanically derived. A candidate may terminate as no_mission_warranted without ever opening a MissionContract; that is an expected healthy result.",
+  "type": "object",
+  "required": [
+    "kind",
+    "candidate_id",
+    "signal_refs",
+    "target_repository",
+    "problem_statement",
+    "disposition",
+    "created_at"
+  ],
+  "properties": {
+    "kind": {
+      "const": "federation_hq_mission_candidate"
+    },
+    "candidate_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "signal_refs": {
+      "description": "At least one structured signal (POL-01): a candidate is only formulated from evidence. Empty signal_refs is invalid.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/signal_ref"
+      }
+    },
+    "target_repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "problem_statement": {
+      "description": "Bounded statement of the possible work. Describes the question/discrepancy; does not prescribe a repair.",
+      "type": "string"
+    },
+    "disposition": {
+      "description": "Current disposition. no_mission_warranted, wont_fix, duplicate, superseded and blocked are terminal non-mission outcomes; selected means a MissionContract may be opened.",
+      "enum": [
+        "candidate",
+        "selected",
+        "no_mission_warranted",
+        "wont_fix",
+        "duplicate",
+        "superseded",
+        "blocked"
+      ]
+    },
+    "mission_id": {
+      "description": "Mission id opened for this candidate, when disposition is selected and a MissionContract exists. Null/absent otherwise; no_mission_warranted MUST NOT carry a mission_id.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "duplicate_of": {
+      "description": "Ledger item or mission this candidate duplicates, when disposition is duplicate.",
+      "type": "string"
+    },
+    "superseded_by": {
+      "description": "Ledger item or mission that supersedes this candidate, when disposition is superseded.",
+      "type": "string"
+    },
+    "policy_eligibility": {
+      "type": "object",
+      "properties": {
+        "policy_reference": {
+          "type": "string"
+        },
+        "eligible": {
+          "type": "boolean"
+        },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "overlap_refs": {
+      "description": "References to known overlapping work/PRs/issues that must be respected.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "blocker_refs": {
+      "description": "References to known blockers (permissions, dependencies, unreachable evidence).",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "prior_disposition_override": {
+      "description": "Explicit evidence-backed exception (POL-04): reopen a signal whose ledger disposition is terminal (completed/wont_fix/no_mission_warranted/duplicate/rejected/superseded) as selected. Requires at least one concrete new-evidence reference; no vague reconsideration free-text-only override.",
+      "type": "object",
+      "required": [
+        "ledger_signal_id",
+        "prior_disposition",
+        "new_evidence_refs"
+      ],
+      "properties": {
+        "ledger_signal_id": {
+          "description": "The immutable ledger signal identity whose prior disposition is being superseded.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "prior_disposition": {
+          "enum": [
+            "completed",
+            "wont_fix",
+            "no_mission_warranted",
+            "duplicate",
+            "rejected",
+            "superseded"
+          ]
+        },
+        "new_evidence_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "description": "Observation references supporting the candidate. Facts, not self-scoring.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "source": {
+      "description": "How the candidate entered the workflow.",
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "signal_ref": {
+      "description": "Reference to one structured signal. signal_id is the immutable HQ-assigned identity assigned at first ingestion; source-native references are indexed and may gain evidence-backed aliases. v0.1 does not perform semantic rename detection.",
+      "type": "object",
+      "required": [
+        "signal_id",
+        "source_kind",
+        "source_native_ref"
+      ],
+      "properties": {
+        "signal_id": {
+          "description": "Immutable internal HQ signal identity. Never changes after first ingestion.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "source_kind": {
+          "enum": [
+            "test_node",
+            "ci",
+            "github_issue",
+            "run_assessment",
+            "ledger_disposition",
+            "human_request",
+            "workflow_failure",
+            "other"
+          ]
+        },
+        "repository": {
+          "type": "string"
+        },
+        "source_native_ref": {
+          "description": "Source-native reference (e.g. tests/foo.py::test_bar, CI job URL, issue number). Not assumed immutable; aliases capture renames.",
+          "type": "string"
+        },
+        "aliases": {
+          "description": "Evidence-backed alternative source-native references for the same signal (e.g. after a test rename).",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "last_observed_evidence": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

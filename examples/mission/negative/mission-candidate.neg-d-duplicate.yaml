@@ -1,0 +1,30 @@
+# NEGATIVE fixture D (Issue #23): duplicate.
+# Two signals resolve to the same existing ledger item/mission. Expected:
+# disposition duplicate referencing the existing ledger item — NOT a second
+# mission.
+kind: federation_hq_mission_candidate
+candidate_id: cand-neg-d-duplicate
+signal_refs:
+  - signal_id: sig-neg-d-duplicate
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_7_builders
+    aliases:
+      - tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_6_builders
+    last_observed_evidence: "Node references the already-completed PromptRegistry reconciliation (federation-hq#17)."
+target_repository: kimeisele/agent-city
+problem_statement: >
+  The same PromptRegistry singleton composition discrepancy is reported again
+  after the completed run resolved it.
+disposition: duplicate
+duplicate_of: sig-20260809-prompt-registry-count
+policy_eligibility:
+  policy_reference: docs/HQ_MISSION_POLICY.md
+  eligible: false
+  reasons:
+    - "POL-04 prior dispositions checked first"
+    - "POL-06 existing work/overlap respected: duplicate of completed ledger item"
+evidence:
+  - "examples/mission/negative/mission-candidate.neg-d-duplicate.yaml"
+source: other
+created_at: "2026-08-09T19:15:00Z"

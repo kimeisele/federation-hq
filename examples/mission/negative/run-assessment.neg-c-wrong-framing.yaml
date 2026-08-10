@@ -1,0 +1,20 @@
+# NEGATIVE fixture C-assessment (Issue #23): mission rejection feedback loop.
+# MissionContract.status == mission_rejected (fixture
+# mission-contract.neg-c-wrong-framing.yaml) closes into a RunAssessment with
+# terminal_outcome == mission_rejected and ledger_disposition == rejected.
+# Pre-execution rejection: no run was initialized, so no executed-run facts
+# (review_verdict/gate/target/run-record/handoffs) are present.
+kind: federation_hq_run_assessment
+assessment_id: assess-neg-c-wrong-framing
+mission_id: mission-neg-c-wrong-framing
+run_id: null
+target_repository: kimeisele/agent-city
+terminal_outcome: mission_rejected
+rejection_reason_code: invalid_framing
+rejection_reason: >
+  POL-02 no 'improve this repo' missions; the contract's unbounded scope
+  does not match a bounded signal and no bounded decision question exists.
+ledger_disposition: rejected
+evidence_locations:
+  - "examples/mission/negative/mission-contract.neg-c-wrong-framing.yaml"
+created_at: "2026-08-09T19:20:00Z"

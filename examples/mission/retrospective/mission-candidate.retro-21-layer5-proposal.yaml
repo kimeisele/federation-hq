@@ -1,0 +1,35 @@
+# NON-CANONICAL retrospective fixture (Issue #23).
+# Projects federation-hq#21 (Stabilization 02, contract proposal service
+# sync) into the MissionCandidate v0.1 representation. Facts from the actual
+# run record runs/run-20260809-agent-city-contract-proposal-service-sync/.
+kind: federation_hq_mission_candidate
+candidate_id: cand-retro-21-layer5-proposal
+signal_refs:
+  - signal_id: sig-20260809-layer5-contract-proposal
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_layer5.py::test_contract_failure_creates_proposal
+    last_observed_evidence: "Deterministic known-red baseline node; no expected council proposal produced."
+target_repository: kimeisele/agent-city
+problem_statement: >
+  Determine whether the Layer-5 contract-proposal behavior (failing quality
+  contract during DHARMA creating a healing mission and, with an elected
+  council, a council proposal) failing the test is a production
+  service-synchronization/DI defect, a stale test assumption, a
+  council/proposal defect, or another single bounded cause.
+disposition: selected
+mission_id: run-20260809-agent-city-contract-proposal-service-sync
+policy_eligibility:
+  policy_reference: docs/HQ_MISSION_POLICY.md
+  eligible: true
+  reasons:
+    - "POL-01 bounded evidence-backed mission (known-red test node)"
+overlap_refs:
+  - "kimeisele/agent-city#2571 (open PR, PR-lifecycle only, no overlap)"
+evidence:
+  - "runs/run-20260809-agent-city-contract-proposal-service-sync/run-manifest.yaml"
+source: >
+  NON-CANONICAL retrospective projection created by Federation HQ Issue #23 (Mission Foundation v0.1). Models the historical human_operator request (Federation HQ Stabilization Run 02 instruction (protocol 0.1.0, automated role execution v0.1));
+  candidate_id, signal_id and created_at are retrospectively assigned
+  Mission Foundation metadata, not historical run-time metadata.
+created_at: "2026-08-10T03:00:31Z"

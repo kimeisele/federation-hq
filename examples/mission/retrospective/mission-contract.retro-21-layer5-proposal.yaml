@@ -1,0 +1,54 @@
+# NON-CANONICAL retrospective fixture (Issue #23).
+# Projects federation-hq#21 (Stabilization 02) into the MissionContract v0.1
+# representation. Facts from the actual run record.
+kind: federation_hq_mission_contract
+mission_version: "0.1.0"
+mission_id: run-20260809-agent-city-contract-proposal-service-sync
+source_candidate_id: cand-retro-21-layer5-proposal
+signal_refs:
+  - signal_id: sig-20260809-layer5-contract-proposal
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_layer5.py::test_contract_failure_creates_proposal
+target_repository: kimeisele/agent-city
+objective: >
+  Determine whether the Layer-5 contract-proposal behavior (failing quality
+  contract during DHARMA creating a healing mission and, with an elected
+  council, a council proposal) is a production service-synchronization/DI
+  defect, a stale test assumption, a council/proposal defect, or another
+  single bounded cause.
+decision_question: >
+  Which component of the contract-proposal path is the defect, if any, on
+  the pinned baseline?
+bounded_scope: >
+  Investigate tests/test_layer5.py, city/mayor/, city/registry.py,
+  city/phases/dharma.py, city/hooks/dharma/contracts_issues.py,
+  ContractRegistry/QualityContract, callers, and history; determine the
+  authoritative service-ownership model from evidence; select exactly one
+  bounded repair candidate.
+scope_enforcement: declared
+prescribes_repair: false
+hard_constraints:
+  - "Do not assume which component should change."
+  - "Do not prescribe that sync_legacy_services must overwrite services, that the test must mutate the registry, that the test is stale, or that Council Proposal logic is wrong."
+stop_conditions:
+  - "Evidence cannot be located or verified."
+  - "The failure cannot be reproduced on the pinned baseline."
+expected_allowed_outcomes:
+  - approved
+  - changes_requested
+  - blocked
+  - invalid_candidate
+policy_reference: docs/HQ_MISSION_POLICY.md
+policy_version: "0.1.0"
+policy_sha256: "7d3c4eb4b6528e4aef515b429aafcdb6d9dc228d6feea098582b10a2a4f2241d"
+status: completed
+creation_provenance:
+  author_role: other
+  source_reference: >-
+    NON-CANONICAL retrospective projection created by Federation HQ Issue
+    #23 (Mission Foundation v0.1). The formal MissionContract did not exist
+    at the original run opening; policy_version/policy_sha256 pin the policy
+    governing the PROJECTION, not a historical policy artifact. Historical
+    source: "Federation HQ Stabilization Run 02 instruction (protocol 0.1.0, automated role execution v0.1)"
+created_at: "2026-08-10T03:00:31Z"
