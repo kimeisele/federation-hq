@@ -54,12 +54,15 @@ items:
     source_kind: test_node
     repository: kimeisele/agent-city
     source_native_ref: tests/test_treasury.py::TestMoltbookOutboundFallback::test_fallback_path_exists
-    disposition: active
+    disposition: completed
     candidate_id: cand-20260810-agent-city-moltbook-outbound-fallback-contract
     mission_id: mission-20260810-agent-city-moltbook-outbound-fallback-contract
-    related_run_ids: []
+    related_run_ids:
+      - run-20260810-agent-city-moltbook-outbound-fallback-contract
     last_observed_evidence: >
-      Human-authored MissionContract Pilot 01: focused Moltbook outbound fallback
-      test references MoltbookOutboundHook; exact disposition awaits Scout.
-    updated_at: "2026-08-10T05:34:17Z"
-updated_at: "2026-08-10T05:34:17Z"
+      MissionContract Pilot 01 (federation-hq#29) completed: stale test
+      contract reconciled to the current EventDrivenOutboundHook fallback
+      (technical brief -> outbox); target PR kimeisele/agent-city#2717 merged
+      a975b7da. Canonical evidence: runs/run-20260810-agent-city-moltbook-outbound-fallback-contract/.
+    updated_at: "2026-08-10T07:25:00Z"
+updated_at: "2026-08-10T07:25:00Z"

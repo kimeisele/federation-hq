@@ -1,0 +1,30 @@
+# RunAssessment — run-20260810-agent-city-moltbook-outbound-fallback-contract
+#
+# Terminal assessment of the first real MissionContract-native run
+# (MissionContract Pilot 01). Facts only; derived from the canonical run
+# record in this directory. The Mission Foundation defines the schema
+# (contracts/mission/run-assessment.schema.json); this artifact is recorded
+# in the run's canonical record directory.
+kind: federation_hq_run_assessment
+assessment_id: assess-20260810-agent-city-moltbook-outbound-fallback-contract
+mission_id: mission-20260810-agent-city-moltbook-outbound-fallback-contract
+run_id: run-20260810-agent-city-moltbook-outbound-fallback-contract
+target_repository: kimeisele/agent-city
+baseline_sha: "e01d011bd563e964afb55901a4ed9474191aec59"
+terminal_outcome: approved
+diagnosis: "Stale test contract: test_fallback_path_exists imported the deliberately removed MoltbookOutboundHook (replaced by EventDrivenOutboundHook at d97d0e7; fallback behavior verified functional). Migrated to test_fallback_enqueues_technical_brief_when_voice_unavailable asserting the current fallback contract."
+defect_disposition: stale_test_contract
+repair_class: test
+review_verdict: approved
+gate_verified: true
+gate_check_run_id: "93382847314"
+target_merged: true
+target_merge_sha: "a975b7da810b22587efd826411d08fb7d4b7d36b"
+run_record_merged: true
+human_role_handoffs: 0
+rework_count: 0
+ledger_disposition: completed
+evidence_locations:
+  - "runs/run-20260810-agent-city-moltbook-outbound-fallback-contract/run-manifest.yaml"
+  - "runs/run-20260810-agent-city-moltbook-outbound-fallback-contract/review-result.yaml"
+created_at: "2026-08-10T07:25:00Z"
