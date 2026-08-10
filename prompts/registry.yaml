@@ -1,118 +1,147 @@
-# Federation HQ Prompt Registry
-#
-# Versioned role prompts for the repair workflow.
-#
-# Schema and rules: see `docs/PROMPT_VERSIONING.md`. Released versions are
-# immutable; every release requires a changelog rationale. Each version pins
-# the SHA-256 of its exact UTF-8 file bytes. Validated by
-# `scripts/validate_artifacts.py` (unique ids, unique versions, referenced
-# files exist, changelog present, hashes match file bytes). Only entries with
-# `status: released` are pinnable by run manifests.
-#
-# The four `0.1.0` versions below are released with their respective PR
-# merges; release status is never mutated automatically.
-
 schema_version: 1
 prompts:
-  - id: scout
-    name: Unwired Functionality Scout
-    description: Investigates a bounded maintenance request and selects exactly one repair candidate.
-    versions:
-      - version: 0.1.0
-        file: scout/v0.1.0.md
-        sha256: "6940ea39da9799fa6595809cfce6a948427bdc07edba2e48774418642fe6eb8a"
-        status: released
-        released: "2026-08-05"
-        changelog: >
-          Initial release for the three-role repair workflow: bounded
-          investigation, single-candidate selection, evidence-anchored output,
-          artifact-output contract (exactly one artifact, writable run-output
-          directory only, never mutate Federation HQ).
+- id: scout
+  name: Unwired Functionality Scout
+  description: Investigates a bounded maintenance request and selects exactly one
+    repair candidate.
+  versions:
+  - version: 0.1.0
+    file: scout/v0.1.0.md
+    sha256: 6940ea39da9799fa6595809cfce6a948427bdc07edba2e48774418642fe6eb8a
+    status: released
+    released: '2026-08-05'
+    changelog: 'Initial release for the three-role repair workflow: bounded investigation,
+      single-candidate selection, evidence-anchored output, artifact-output contract
+      (exactly one artifact, writable run-output directory only, never mutate Federation
+      HQ).
 
-  - id: repair
-    name: Targeted Repair Builder
-    description: Repairs exactly the selected candidate and records a verifiable repair result.
-    versions:
-      - version: 0.1.0
-        file: repair/v0.1.0.md
-        sha256: "0606d8ed7bec4501c10613d8e13b399325d6245b72f5d9212ea65e459f933f84"
-        status: released
-        released: "2026-08-05"
-        changelog: >
-          Initial release for the three-role repair workflow: single-candidate
-          scope, baseline-versus-head failure comparison, no admin bypass,
-          artifact-output contract (exactly one artifact, writable run-output
-          directory only, never mutate Federation HQ).
+      '
+  - version: 0.2.0
+    file: scout/v0.2.0.md
+    sha256: eb93cbb94d489df94cd64cde59316fcb650f344244c097c11e024b0093011837
+    status: released
+    released: '2026-08-10'
+    changelog: 'MINOR additive release (Issue #25): MissionContract-native runs. When
+      the manifest pins mission_input, the MissionContract is the durable semantic
+      scope; Scout may contradict the mission''s initial hypothesis (POL-09) but may
+      not broaden the contract; resolves the exact pinned contract itself, never Operator
+      prose as authority. Prior artifacts unaffected.'
+- id: repair
+  name: Targeted Repair Builder
+  description: Repairs exactly the selected candidate and records a verifiable repair
+    result.
+  versions:
+  - version: 0.1.0
+    file: repair/v0.1.0.md
+    sha256: 0606d8ed7bec4501c10613d8e13b399325d6245b72f5d9212ea65e459f933f84
+    status: released
+    released: '2026-08-05'
+    changelog: 'Initial release for the three-role repair workflow: single-candidate
+      scope, baseline-versus-head failure comparison, no admin bypass, artifact-output
+      contract (exactly one artifact, writable run-output directory only, never mutate
+      Federation HQ).
 
-  - id: review
-    name: Independent Repair Reviewer
-    description: Independently verifies the exact remote head and records a verdict.
-    versions:
-      - version: 0.1.0
-        file: review/v0.1.0.md
-        sha256: "82b9cc37176304d418a934b261fa5efa2374d4e886c5afdec3789eaa264479e9"
-        status: released
-        released: "2026-08-05"
-        changelog: >
-          Initial release for the three-role repair workflow: exact-head
-          re-verification, claim-to-evidence checking, four verdicts,
-          approval invalidated by new commits, artifact-output contract
-          (exactly one artifact, writable run-output directory only, never
-          mutate Federation HQ).
+      '
+  - version: 0.2.0
+    file: repair/v0.2.0.md
+    sha256: d997d221e88cd5904a62ac2580aa1a91197e96c48587a43b3200e459c26064c7
+    status: released
+    released: '2026-08-10'
+    changelog: 'MINOR additive release (Issue #25): MissionContract-native runs. The
+      accepted RepairCandidate determines the concrete repair; the pinned MissionContract''s
+      bounded_scope/hard_constraints remain binding declared scope; no reinterpretation
+      of mission selection. Prior artifacts unaffected.'
+- id: review
+  name: Independent Repair Reviewer
+  description: Independently verifies the exact remote head and records a verdict.
+  versions:
+  - version: 0.1.0
+    file: review/v0.1.0.md
+    sha256: 82b9cc37176304d418a934b261fa5efa2374d4e886c5afdec3789eaa264479e9
+    status: released
+    released: '2026-08-05'
+    changelog: 'Initial release for the three-role repair workflow: exact-head re-verification,
+      claim-to-evidence checking, four verdicts, approval invalidated by new commits,
+      artifact-output contract (exactly one artifact, writable run-output directory
+      only, never mutate Federation HQ).
 
-  - id: operator
-    name: HQ Operator
-    description: Coordinates the three-role repair workflow via GitHub-native structured Issue comments.
-    versions:
-      - version: 0.1.0
-        file: operator/v0.1.0.md
-        sha256: "17cd6f0e046dd75dd9393aabec80f409c5fc50ed8bfdb1097357f6069ff45a2c"
-        status: released
-        released: "2026-08-05"
-        changelog: >
-          Initial release for the HQ Operator coordination role: exactly one
-          active role assignment per run, structural artifact acceptance,
-          Issue-based coordination, no merge authority, no semantic repair
-          judgment, no autonomous target selection, no model invocation.
-          Pre-merge finalization (unmerged PR #3): submission references
-          delivered bytes with hq_commit_sha null; acceptance references the
-          canonical run-record branch commit with a matching hash; acceptance
-          and next assignment are separate messages. No run pinned the earlier
-          draft bytes.
-      - version: 0.2.0
-        file: operator/v0.2.0.md
-        sha256: "6e054aa82e87608713d858e3f2b5116a33098e4fb4b5b867d63fc32b874a2994"
-        status: released
-        released: "2026-08-09"
-        changelog: >
-          MINOR additive release (Issue #15): automated role execution v0.1.
-          Adds optional execution-adapter dispatch — the Operator may launch
-          an ISOLATED role worker (scout/repair/review) through a compatible
-          adapter instead of waiting for an external actor, observe its
-          submission, and continue the normal validate -> canonicalize ->
-          accept -> next-assignment loop. New section 'Automated role
-          dispatch (execution adapters)' plus failure-visibility and
-          fallback rules; independence invariant (repair and review run in
-          distinct worker contexts; review never inherits repair's private
-          reasoning); return-to-human conditions narrowed to terminal
-          completion, policy decisions, unrecoverable execution failure, and
-          permission/credential boundaries. Canonical protocol, artifacts,
-          prompt pins, and Gate semantics unchanged; external/manual dispatch
-          remains the supported fallback; no harness becomes part of the
-          protocol vocabulary. Does not invalidate prior artifacts or runs
-          pinned to operator@0.1.0.
-      - version: 0.2.1
-        file: operator/v0.2.1.md
-        sha256: "1638cb9876fdfe0184c596b6ea0fd8c8621fb96db63a55c4f9bd1abf30675de5"
-        status: released
-        released: "2026-08-09"
-        changelog: >
-          PATCH clarification (Issue #15 bounded review, PR #16): makes
-          Integrator auto-dispatch explicit in the automated-dispatch
-          section. After a canonical approved Review verdict, the Operator
-          MAY spawn an isolated hq-integrator worker through the same
-          execution adapter (mechanical, execution-only, not a new pipeline
-          state and not a semantic Reviewer); manual/external Integrator
-          handoff remains the fallback when no adapter is available. No
-          state machine, coordination-message type, protocol, artifact, or
-          Gate semantics changed. operator@0.2.0 bytes remain immutable.
+      '
+  - version: 0.2.0
+    file: review/v0.2.0.md
+    sha256: 53ca110b92ded24522b04c247ea1abd808180047dd84f64304eb5591e70dad5e
+    status: released
+    released: '2026-08-10'
+    changelog: 'MINOR additive release (Issue #25): MissionContract-native runs. Review
+      independently verifies both repair correctness and compliance with the pinned
+      MissionContract boundaries; no approval of repairs exceeding the contract; independence
+      from Repair unchanged. Prior artifacts unaffected.'
+- id: operator
+  name: HQ Operator
+  description: Coordinates the three-role repair workflow via GitHub-native structured
+    Issue comments.
+  versions:
+  - version: 0.1.0
+    file: operator/v0.1.0.md
+    sha256: 17cd6f0e046dd75dd9393aabec80f409c5fc50ed8bfdb1097357f6069ff45a2c
+    status: released
+    released: '2026-08-05'
+    changelog: 'Initial release for the HQ Operator coordination role: exactly one
+      active role assignment per run, structural artifact acceptance, Issue-based
+      coordination, no merge authority, no semantic repair judgment, no autonomous
+      target selection, no model invocation. Pre-merge finalization (unmerged PR #3):
+      submission references delivered bytes with hq_commit_sha null; acceptance references
+      the canonical run-record branch commit with a matching hash; acceptance and
+      next assignment are separate messages. No run pinned the earlier draft bytes.
+
+      '
+  - version: 0.2.0
+    file: operator/v0.2.0.md
+    sha256: 6e054aa82e87608713d858e3f2b5116a33098e4fb4b5b867d63fc32b874a2994
+    status: released
+    released: '2026-08-09'
+    changelog: 'MINOR additive release (Issue #15): automated role execution v0.1.
+      Adds optional execution-adapter dispatch — the Operator may launch an ISOLATED
+      role worker (scout/repair/review) through a compatible adapter instead of waiting
+      for an external actor, observe its submission, and continue the normal validate
+      -> canonicalize -> accept -> next-assignment loop. New section ''Automated role
+      dispatch (execution adapters)'' plus failure-visibility and fallback rules;
+      independence invariant (repair and review run in distinct worker contexts; review
+      never inherits repair''s private reasoning); return-to-human conditions narrowed
+      to terminal completion, policy decisions, unrecoverable execution failure, and
+      permission/credential boundaries. Canonical protocol, artifacts, prompt pins,
+      and Gate semantics unchanged; external/manual dispatch remains the supported
+      fallback; no harness becomes part of the protocol vocabulary. Does not invalidate
+      prior artifacts or runs pinned to operator@0.1.0.
+
+      '
+  - version: 0.2.1
+    file: operator/v0.2.1.md
+    sha256: 1638cb9876fdfe0184c596b6ea0fd8c8621fb96db63a55c4f9bd1abf30675de5
+    status: released
+    released: '2026-08-09'
+    changelog: 'PATCH clarification (Issue #15 bounded review, PR #16): makes Integrator
+      auto-dispatch explicit in the automated-dispatch section. After a canonical
+      approved Review verdict, the Operator MAY spawn an isolated hq-integrator worker
+      through the same execution adapter (mechanical, execution-only, not a new pipeline
+      state and not a semantic Reviewer); manual/external Integrator handoff remains
+      the fallback when no adapter is available. No state machine, coordination-message
+      type, protocol, artifact, or Gate semantics changed. operator@0.2.0 bytes remain
+      immutable.
+
+      '
+  - version: 0.3.0
+    file: operator/v0.3.0.md
+    sha256: cc62580a831d40a5d370b5fcc5df34d536b61c1e9821ec8f1f7402c75382db33
+    status: released
+    released: '2026-08-10'
+    changelog: 'MAJOR release (Issue #25): MissionContract-native Operator. New authoritative
+      mission input mode (mission_input pin: exact canonical MissionCandidate + MissionContract
+      paths/HQ commit SHAs/SHA-256); mission admission validation (schema/policy pin/ledger
+      reopen guard/provenance chain); structural integrity failure -> bounded input
+      blocker, semantic framing violation -> terminal_outcome mission_rejected + ledger_disposition
+      rejected via RunAssessment (run_id null) with zero Scout dispatch; admitted
+      missions pin mission_input and proceed through the unchanged pipeline. Forbidden:
+      semantic rewriting of the MissionContract into an invented maintenance_request;
+      inventing a mission decision from corrupted input. Legacy maintenance_request
+      mode unchanged and still supported; no runtime pipeline/state-machine/Gate changes;
+      no Director.'

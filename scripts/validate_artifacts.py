@@ -33,6 +33,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -700,6 +701,8 @@ def validate_artifact(
     if "run-manifest" in path.name:
         check_prompt_pins(doc, registry, path.name, errors)
         check_coordination_reference(doc, path.name, errors)
+        check_manifest_mission_mode(doc, path.name, errors)
+        check_mission_pin(doc, repo_root, schemas_dir, path.name, errors)
     if "coordination-message" in path.name:
         check_coordination_message(doc, path.name, errors)
     if "mission-candidate" in path.name or "mission-contract" in path.name \
@@ -958,6 +961,153 @@ def check_ledger_reopen(doc: dict, ledger: dict | None, where: str, errors: list
             )
 
 
+# ── MissionContract-native mode: manifest mode, mission pin, admission ─────
+
+_MISSION_SCHEMA_FILES = {
+    "federation_hq_mission_candidate": "mission/mission-candidate.schema.json",
+    "federation_hq_mission_contract": "mission/mission-contract.schema.json",
+}
+
+
+def _validate_mission_doc(doc: dict, schemas_dir: Path, repo_root: Path,
+                          where: str, errors: list[str]) -> None:
+    """Structural + mission-semantic validation of a mission artifact."""
+    kind = doc.get("kind")
+    schema_name = _MISSION_SCHEMA_FILES.get(kind)
+    if schema_name is None:
+        errors.append(f"{where}: unknown mission artifact kind {kind!r}")
+        return
+    try:
+        schema = json.loads((schemas_dir / schema_name).read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        errors.append(f"{where}: cannot read schema {schema_name}: {exc}")
+        return
+    validate_value(doc, schema, where, errors)
+    check_paths(doc, repo_root, errors)
+    check_mission_artifact(doc, where, errors)
+    if kind == "federation_hq_mission_contract":
+        check_mission_policy_pin(doc, repo_root, where, errors)
+
+
+def check_manifest_mission_mode(doc: dict, where: str, errors: list[str]) -> None:
+    """A run manifest uses exactly one of legacy maintenance_request or
+    MissionContract-native mission_input; mission_input manifests require the
+    MissionContract-native Operator release (operator@0.3.0)."""
+    has_legacy = doc.get("maintenance_request") is not None
+    has_mission = doc.get("mission_input") is not None
+    if has_legacy == has_mission:
+        errors.append(
+            f"{where}: exactly one of maintenance_request or mission_input must be present"
+        )
+        return
+    if has_mission:
+        op = (doc.get("prompt_pins") or {}).get("operator") or {}
+        version = op.get("version")
+        if version != "0.3.0":
+            errors.append(
+                f"{where}: mission_input manifests require operator@0.3.0 "
+                f"(MissionContract-native Operator), got operator@{version}"
+            )
+
+
+def check_mission_pin(doc: dict, repo_root: Path, schemas_dir: Path,
+                      where: str, errors: list[str]) -> None:
+    """Verify a manifest's mission_input pins: repository-relative paths that
+    exist, exact SHA-256 of the bytes, and exact HQ commit SHAs that contain
+    those bytes. The MissionContract is never copied into the manifest."""
+    mission_input = doc.get("mission_input")
+    if not isinstance(mission_input, dict):
+        return
+    for label in ("candidate", "contract"):
+        pin = mission_input.get(label)
+        if not isinstance(pin, dict):
+            errors.append(f"{where}.mission_input.{label}: missing pin")
+            continue
+        path = pin.get("path")
+        sha = pin.get("sha256")
+        commit = pin.get("hq_commit_sha")
+        if not isinstance(path, str) or is_escape_risk(path):
+            errors.append(f"{where}.mission_input.{label}: path must be repository-relative")
+            continue
+        artifact = (repo_root / path).resolve()
+        if not artifact.exists():
+            errors.append(f"{where}.mission_input.{label}: artifact not found at {path}")
+            continue
+        if isinstance(sha, str) and sha != hashlib.sha256(artifact.read_bytes()).hexdigest():
+            errors.append(f"{where}.mission_input.{label}: sha256 does not match the bytes at {path}")
+        if isinstance(commit, str):
+            result = subprocess.run(
+                ["git", "cat-file", "-p", f"{commit}:{path}"],
+                capture_output=True, cwd=repo_root,
+            )
+            if result.returncode != 0 or not isinstance(sha, str) or \
+                    hashlib.sha256(result.stdout).hexdigest() != sha:
+                errors.append(
+                    f"{where}.mission_input.{label}: hq_commit_sha {commit} does not contain "
+                    f"{path} with the pinned bytes"
+                )
+
+
+def evaluate_mission_admission(candidate_doc: dict, contract_doc: dict, ledger: dict | None,
+                               schemas_dir: Path, repo_root: Path) -> tuple[str, list[str]]:
+    """The mission admission decision for a MissionContract-native run.
+
+    Returns (decision, problems): decision is one of
+    ``admitted`` | ``invalid_input`` | ``mission_rejected``.
+    - invalid_input: structural/integrity failures (schema, policy pin,
+      provenance chain, ledger reopen guard without override) — never infer
+      a mission decision from corrupted input.
+    - mission_rejected: structurally valid, correctly pinned, but the framing
+      violates Mission Policy (POL-02 unbounded framing or an already
+      rejected contract) — terminal admission outcome BEFORE any Scout
+      dispatch.
+    """
+    problems: list[str] = []
+    _validate_mission_doc(candidate_doc, schemas_dir, repo_root, "mission-candidate", problems)
+    _validate_mission_doc(contract_doc, schemas_dir, repo_root, "mission-contract", problems)
+    if problems:
+        return "invalid_input", problems
+
+    # Provenance chain.
+    if contract_doc.get("source_candidate_id") != candidate_doc.get("candidate_id"):
+        problems.append(
+            "mission admission: contract source_candidate_id does not match the candidate_id"
+        )
+    cand_signals = {r.get("signal_id") for r in candidate_doc.get("signal_refs", [])}
+    contract_signals = {r.get("signal_id") for r in contract_doc.get("signal_refs", [])}
+    if not cand_signals or not cand_signals <= contract_signals:
+        problems.append(
+            "mission admission: contract signal identities do not cover the candidate signals"
+        )
+    if candidate_doc.get("disposition") not in ("selected",):
+        problems.append(
+            f"mission admission: candidate disposition "
+            f"{candidate_doc.get('disposition')!r} does not permit execution"
+        )
+    if candidate_doc.get("mission_id") is not None and \
+            candidate_doc["mission_id"] != contract_doc.get("mission_id"):
+        problems.append("mission admission: candidate mission_id does not agree with the contract")
+    if candidate_doc.get("target_repository") != contract_doc.get("target_repository"):
+        problems.append("mission admission: target repository disagreement")
+    if problems:
+        return "invalid_input", problems
+
+    # Semantic mission-framing rejection (structurally valid input).
+    if contract_doc.get("status") == "mission_rejected":
+        return "mission_rejected", problems
+    objective = str(contract_doc.get("objective") or "").lower()
+    if re.search(r"improve (the )?(overall )?(quality|health) of (the )?(repository|repo)", objective):
+        problems.append("POL-02: unbounded 'improve this repo' framing")
+        return "mission_rejected", problems
+
+    # Mission Ledger POL-04 reopen guard.
+    ledger_errors: list[str] = []
+    check_ledger_reopen(candidate_doc, ledger, "mission admission", ledger_errors)
+    if ledger_errors:
+        return "invalid_input", ledger_errors
+    return "admitted", []
+
+
 # ── Committed run bundle checks ────────────────────────────────────────────
 
 RUN_ARTIFACT_PREFIXES = (
@@ -1161,6 +1311,28 @@ def main(argv: list[str] | None = None) -> int:
                     else:
                         validate_value(ledger_doc, ledger_schema, "mission/ledger.yaml", errors)
                         check_paths(ledger_doc, repo_root, errors)
+        # Committed mission packages under missions/<mission-id>/: each
+        # package must validate and, for executable fixtures, admit.
+        missions_dir = repo_root / "missions"
+        if missions_dir.is_dir():
+            for mission_dir in sorted(p for p in missions_dir.iterdir() if p.is_dir()):
+                cand = mission_dir / "mission-candidate.yaml"
+                contr = mission_dir / "mission-contract.yaml"
+                if not cand.exists() or not contr.exists():
+                    errors.append(f"missions/{mission_dir.name}: missing candidate or contract")
+                    continue
+                try:
+                    cand_doc = load_document(cand)
+                    contr_doc = load_document(contr)
+                except Exception as exc:
+                    errors.append(f"missions/{mission_dir.name}: could not load: {exc}")
+                    continue
+                decision, problems = evaluate_mission_admission(
+                    cand_doc, contr_doc, ledger_doc, schemas_dir, repo_root)
+                if decision == "admitted":
+                    continue
+                for problem in problems:
+                    errors.append(f"missions/{mission_dir.name}: {problem}")
 
     if errors:
         if not args.quiet:
