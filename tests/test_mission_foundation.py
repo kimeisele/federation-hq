@@ -140,6 +140,121 @@ def test_contracts_pin_exact_policy_bytes():
     assert neg_c["policy_sha256"] == policy_sha
 
 
+# ── Rule 3c: policy pin is validated against the real policy bytes ────────
+
+PROJECTION_TIMESTAMP = "2026-08-10T03:00:31Z"  # Issue #23 creation time
+
+
+def _validate_contract_file(path: Path) -> list[str]:
+    """Run a mission-contract file through the NORMAL validator path (the
+    same function the CLI uses), returning errors."""
+    errors: list[str] = []
+    validate_artifacts.validate_artifact(
+        path, SCHEMAS.parent, REPO_ROOT, errors, None)
+    return errors
+
+
+def test_policy_pin_correct_version_and_hash_valid():
+    errors = _validate_contract_file(_retro_files("mission-contract", "17")[0])
+    assert not errors
+
+
+def test_policy_pin_wrong_hash_invalid(tmp_path):
+    base = _load(_retro_files("mission-contract", "17")[0])
+    bad = dict(base)
+    bad["policy_sha256"] = "f" * 64
+    p = tmp_path / "mission-contract.bad-hash.yaml"
+    p.write_text(yaml.safe_dump(bad, sort_keys=False))
+    errors = _validate_contract_file(p)
+    assert any("policy_sha256" in e and "does not match" in e for e in errors)
+
+
+def test_policy_pin_wrong_version_invalid(tmp_path):
+    base = _load(_retro_files("mission-contract", "17")[0])
+    bad = dict(base)
+    bad["policy_version"] = "9.9.9"
+    p = tmp_path / "mission-contract.bad-version.yaml"
+    p.write_text(yaml.safe_dump(bad, sort_keys=False))
+    errors = _validate_contract_file(p)
+    assert any("policy_version" in e and "does not match" in e for e in errors)
+
+
+def test_policy_pin_missing_reference_invalid(tmp_path):
+    base = _load(_retro_files("mission-contract", "17")[0])
+    for ref, expect in [("docs/does-not-exist.md", "not found"),
+                        ("../../etc/passwd", "escapes")]:
+        bad = dict(base)
+        bad["policy_reference"] = ref
+        p = tmp_path / "mission-contract.bad-ref.yaml"
+        p.write_text(yaml.safe_dump(bad, sort_keys=False))
+        errors = _validate_contract_file(p)
+        assert any(expect in e for e in errors), (ref, errors)
+
+
+def test_policy_pin_non_canonical_reference_invalid(tmp_path):
+    base = _load(_retro_files("mission-contract", "17")[0])
+    bad = dict(base)
+    bad["policy_reference"] = "README.md"
+    p = tmp_path / "mission-contract.noncanonical.yaml"
+    p.write_text(yaml.safe_dump(bad, sort_keys=False))
+    errors = _validate_contract_file(p)
+    assert any("does not resolve to the canonical" in e for e in errors)
+
+
+def test_policy_pin_retro_fixtures_still_validate_via_cli():
+    result = _run_cli()
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "Federation HQ artifact validation OK" in result.stdout
+
+
+# ── Retrospective provenance honesty ─────────────────────────────────────
+
+
+def test_retro_projection_timestamps_not_presented_as_run_times():
+    """Retro created_at must equal the documented projection reference
+    (Issue #23 creation time), never the original run-opening times."""
+    run_created = {
+        "17": "2026-08-09T14:42:28Z",
+        "19": "2026-08-09T16:03:54Z",
+        "21": "2026-08-09T17:06:47Z",
+    }
+    for issue, run_ts in run_created.items():
+        for prefix in ("mission-candidate", "mission-contract", "run-assessment"):
+            for f in _retro_files(prefix, issue):
+                doc = _load(f)
+                assert doc["created_at"] == PROJECTION_TIMESTAMP, f.name
+                assert doc["created_at"] != run_ts, f.name
+
+
+def test_retro_contract_provenance_identifies_projection():
+    for issue in RUNS:
+        for f in _retro_files("mission-contract", issue):
+            doc = _load(f)
+            prov = doc["creation_provenance"]
+            assert prov["author_role"] == "other"
+            assert "NON-CANONICAL retrospective projection" in prov["source_reference"]
+            assert "Mission Foundation" in prov["source_reference"]
+
+
+def test_retro_candidate_source_identifies_projection():
+    for issue in RUNS:
+        for f in _retro_files("mission-candidate", issue):
+            doc = _load(f)
+            assert "retrospective" in doc["source"].lower()
+            assert "Issue #23" in doc["source"]
+
+
+def test_ledger_retro_entries_dated_as_projection_state():
+    ledger = _load(LEDGER)
+    assert ledger["updated_at"] == PROJECTION_TIMESTAMP
+    for item in ledger["items"]:
+        assert item["updated_at"] == PROJECTION_TIMESTAMP
+        assert "Retroactive (Issue #23)" in item["last_observed_evidence"]
+        assert "runs/run-" in item["last_observed_evidence"]
+    header = LEDGER.read_text(encoding="utf-8").splitlines()
+    assert any("retroactively assigned" in line for line in header)
+
+
 # ── Rule 4: signal IDs are immutable internal identities ──────────────────
 
 

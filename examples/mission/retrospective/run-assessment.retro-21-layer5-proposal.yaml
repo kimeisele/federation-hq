@@ -26,4 +26,4 @@ ledger_disposition: completed
 evidence_locations:
   - "runs/run-20260809-agent-city-contract-proposal-service-sync/run-manifest.yaml"
   - "runs/run-20260809-agent-city-contract-proposal-service-sync/review-result.yaml"
-created_at: "2026-08-09T18:45:00Z"
+created_at: "2026-08-10T03:00:31Z"

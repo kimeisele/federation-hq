@@ -25,4 +25,4 @@ ledger_disposition: completed
 evidence_locations:
   - "runs/run-20260809-agent-city-issue-open-helper-isolation/run-manifest.yaml"
   - "runs/run-20260809-agent-city-issue-open-helper-isolation/review-result.yaml"
-created_at: "2026-08-09T17:15:00Z"
+created_at: "2026-08-10T03:00:31Z"

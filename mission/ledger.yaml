@@ -6,9 +6,12 @@
 # source-native references are indexed; aliases attach evidence-backed
 # renames. v0.1 does not perform semantic rename detection.
 #
-# Entries below are RETROACTIVE dispositions projected from completed
-# autonomous runs (Issue #23). They record facts present in the actual run
-# records; the run records under runs/ are the canonical evidence.
+# The three entries below are RETROACTIVE dispositions inserted during
+# Mission Foundation Issue #23. The signal_id, candidate_id, mission_id and
+# updated_at values are retroactively assigned Mission Foundation
+# identity/disposition metadata — they did not exist during the original
+# runs. Their last_observed_evidence references the historical run and
+# merge facts; the canonical evidence remains the run records under runs/.
 kind: federation_hq_mission_ledger
 schema_version: "0.1.0"
 items:
@@ -23,8 +26,8 @@ items:
     mission_id: run-20260809-agent-city-prompt-registry-contract-drift
     related_run_ids:
       - run-20260809-agent-city-prompt-registry-contract-drift
-    last_observed_evidence: "Retroactive (Issue #23): federation-hq#17 Pilot 03; stale test contract reconciled to 7 builders; target PR kimeisele/agent-city#2714 merged 89bf10ee."
-    updated_at: "2026-08-09T16:10:00Z"
+    last_observed_evidence: "Retroactive (Issue #23): federation-hq#17 Pilot 03; stale test contract reconciled to 7 builders; target PR kimeisele/agent-city#2714 merged 89bf10ee. Canonical evidence: runs/run-20260809-agent-city-prompt-registry-contract-drift/."
+    updated_at: "2026-08-10T03:00:31Z"
   - signal_id: sig-20260809-issue-open-fallback
     source_kind: test_node
     repository: kimeisele/agent-city
@@ -34,8 +37,8 @@ items:
     mission_id: run-20260809-agent-city-issue-open-helper-isolation
     related_run_ids:
       - run-20260809-agent-city-issue-open-helper-isolation
-    last_observed_evidence: "Retroactive (Issue #23): federation-hq#19 Stabilization 01; test isolation defect fixed (production live fallback preserved); target PR kimeisele/agent-city#2715 merged 1cc173ee."
-    updated_at: "2026-08-09T17:15:00Z"
+    last_observed_evidence: "Retroactive (Issue #23): federation-hq#19 Stabilization 01; test isolation defect fixed (production live fallback preserved); target PR kimeisele/agent-city#2715 merged 1cc173ee. Canonical evidence: runs/run-20260809-agent-city-issue-open-helper-isolation/."
+    updated_at: "2026-08-10T03:00:31Z"
   - signal_id: sig-20260809-layer5-contract-proposal
     source_kind: test_node
     repository: kimeisele/agent-city
@@ -45,6 +48,6 @@ items:
     mission_id: run-20260809-agent-city-contract-proposal-service-sync
     related_run_ids:
       - run-20260809-agent-city-contract-proposal-service-sync
-    last_observed_evidence: "Retroactive (Issue #23): federation-hq#21 Stabilization 02; stale Layer-5 test contract reconciled (Model B registry-authoritative; production untouched); target PR kimeisele/agent-city#2716 merged e01d011b."
-    updated_at: "2026-08-09T18:45:00Z"
-updated_at: "2026-08-09T19:00:00Z"
+    last_observed_evidence: "Retroactive (Issue #23): federation-hq#21 Stabilization 02; stale Layer-5 test contract reconciled (Model B registry-authoritative; production untouched); target PR kimeisele/agent-city#2716 merged e01d011b. Canonical evidence: runs/run-20260809-agent-city-contract-proposal-service-sync/."
+    updated_at: "2026-08-10T03:00:31Z"
+updated_at: "2026-08-10T03:00:31Z"

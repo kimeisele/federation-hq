@@ -705,6 +705,8 @@ def validate_artifact(
     if "mission-candidate" in path.name or "mission-contract" in path.name \
             or "run-assessment" in path.name:
         check_mission_artifact(doc, path.name, errors)
+    if "mission-contract" in path.name:
+        check_mission_policy_pin(doc, repo_root, path.name, errors)
     # The live POL-04 reopen guard applies to current formulations. The
     # documented NON-CANONICAL retrospective projection directory
     # (examples/mission/retrospective/) is exempt: those files snapshot the
@@ -847,6 +849,74 @@ _TERMINAL_LEDGER_DISPOSITIONS = frozenset({
     "completed", "wont_fix", "no_mission_warranted",
     "duplicate", "rejected", "superseded",
 })
+
+# Canonical policy artifact and its explicit machine-readable version marker.
+_CANONICAL_POLICY_PATH = Path("docs") / "HQ_MISSION_POLICY.md"
+_POLICY_VERSION_MARKER = re.compile(r"Policy version:\*\*\s*`([0-9]+\.[0-9]+\.[0-9]+)`")
+
+
+def _resolve_policy_version(text: str) -> str | None:
+    """Extract the policy's explicit version marker, or None."""
+    match = _POLICY_VERSION_MARKER.search(text)
+    return match.group(1) if match else None
+
+
+def check_mission_policy_pin(doc: dict, repo_root: Path, where: str, errors: list[str]) -> None:
+    """Prove a MissionContract's policy pin resolves to the canonical policy.
+
+    Fail closed when: the policy reference is missing or escapes the
+    repository, does not resolve to the canonical HQ Mission Policy, the
+    version marker cannot be resolved, the supplied policy_sha256 differs
+    from the actual canonical policy bytes, or the supplied policy_version
+    differs from the marker. The policy is never duplicated into the
+    contract; docs/HQ_MISSION_POLICY.md stays the single policy source.
+    """
+    if doc.get("kind") != "federation_hq_mission_contract":
+        return
+    reference = doc.get("policy_reference")
+    if not isinstance(reference, str) or not reference:
+        errors.append(f"{where}: policy_reference is required")
+        return
+    if is_escape_risk(reference):
+        errors.append(f"{where}: policy_reference {reference!r} escapes the repository")
+        return
+    policy_path = (repo_root / reference).resolve()
+    canonical = (repo_root / _CANONICAL_POLICY_PATH).resolve()
+    if not policy_path.exists():
+        errors.append(f"{where}: policy file not found: {reference}")
+        return
+    if policy_path != canonical:
+        errors.append(
+            f"{where}: policy_reference {reference!r} does not resolve to the canonical "
+            f"HQ Mission Policy ({_CANONICAL_POLICY_PATH.as_posix()})"
+        )
+        return
+    try:
+        policy_bytes = policy_path.read_bytes()
+    except OSError as exc:
+        errors.append(f"{where}: cannot read policy file {reference}: {exc}")
+        return
+    actual_hash = hashlib.sha256(policy_bytes).hexdigest()
+    supplied_hash = doc.get("policy_sha256")
+    if not isinstance(supplied_hash, str) or supplied_hash != actual_hash:
+        errors.append(
+            f"{where}: policy_sha256 {supplied_hash!r} does not match the canonical policy "
+            f"bytes ({actual_hash})"
+        )
+    try:
+        policy_text = policy_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        errors.append(f"{where}: policy file is not UTF-8 text")
+        return
+    actual_version = _resolve_policy_version(policy_text)
+    supplied_version = doc.get("policy_version")
+    if actual_version is None:
+        errors.append(f"{where}: cannot resolve the policy version marker in {reference}")
+    elif not isinstance(supplied_version, str) or supplied_version != actual_version:
+        errors.append(
+            f"{where}: policy_version {supplied_version!r} does not match the policy "
+            f"version marker ({actual_version})"
+        )
 
 
 def check_ledger_reopen(doc: dict, ledger: dict | None, where: str, errors: list[str]) -> None:

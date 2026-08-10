@@ -29,5 +29,8 @@ overlap_refs:
   - "kimeisele/agent-city#2571 (open PR, PR-lifecycle only, no overlap)"
 evidence:
   - "runs/run-20260809-agent-city-prompt-registry-contract-drift/run-manifest.yaml"
-source: human_operator
-created_at: "2026-08-09T14:42:28Z"
+source: >
+  NON-CANONICAL retrospective projection created by Federation HQ Issue #23 (Mission Foundation v0.1). Models the historical human_operator request (Federation HQ Pilot Run 03 instruction (protocol 0.1.0, automated role execution v0.1));
+  candidate_id, signal_id and created_at are retrospectively assigned
+  Mission Foundation metadata, not historical run-time metadata.
+created_at: "2026-08-10T03:00:31Z"
