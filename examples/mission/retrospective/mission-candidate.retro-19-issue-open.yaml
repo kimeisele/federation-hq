@@ -1,0 +1,31 @@
+# NON-CANONICAL retrospective fixture (Issue #23).
+# Projects federation-hq#19 (Stabilization 01, issue-open helper isolation)
+# into the MissionCandidate v0.1 representation. Facts from the actual run
+# record runs/run-20260809-agent-city-issue-open-helper-isolation/.
+kind: federation_hq_mission_candidate
+candidate_id: cand-retro-19-issue-open
+signal_refs:
+  - signal_id: sig-20260809-issue-open-fallback
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_issue_binding.py::test_issue_open_and_bound_helpers
+    last_observed_evidence: "Deterministic known-red baseline node; is_issue_open(99) True via live fallback (issue #99 OPEN live)."
+target_repository: kimeisele/agent-city
+problem_statement: >
+  Determine whether the CityIssueManager.is_issue_open() live-GitHub fallback
+  behavior vs the test expectation (is_issue_open(99) is False) is a
+  production live-fallback bug, a test isolation/setup defect, or another
+  single bounded cause.
+disposition: selected
+mission_id: run-20260809-agent-city-issue-open-helper-isolation
+policy_eligibility:
+  policy_reference: docs/HQ_MISSION_POLICY.md
+  eligible: true
+  reasons:
+    - "POL-01 bounded evidence-backed mission (known-red test node)"
+overlap_refs:
+  - "kimeisele/agent-city#2571 (open PR, PR-lifecycle only, no overlap)"
+evidence:
+  - "runs/run-20260809-agent-city-issue-open-helper-isolation/run-manifest.yaml"
+source: human_operator
+created_at: "2026-08-09T16:03:54Z"

@@ -1,0 +1,50 @@
+# Federation HQ Mission Ledger — v0.1 (repository-native state)
+#
+# Smallest persistent Mission Ledger. NOT a database. Canonical structured
+# state that mission formulation MUST consult before opening work (POL-04).
+# Item identity: immutable HQ signal_id assigned at first ingestion;
+# source-native references are indexed; aliases attach evidence-backed
+# renames. v0.1 does not perform semantic rename detection.
+#
+# Entries below are RETROACTIVE dispositions projected from completed
+# autonomous runs (Issue #23). They record facts present in the actual run
+# records; the run records under runs/ are the canonical evidence.
+kind: federation_hq_mission_ledger
+schema_version: "0.1.0"
+items:
+  - signal_id: sig-20260809-prompt-registry-count
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_6_builders
+    aliases:
+      - tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_7_builders
+    disposition: completed
+    candidate_id: cand-retro-17-prompt-registry
+    mission_id: run-20260809-agent-city-prompt-registry-contract-drift
+    related_run_ids:
+      - run-20260809-agent-city-prompt-registry-contract-drift
+    last_observed_evidence: "Retroactive (Issue #23): federation-hq#17 Pilot 03; stale test contract reconciled to 7 builders; target PR kimeisele/agent-city#2714 merged 89bf10ee."
+    updated_at: "2026-08-09T16:10:00Z"
+  - signal_id: sig-20260809-issue-open-fallback
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_issue_binding.py::test_issue_open_and_bound_helpers
+    disposition: completed
+    candidate_id: cand-retro-19-issue-open
+    mission_id: run-20260809-agent-city-issue-open-helper-isolation
+    related_run_ids:
+      - run-20260809-agent-city-issue-open-helper-isolation
+    last_observed_evidence: "Retroactive (Issue #23): federation-hq#19 Stabilization 01; test isolation defect fixed (production live fallback preserved); target PR kimeisele/agent-city#2715 merged 1cc173ee."
+    updated_at: "2026-08-09T17:15:00Z"
+  - signal_id: sig-20260809-layer5-contract-proposal
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_layer5.py::test_contract_failure_creates_proposal
+    disposition: completed
+    candidate_id: cand-retro-21-layer5-proposal
+    mission_id: run-20260809-agent-city-contract-proposal-service-sync
+    related_run_ids:
+      - run-20260809-agent-city-contract-proposal-service-sync
+    last_observed_evidence: "Retroactive (Issue #23): federation-hq#21 Stabilization 02; stale Layer-5 test contract reconciled (Model B registry-authoritative; production untouched); target PR kimeisele/agent-city#2716 merged e01d011b."
+    updated_at: "2026-08-09T18:45:00Z"
+updated_at: "2026-08-09T19:00:00Z"

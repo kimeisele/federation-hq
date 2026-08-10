@@ -1,0 +1,27 @@
+# NEGATIVE fixture A (Issue #23): no_mission_warranted.
+# A real signal exists, but policy/evidence says no bounded action is
+# justified. Expected: disposition no_mission_warranted; NO MissionContract
+# is opened (mission_id must be absent).
+kind: federation_hq_mission_candidate
+candidate_id: cand-neg-a-no-mission-warranted
+signal_refs:
+  - signal_id: sig-neg-a-noise-signal
+    source_kind: ci
+    repository: kimeisele/agent-city
+    source_native_ref: "https://github.com/kimeisele/agent-city/actions/runs/9999999999"
+    last_observed_evidence: "Flaky timeout failure; passes in isolation at the same SHA; no deterministic defect."
+target_repository: kimeisele/agent-city
+problem_statement: >
+  A CI check failed once with a timeout. Re-observation shows the same node
+  passing at the same SHA; no bounded, evidence-backed defect is warranted.
+disposition: no_mission_warranted
+policy_eligibility:
+  policy_reference: docs/HQ_MISSION_POLICY.md
+  eligible: false
+  reasons:
+    - "POL-01 bounded evidence-backed missions only: no reproducible evidence"
+    - "POL-05 no_mission_warranted is valid"
+evidence:
+  - "examples/mission/negative/mission-candidate.neg-a-no-mission-warranted.yaml"
+source: other
+created_at: "2026-08-09T19:00:00Z"

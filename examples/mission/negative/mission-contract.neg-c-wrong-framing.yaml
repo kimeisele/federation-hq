@@ -1,0 +1,35 @@
+# NEGATIVE fixture C (Issue #23): wrong framing.
+# A MissionContract is syntactically valid but its requested scope does not
+# match the signal or violates policy. Expected representation:
+# status: mission_rejected (terminal framing disposition, distinct from
+# Scout finding no defect).
+kind: federation_hq_mission_contract
+mission_version: "0.1.0"
+mission_id: mission-neg-c-wrong-framing
+signal_refs:
+  - signal_id: sig-neg-c-unknown
+    source_kind: github_issue
+    repository: kimeisele/agent-city
+    source_native_ref: "kimeisele/agent-city#99999"
+    last_observed_evidence: "Issue proposes an unbounded repository-wide cleanup."
+target_repository: kimeisele/agent-city
+objective: >
+  Improve the overall quality of the repository.
+decision_question: >
+  How can repository quality be improved broadly?
+bounded_scope: "Unbounded: any improvement anywhere in the repository."
+scope_enforcement: declared
+prescribes_repair: true
+hard_constraints: []
+stop_conditions: []
+expected_allowed_outcomes:
+  - mission_rejected
+policy_reference: docs/HQ_MISSION_POLICY.md
+status: mission_rejected
+rejection_reason: >
+  POL-02 no 'improve this repo' missions; scope does not match a bounded
+  signal and no bounded decision question exists.
+creation_provenance:
+  author_role: other
+  source_reference: "examples/mission/negative/mission-contract.neg-c-wrong-framing.yaml"
+created_at: "2026-08-09T19:10:00Z"

@@ -50,6 +50,10 @@ SCHEMA_MATCHERS: list[tuple[str, str]] = [
     ("repair-result", "repair-result.schema.json"),
     ("review-result", "review-result.schema.json"),
     ("coordination-message", "coordination-message.schema.json"),
+    ("mission-candidate", "mission/mission-candidate.schema.json"),
+    ("mission-contract", "mission/mission-contract.schema.json"),
+    ("run-assessment", "mission/run-assessment.schema.json"),
+    ("mission-ledger", "mission/mission-ledger.schema.json"),
 ]
 
 # Keys whose string values are repo-relative artifact paths and must not
@@ -698,6 +702,8 @@ def validate_artifact(
         check_coordination_reference(doc, path.name, errors)
     if "coordination-message" in path.name:
         check_coordination_message(doc, path.name, errors)
+    if "mission-candidate" in path.name or "mission-contract" in path.name:
+        check_mission_artifact(doc, path.name, errors)
 
 
 def validate_examples(
@@ -707,11 +713,43 @@ def validate_examples(
     errors: list[str],
     registry: dict | None = None,
 ) -> None:
-    """Validate every example artifact against its schema."""
-    for path in sorted(examples_dir.iterdir()):
+    """Validate every example artifact (recursively) against its schema."""
+    for path in sorted(examples_dir.rglob("*")):
         if not path.is_file():
             continue
         validate_artifact(path, schemas_dir, repo_root, errors, registry)
+
+
+def check_mission_artifact(doc: dict, where: str, errors: list[str]) -> None:
+    """Mission-layer semantic checks beyond structural schema validation.
+
+    Policy semantics (docs/HQ_MISSION_POLICY.md POL-04/05/06):
+    - no_mission_warranted must not carry a mission_id (no MissionContract
+      is opened);
+    - duplicate must reference the existing ledger item it duplicates;
+    - superseded must reference what supersedes it;
+    - RunAssessment has no free-form confidence/self-scoring fields (the
+      schema already forbids them via additionalProperties: false; nothing
+      further to check here).
+    """
+    kind = doc.get("kind")
+    if kind == "federation_hq_mission_candidate":
+        disposition = doc.get("disposition")
+        if disposition == "no_mission_warranted" and doc.get("mission_id") is not None:
+            errors.append(
+                f"{where}: no_mission_warranted must not carry a mission_id "
+                f"(no MissionContract is opened)"
+            )
+        if disposition == "duplicate" and not doc.get("duplicate_of"):
+            errors.append(f"{where}: duplicate disposition requires duplicate_of")
+        if disposition == "superseded" and not doc.get("superseded_by"):
+            errors.append(f"{where}: superseded disposition requires superseded_by")
+    if kind == "federation_hq_mission_contract":
+        if doc.get("status") == "mission_rejected" and not doc.get("rejection_reason"):
+            errors.append(
+                f"{where}: mission_rejected requires rejection_reason "
+                f"(framing invalid/unsafe/duplicate/unsupported/evidence-inadequate)"
+            )
 
 
 # ── Committed run bundle checks ────────────────────────────────────────────
@@ -892,6 +930,31 @@ def main(argv: list[str] | None = None) -> int:
         validate_examples(examples_dir, schemas_dir, repo_root, errors, registry)
         runs_dir = Path(args.runs_dir).resolve() if args.runs_dir else repo_root / "runs"
         validate_run_bundles(runs_dir, schemas_dir, repo_root, errors, registry)
+        # The persistent Mission Ledger is repository-native structured state.
+        # Its filename (ledger.yaml) does not match the mission-ledger prefix
+        # matcher, so it is validated explicitly against its schema.
+        ledger_path = repo_root / "mission" / "ledger.yaml"
+        if ledger_path.exists():
+            try:
+                ledger_doc = load_document(ledger_path)
+            except Exception as exc:
+                errors.append(f"mission/ledger.yaml: could not load: {exc}")
+            else:
+                if not isinstance(ledger_doc, dict):
+                    errors.append("mission/ledger.yaml: artifact must be an object")
+                else:
+                    try:
+                        ledger_schema = json.loads(
+                            (schemas_dir / "mission" / "mission-ledger.schema.json")
+                            .read_text(encoding="utf-8")
+                        )
+                    except (json.JSONDecodeError, OSError) as exc:
+                        errors.append(
+                            f"mission/ledger.yaml: cannot read ledger schema: {exc}"
+                        )
+                    else:
+                        validate_value(ledger_doc, ledger_schema, "mission/ledger.yaml", errors)
+                        check_paths(ledger_doc, repo_root, errors)
 
     if errors:
         if not args.quiet:

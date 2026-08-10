@@ -1,0 +1,46 @@
+# NON-CANONICAL retrospective fixture (Issue #23).
+# Projects federation-hq#17 (Pilot 03) into the MissionContract v0.1
+# representation. Facts from the actual run record. The contract describes
+# the decision question; it does not prescribe the repair.
+kind: federation_hq_mission_contract
+mission_version: "0.1.0"
+mission_id: run-20260809-agent-city-prompt-registry-contract-drift
+source_candidate_id: cand-retro-17-prompt-registry
+signal_refs:
+  - signal_id: sig-20260809-prompt-registry-count
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_6_builders
+    aliases:
+      - tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_7_builders
+target_repository: kimeisele/agent-city
+objective: >
+  Determine whether the PromptRegistry composition (7 builders including
+  discovery) vs the test contract (asserts 6) is a production defect, a
+  stale/incorrect test contract, or another single bounded defect.
+decision_question: >
+  Which side of the PromptRegistry count discrepancy is the defect, if any,
+  on the pinned baseline?
+bounded_scope: >
+  Investigate city/brain_prompt.py, city/prompt_registry.py,
+  city/prompt_builders/, tests/test_prompt_registry.py, callers, history and
+  repository contracts; select exactly one bounded repair candidate.
+scope_enforcement: declared
+prescribes_repair: false
+hard_constraints:
+  - "Do not assume which side should change."
+  - "Do not prescribe 6 -> 7 or removing DiscoveryBuilder."
+stop_conditions:
+  - "Evidence cannot be located or verified."
+  - "The discrepancy cannot be reproduced on the pinned baseline."
+expected_allowed_outcomes:
+  - approved
+  - changes_requested
+  - blocked
+  - invalid_candidate
+policy_reference: docs/HQ_MISSION_POLICY.md
+status: completed
+creation_provenance:
+  author_role: human_operator
+  source_reference: "Federation HQ Pilot Run 03 instruction (protocol 0.1.0, automated role execution v0.1)"
+created_at: "2026-08-09T14:42:28Z"

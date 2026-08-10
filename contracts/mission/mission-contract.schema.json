@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/kimeisele/federation-hq/main/contracts/mission/mission-contract.schema.json",
+  "title": "Mission Contract",
+  "description": "The machine-readable boundary between mission formulation and execution: this document becomes input to the existing Operator pipeline. It describes the problem/question and the bounded scope; it MUST NOT prescribe the repair unless the original source explicitly requires a specific mechanical change. Represents mission framing rejection (mission_rejected) distinctly from 'Scout found no defect'. Runtime enforcement of mission_rejected is a later slice; v0.1 defines and validates the representation.",
+  "type": "object",
+  "required": [
+    "kind",
+    "mission_version",
+    "mission_id",
+    "target_repository",
+    "objective",
+    "bounded_scope",
+    "hard_constraints",
+    "stop_conditions",
+    "expected_allowed_outcomes",
+    "policy_reference",
+    "status",
+    "creation_provenance",
+    "created_at"
+  ],
+  "properties": {
+    "kind": {
+      "const": "federation_hq_mission_contract"
+    },
+    "mission_version": {
+      "const": "0.1.0"
+    },
+    "mission_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "source_candidate_id": {
+      "description": "Candidate this contract was opened from, when applicable.",
+      "type": "string"
+    },
+    "signal_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/signal_ref"
+      }
+    },
+    "target_repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "objective": {
+      "description": "The decision question or objective. Must describe the problem, not prescribe the repair (e.g. 'Determine whether discrepancy X is a production defect, test defect, or another bounded cause.').",
+      "type": "string"
+    },
+    "decision_question": {
+      "type": "string"
+    },
+    "bounded_scope": {
+      "description": "Declared scope guidance for Scout/Repair/Review. See scope_enforcement: in v0.1 this is declared guidance, not mechanically enforced.",
+      "type": "string"
+    },
+    "scope_enforcement": {
+      "description": "v0.1 supports only 'declared': the boundary is guidance for the roles, not mechanically enforced. A future slice may introduce mechanically enforced allowlists.",
+      "enum": [
+        "declared"
+      ]
+    },
+    "prescribes_repair": {
+      "description": "True only when the original source itself explicitly requires a specific mechanical change. Default false: contracts describe problems, not repairs.",
+      "type": "boolean"
+    },
+    "hard_constraints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "stop_conditions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "expected_allowed_outcomes": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "approved",
+          "changes_requested",
+          "blocked",
+          "invalid_candidate",
+          "mission_rejected"
+        ]
+      }
+    },
+    "policy_reference": {
+      "description": "Canonical policy artifact the executing roles must respect (docs/HQ_MISSION_POLICY.md).",
+      "type": "string"
+    },
+    "status": {
+      "description": "mission_rejected is a terminal framing disposition: the mission framing/scope itself is invalid, unsafe, duplicate, unsupported, or evidence-inadequate. Distinct from Scout finding no defect.",
+      "enum": [
+        "proposed",
+        "active",
+        "mission_rejected",
+        "completed",
+        "cancelled"
+      ]
+    },
+    "rejection_reason": {
+      "description": "Reason code/reference when status is mission_rejected.",
+      "type": "string"
+    },
+    "creation_provenance": {
+      "type": "object",
+      "required": [
+        "author_role",
+        "source_reference"
+      ],
+      "properties": {
+        "author_role": {
+          "enum": [
+            "human_operator",
+            "director",
+            "other"
+          ]
+        },
+        "source_reference": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "created_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "signal_ref": {
+      "description": "Signal reference; signal_id is the immutable HQ identity assigned at first ingestion.",
+      "type": "object",
+      "required": [
+        "signal_id",
+        "source_kind",
+        "source_native_ref"
+      ],
+      "properties": {
+        "signal_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "source_kind": {
+          "enum": [
+            "test_node",
+            "ci",
+            "github_issue",
+            "run_assessment",
+            "ledger_disposition",
+            "human_request",
+            "workflow_failure",
+            "other"
+          ]
+        },
+        "repository": {
+          "type": "string"
+        },
+        "source_native_ref": {
+          "type": "string"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "last_observed_evidence": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

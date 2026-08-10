@@ -1,0 +1,33 @@
+# NON-CANONICAL retrospective fixture (Issue #23).
+# Projects federation-hq#17 (Pilot 03, PromptRegistry contract drift) into
+# the MissionCandidate v0.1 representation. Facts taken from the actual run
+# record runs/run-20260809-agent-city-prompt-registry-contract-drift/.
+kind: federation_hq_mission_candidate
+candidate_id: cand-retro-17-prompt-registry
+signal_refs:
+  - signal_id: sig-20260809-prompt-registry-count
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_6_builders
+    aliases:
+      - tests/test_prompt_registry.py::TestGetPromptRegistry::test_singleton_has_all_7_builders
+    last_observed_evidence: "Known-red baseline node; repo maintenance baseline classifies as stale_test_contract_drift (deterministic)."
+target_repository: kimeisele/agent-city
+problem_statement: >
+  Determine whether the PromptRegistry singleton composition (7 builders
+  including discovery) vs the test contract (asserts 6) is a production
+  defect, a stale test contract, or another single bounded cause.
+disposition: selected
+mission_id: run-20260809-agent-city-prompt-registry-contract-drift
+policy_eligibility:
+  policy_reference: docs/HQ_MISSION_POLICY.md
+  eligible: true
+  reasons:
+    - "POL-01 bounded evidence-backed mission (known-red test node)"
+    - "POL-03 one bounded work item"
+overlap_refs:
+  - "kimeisele/agent-city#2571 (open PR, PR-lifecycle only, no overlap)"
+evidence:
+  - "runs/run-20260809-agent-city-prompt-registry-contract-drift/run-manifest.yaml"
+source: human_operator
+created_at: "2026-08-09T14:42:28Z"

@@ -1,0 +1,28 @@
+# NON-CANONICAL retrospective fixture (Issue #23).
+# Projects federation-hq#19 (Stabilization 01, issue-open helper isolation)
+# into the RunAssessment v0.1 representation. Terminal facts from the actual
+# run record: runs/run-20260809-agent-city-issue-open-helper-isolation/.
+kind: federation_hq_run_assessment
+assessment_id: assess-retro-19-issue-open
+mission_id: run-20260809-agent-city-issue-open-helper-isolation
+run_id: run-20260809-agent-city-issue-open-helper-isolation
+target_repository: kimeisele/agent-city
+baseline_sha: "89bf10eea690617f38627e63554a89457a90ed71"
+terminal_outcome: approved
+diagnosis: "Test isolation/setup defect: test_issue_open_and_bound_helpers is a stale pre-fallback local-only contract with live GitHub access; production live-GitHub fallback in is_issue_open() is intentional (Issue #743 fix) and preserved."
+defect_disposition: test_isolation_setup
+repair_class: test
+review_verdict: approved
+gate_verified: true
+gate_check_run_id: "93273255627"
+target_merged: true
+target_merge_sha: "1cc173eef57e408a17494b3d13d696dbf4e54edb"
+run_record_merged: true
+run_record_merge_sha: "48152f1db68d4237fcc5c5db8e976aec91197cf9"
+human_role_handoffs: 0
+rework_count: 0
+ledger_disposition: completed
+evidence_locations:
+  - "runs/run-20260809-agent-city-issue-open-helper-isolation/run-manifest.yaml"
+  - "runs/run-20260809-agent-city-issue-open-helper-isolation/review-result.yaml"
+created_at: "2026-08-09T17:15:00Z"

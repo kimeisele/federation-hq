@@ -1,0 +1,117 @@
+# Mission Foundation v0.1 — Director Boundary
+
+Status: implemented per Issue #23 (draft PR, not yet merged). This document
+defines the boundary between mission formulation and mission execution, the
+signal identity model, the prompt composition contract, and the intended
+future relationship. It does NOT implement the Mission Director.
+
+## Formulation vs execution
+
+```
+Signals
+   ↓
+MissionCandidate                     (what work, if any, is worth doing?)
+   ↓
+Policy + Ledger decision             (docs/HQ_MISSION_POLICY.md + ledger)
+   ├─ no_mission_warranted
+   ├─ duplicate / wont_fix / rejected
+   └─ MissionContract
+           ↓
+       existing Operator             (how is an accepted bounded mission executed?)
+           ↓
+       existing run
+           ↓
+       RunAssessment
+           ↓
+       Mission Ledger update
+```
+
+- **Mission formulation** (future Director or human): answer "what bounded
+  work, if any, is worth doing next?" using cheap, bounded, structured
+  signals. Output: MissionCandidate → MissionContract.
+- **Mission execution** (existing Operator): answer "given an accepted
+  bounded mission, how is it executed correctly?" using the existing
+  Scout → Repair → Review → Gate → Integrator path.
+- The two responsibilities are NEVER merged. A future Director may CREATE a
+  bounded Recon Mission through the existing Operator path; it does not
+  perform deep source-code recon itself.
+
+**Director ≠ Scout ≠ Operator ≠ Reviewer.**
+
+## One execution path, not two
+
+If deciding whether a candidate is worthwhile requires deep source
+inspection, the correct action is:
+
+```text
+create a bounded Recon Mission
+→ submit it through the existing Operator path
+```
+
+NOT:
+
+```text
+Director reads the whole repository and becomes an unbounded Scout
+```
+
+## Signal identity model (v0.1)
+
+Honest, limited, no magic:
+
+- First ingestion assigns an **immutable internal `signal_id`** (HQ-owned).
+  It never changes after assignment.
+- **source_kind** (test_node / ci / github_issue / run_assessment /
+  ledger_disposition / human_request / workflow_failure / other),
+  **repository**, and **source_native_ref** (e.g. `tests/foo.py::test_bar`,
+  CI job URL, issue number) are indexed as the initial reference.
+- **aliases** attach evidence-backed alternative source-native references
+  (e.g. after a test rename) when continuity is established.
+- **observations/evidence** are separate from identity: `last_observed_evidence`
+  records what was seen, not what the signal is.
+- v0.1 does NOT attempt semantic rename detection, embeddings, or
+  similarity infrastructure. A renamed reference becomes a new
+  source-native ref; continuity is attached as an alias only on evidence.
+
+`tests/foo.py::test_bar` is NOT treated as a universally immutable key.
+
+## Prompt composition contract (documented, not enforced at runtime)
+
+Worker instructions conceptually resolve from:
+
+```text
+canonical role prompt
++ MissionContract
++ Run Manifest
++ active assignment
++ accepted upstream canonical artifacts where applicable
+```
+
+The Operator is a deterministic assembler/dispatcher of canonical intent and
+state — NOT the semantic author of a fresh arbitrary worker prompt. Immutable
+released prompt versions are NOT modified by this slice; runtime wiring of
+MissionContract into the prompt composition is a later bounded slice.
+
+## Declared vs mechanically enforced scope
+
+MissionContract `bounded_scope` is **declared guidance** (scope_enforcement:
+`declared`): it instructs Scout/Repair/Review but is not mechanically
+enforced in v0.1. Prose is never documented as hard enforcement. A future
+slice may add mechanically enforced allowlists if the repository gains a
+path-based enforcement mechanism.
+
+## Mission rejection
+
+`status: mission_rejected` on a MissionContract is a terminal framing
+disposition: the mission framing/scope itself is invalid, unsafe, duplicate,
+unsupported, or evidence-inadequate (POL-10). It is distinct from Scout
+finding no defect. v0.1 validates the representation; runtime enforcement is
+a later slice.
+
+## Canonical artifacts vs this layer
+
+MissionCandidate / MissionContract / RunAssessment / Ledger are NEW
+non-execution artifacts. The canonical execution records under `runs/<run-id>/`
+and the existing coordination protocol are unchanged. Retrospective fixtures
+in `examples/mission/retrospective/` project real past runs (#17 / #19 / #21)
+into the new representations and are clearly NON-CANONICAL examples — the
+historical run artifacts are never rewritten.

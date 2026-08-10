@@ -1,0 +1,28 @@
+# NON-CANONICAL retrospective fixture (Issue #23).
+# Projects federation-hq#17 (Pilot 03, PromptRegistry contract drift) into
+# the RunAssessment v0.1 representation. Terminal facts from the actual run
+# record: runs/run-20260809-agent-city-prompt-registry-contract-drift/.
+kind: federation_hq_run_assessment
+assessment_id: assess-retro-17-prompt-registry
+mission_id: run-20260809-agent-city-prompt-registry-contract-drift
+run_id: run-20260809-agent-city-prompt-registry-contract-drift
+target_repository: kimeisele/agent-city
+baseline_sha: "c1fc768a214d72674481014e1b117e6d63c96799"
+terminal_outcome: approved
+diagnosis: "Stale test contract: test_singleton_has_all_6_builders asserts 6 builders while the intended PromptRegistry composition is 7 (DiscoveryBuilder/kind discovery active and production-wired)."
+defect_disposition: stale_test_contract
+repair_class: test
+review_verdict: approved
+gate_verified: true
+gate_check_run_id: "93266453275"
+target_merged: true
+target_merge_sha: "89bf10eea690617f38627e63554a89457a90ed71"
+run_record_merged: true
+run_record_merge_sha: "4c13e3d3e0c1352b2ef75c9b0bc47e99100709c3"
+human_role_handoffs: 0
+rework_count: 0
+ledger_disposition: completed
+evidence_locations:
+  - "runs/run-20260809-agent-city-prompt-registry-contract-drift/run-manifest.yaml"
+  - "runs/run-20260809-agent-city-prompt-registry-contract-drift/review-result.yaml"
+created_at: "2026-08-09T16:10:00Z"

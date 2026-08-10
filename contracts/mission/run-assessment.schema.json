@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/kimeisele/federation-hq/main/contracts/mission/run-assessment.schema.json",
+  "title": "Run Assessment",
+  "description": "Compact machine-readable terminal assessment created AFTER an Operator run. Contains facts useful to future mission selection and dedup. Facts only: every field is either directly derivable from the canonical run record or omitted. No free-form confidence/self-scoring fields (no system_confidence, no LLM scores) — by design.",
+  "type": "object",
+  "required": [
+    "kind",
+    "assessment_id",
+    "mission_id",
+    "run_id",
+    "target_repository",
+    "terminal_outcome",
+    "repair_class",
+    "review_verdict",
+    "gate_verified",
+    "target_merged",
+    "run_record_merged",
+    "human_role_handoffs",
+    "ledger_disposition",
+    "created_at"
+  ],
+  "properties": {
+    "kind": {
+      "const": "federation_hq_run_assessment"
+    },
+    "assessment_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "mission_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "run_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9._-]+$"
+    },
+    "target_repository": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+    },
+    "baseline_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "terminal_outcome": {
+      "enum": [
+        "approved",
+        "changes_requested",
+        "blocked",
+        "invalid_candidate"
+      ]
+    },
+    "diagnosis": {
+      "description": "Short evidence-backed diagnosis / defect disposition text.",
+      "type": "string"
+    },
+    "defect_disposition": {
+      "enum": [
+        "production_defect",
+        "test_defect",
+        "stale_test_contract",
+        "test_isolation_setup",
+        "no_defect",
+        "invalid_candidate",
+        "other"
+      ]
+    },
+    "repair_class": {
+      "enum": [
+        "production",
+        "test",
+        "none",
+        "other"
+      ]
+    },
+    "review_verdict": {
+      "enum": [
+        "approved",
+        "changes_requested",
+        "blocked",
+        "invalid_candidate"
+      ]
+    },
+    "gate_verified": {
+      "type": "boolean"
+    },
+    "gate_check_run_id": {
+      "type": "string"
+    },
+    "target_merged": {
+      "type": "boolean"
+    },
+    "target_merge_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "run_record_merged": {
+      "type": "boolean"
+    },
+    "run_record_merge_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "human_role_handoffs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "rework_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "blocker_reason_code": {
+      "type": "string"
+    },
+    "ledger_disposition": {
+      "description": "Ledger disposition resulting from this run.",
+      "enum": [
+        "completed",
+        "wont_fix",
+        "no_mission_warranted",
+        "duplicate",
+        "rejected",
+        "superseded"
+      ]
+    },
+    "evidence_locations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(Z|[+-][0-9]{2}:[0-9]{2})$"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {}
+}
