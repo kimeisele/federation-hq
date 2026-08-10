@@ -181,7 +181,7 @@ def test_policy_pin_wrong_version_invalid(tmp_path):
 
 def test_policy_pin_missing_reference_invalid(tmp_path):
     base = _load(_retro_files("mission-contract", "17")[0])
-    for ref, expect in [("docs/does-not-exist.md", "not found"),
+    for ref, expect in [("docs/does-not-exist.md", "does not resolve to the canonical"),
                         ("../../etc/passwd", "escapes")]:
         bad = dict(base)
         bad["policy_reference"] = ref
@@ -523,12 +523,16 @@ def test_existing_execution_contracts_unchanged():
     import subprocess as sp
 
     expected = {
-        "contracts/run-manifest.schema.json": None,
         "contracts/repair-candidate.schema.json": None,
         "contracts/repair-result.schema.json": None,
         "contracts/review-result.schema.json": None,
         "contracts/coordination-message.schema.json": None,
     }
+    # contracts/run-manifest.schema.json is excluded: Issue #25 (Operator
+    # MissionContract consumption) legitimately extends it ADDITIVELY with
+    # the optional mission_input pin; legacy maintenance_request semantics
+    # are preserved and historical manifests still validate (covered by the
+    # consumption tests). The other execution schemas are untouched.
     # Files changed in this slice, compared against main@HEAD.
     changed = sp.run(
         ["git", "diff", "--name-only", "main", "HEAD"],
@@ -538,7 +542,9 @@ def test_existing_execution_contracts_unchanged():
         assert rel not in changed, f"{rel} must not change in this slice"
     for rel in (
         "federation_hq_gate/policy.py",
-        "prompts/registry.yaml",
         "prompts/operator/v0.2.1.md",
     ):
         assert rel not in changed, f"{rel} must not change in this slice"
+    # prompts/registry.yaml IS legitimately extended by Issue #25 (additive
+    # releases operator@0.3.0 / scout|repair|review@0.2.0); prior release
+    # immutability is asserted by tests/test_mission_consumption.py.

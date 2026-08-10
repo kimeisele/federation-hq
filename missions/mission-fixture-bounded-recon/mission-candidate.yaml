@@ -1,0 +1,27 @@
+# NON-CANONICAL FIXTURE mission (Issue #25).
+# A valid MissionContract admission fixture for Operator MissionContract
+# consumption tests. Never executed against a real repository; no target
+# mutation. Signal/candidate/contract IDs are fixture metadata.
+kind: federation_hq_mission_candidate
+candidate_id: cand-mission-fixture-bounded-recon
+signal_refs:
+  - signal_id: sig-mission-fixture-bounded-recon
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_fixture_never_exists.py::test_fixture_bounded_recon
+    last_observed_evidence: "Fixture signal for admission validation; no real repository evidence intended."
+target_repository: kimeisele/agent-city
+problem_statement: >
+  Fixture: determine whether the synthetic discrepancy X is a production
+  defect, a test contract issue, or another bounded cause. Fixture data only.
+disposition: selected
+mission_id: mission-fixture-bounded-recon
+policy_eligibility:
+  policy_reference: docs/HQ_MISSION_POLICY.md
+  eligible: true
+  reasons:
+    - "POL-01 bounded evidence-backed mission (fixture signal)"
+evidence:
+  - "missions/mission-fixture-bounded-recon/mission-candidate.yaml"
+source: NON-CANONICAL fixture for Issue #25 admission tests
+created_at: "2026-08-10T03:00:31Z"

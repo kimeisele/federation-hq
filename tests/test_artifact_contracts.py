@@ -248,10 +248,42 @@ def test_rejects_missing_verdict() -> None:
 
 
 def test_rejects_missing_maintenance_request() -> None:
+    """A run manifest must carry exactly one of maintenance_request or
+    mission_input (Issue #25: MissionContract-native mode is additive)."""
     doc = _load(EXAMPLE_FILES["run-manifest"])
     del doc["maintenance_request"]
     errors = _errors_for("run-manifest", doc)
-    assert any("missing required field 'maintenance_request'" in e for e in errors)
+    # Schema-level: maintenance_request is no longer unconditionally required
+    # (mission_input mode is additive); the mode rule is enforced semantically.
+    assert not errors, errors
+    semantic: list[str] = []
+    validate_artifacts.check_manifest_mission_mode(doc, "test", semantic)
+    assert any("exactly one of maintenance_request or mission_input" in e for e in semantic)
+
+
+def test_mission_input_manifest_mode_valid() -> None:
+    """A manifest with mission_input (and no maintenance_request) is a valid
+    MissionContract-native mode (Issue #25)."""
+    doc = _load(EXAMPLE_FILES["run-manifest"])
+    del doc["maintenance_request"]
+    doc["mission_input"] = {
+        "mission_id": "mission-fixture-bounded-recon",
+        "candidate": {"path": "missions/mission-fixture-bounded-recon/mission-candidate.yaml",
+                       "hq_commit_sha": "0" * 40, "sha256": "0" * 64},
+        "contract": {"path": "missions/mission-fixture-bounded-recon/mission-contract.yaml",
+                      "hq_commit_sha": "0" * 40, "sha256": "0" * 64},
+        "admission_ledger": {"path": "mission/ledger.yaml",
+                              "hq_commit_sha": "0" * 40, "sha256": "0" * 64},
+    }
+    doc["prompt_pins"]["operator"]["version"] = "0.3.0"
+    doc["prompt_pins"]["scout"]["version"] = "0.2.0"
+    doc["prompt_pins"]["repair"]["version"] = "0.2.0"
+    doc["prompt_pins"]["review"]["version"] = "0.2.0"
+    errors = _errors_for("run-manifest", doc)
+    assert not errors, errors
+    semantic: list[str] = []
+    validate_artifacts.check_manifest_mission_mode(doc, "test", semantic)
+    assert not semantic
 
 
 def test_rejects_missing_pipeline_state() -> None:

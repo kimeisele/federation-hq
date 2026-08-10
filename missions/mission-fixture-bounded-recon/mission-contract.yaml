@@ -1,0 +1,40 @@
+# NON-CANONICAL FIXTURE mission (Issue #25).
+# A valid MissionContract admission fixture for Operator MissionContract
+# consumption tests. Never executed against a real repository.
+kind: federation_hq_mission_contract
+mission_version: "0.1.0"
+mission_id: mission-fixture-bounded-recon
+source_candidate_id: cand-mission-fixture-bounded-recon
+signal_refs:
+  - signal_id: sig-mission-fixture-bounded-recon
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_fixture_never_exists.py::test_fixture_bounded_recon
+target_repository: kimeisele/agent-city
+objective: >
+  Determine whether synthetic discrepancy X is a production defect, a test
+  contract issue, or another single bounded cause, from the pinned baseline.
+decision_question: >
+  Which side of synthetic discrepancy X is the defect, if any?
+bounded_scope: >
+  Fixture scope: investigate the synthetic fixture evidence and select
+  exactly one bounded repair candidate.
+scope_enforcement: declared
+prescribes_repair: false
+hard_constraints:
+  - "Do not assume which side should change."
+stop_conditions:
+  - "Evidence cannot be located or verified."
+expected_allowed_outcomes:
+  - approved
+  - changes_requested
+  - blocked
+  - invalid_candidate
+policy_reference: docs/HQ_MISSION_POLICY.md
+policy_version: "0.1.0"
+policy_sha256: "7d3c4eb4b6528e4aef515b429aafcdb6d9dc228d6feea098582b10a2a4f2241d"
+status: proposed
+creation_provenance:
+  author_role: other
+  source_reference: NON-CANONICAL fixture created by Federation HQ Issue #25 (Operator MissionContract consumption v0.1)
+created_at: "2026-08-10T03:00:31Z"

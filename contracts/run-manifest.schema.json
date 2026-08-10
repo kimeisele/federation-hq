@@ -9,7 +9,6 @@
     "run_id",
     "target_repository",
     "baseline_sha",
-    "maintenance_request",
     "coordination",
     "pipeline_state",
     "prompt_pins",
@@ -32,16 +31,24 @@
       "pattern": "^[0-9a-f]{40}$"
     },
     "maintenance_request": {
-      "description": "The durable original scope of the run. The Scout candidate may clarify it but may not replace or silently broaden it.",
+      "description": "The durable original scope of a LEGACY run (no mission_input). Exactly one of maintenance_request or mission_input must be present. The Scout candidate may clarify it but may not replace or silently broaden it.",
       "type": "object",
-      "required": ["text", "source", "created_at"],
+      "required": [
+        "text",
+        "source",
+        "created_at"
+      ],
       "properties": {
         "text": {
           "type": "string"
         },
         "source": {
           "description": "How the request entered the workflow.",
-          "enum": ["human_operator", "issue", "other"]
+          "enum": [
+            "human_operator",
+            "issue",
+            "other"
+          ]
         },
         "created_at": {
           "type": "string",
@@ -57,7 +64,11 @@
     "coordination": {
       "description": "The run's GitHub-native coordination reference: one run maps to exactly one coordination Issue in kimeisele/federation-hq.",
       "type": "object",
-      "required": ["protocol_version", "issue_number", "issue_url"],
+      "required": [
+        "protocol_version",
+        "issue_number",
+        "issue_url"
+      ],
       "properties": {
         "protocol_version": {
           "const": "0.1.0"
@@ -89,7 +100,12 @@
     },
     "prompt_pins": {
       "type": "object",
-      "required": ["scout", "repair", "review", "operator"],
+      "required": [
+        "scout",
+        "repair",
+        "review",
+        "operator"
+      ],
       "properties": {
         "scout": {
           "$ref": "#/$defs/prompt_pin"
@@ -121,17 +137,53 @@
     },
     "notes": {
       "type": "string"
+    },
+    "mission_input": {
+      "description": "MissionContract-native mission pin (operator@0.3.0). Exactly one of maintenance_request or mission_input must be present. Pins the exact canonical MissionCandidate + MissionContract as committed Federation HQ artifacts plus the point-in-time admission-time Mission Ledger snapshot; the MissionContract is authoritative and is never copied into the manifest.",
+      "type": "object",
+      "required": [
+        "mission_id",
+        "candidate",
+        "contract",
+        "admission_ledger"
+      ],
+      "properties": {
+        "mission_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "candidate": {
+          "$ref": "#/$defs/mission_artifact_pin"
+        },
+        "contract": {
+          "$ref": "#/$defs/mission_artifact_pin"
+        },
+        "admission_ledger": {
+          "$ref": "#/$defs/mission_artifact_pin",
+          "description": "Point-in-time Mission Ledger snapshot against which POL-04 admission was decided. Exact repo-relative path (mission/ledger.yaml), exact HQ commit SHA, exact SHA-256 of the ledger bytes; bytes must exist at that commit. Later Ledger mutations must not change historical admission validity."
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false,
   "$defs": {
     "prompt_pin": {
       "type": "object",
-      "required": ["id", "version", "sha256"],
+      "required": [
+        "id",
+        "version",
+        "sha256"
+      ],
       "properties": {
         "id": {
           "type": "string",
-          "enum": ["scout", "repair", "review", "operator"]
+          "enum": [
+            "scout",
+            "repair",
+            "review",
+            "operator"
+          ]
         },
         "version": {
           "type": "string",
@@ -147,10 +199,20 @@
     },
     "evidence_ref": {
       "type": "object",
-      "required": ["location"],
+      "required": [
+        "location"
+      ],
       "properties": {
         "kind": {
-          "enum": ["command", "test", "log", "patch", "report", "pr", "commit"]
+          "enum": [
+            "command",
+            "test",
+            "log",
+            "patch",
+            "report",
+            "pr",
+            "commit"
+          ]
         },
         "location": {
           "type": "string"
@@ -163,7 +225,10 @@
     },
     "context_pack": {
       "type": "object",
-      "required": ["name", "sha256"],
+      "required": [
+        "name",
+        "sha256"
+      ],
       "properties": {
         "name": {
           "type": "string"
@@ -174,6 +239,29 @@
         },
         "source": {
           "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "mission_artifact_pin": {
+      "type": "object",
+      "required": [
+        "path",
+        "hq_commit_sha",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "description": "Repository-relative path under missions/<mission-id>/; must not escape the repository.",
+          "type": "string"
+        },
+        "hq_commit_sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
         }
       },
       "additionalProperties": false
