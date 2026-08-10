@@ -1,0 +1,60 @@
+# Director cycle director-cycle-20260810-agent-city-live-pilot-01 (kimeisele/federation-hq#35).
+# Bounded Recon Mission: the investigation itself is the mission (POL-11).
+# The agent-city#137 proposed approach is NON-AUTHORITATIVE and is not
+# prescribed here.
+kind: federation_hq_mission_contract
+mission_version: "0.1.0"
+mission_id: mission-20260810-agent-city-brainvoice-fact-checking-recon
+source_candidate_id: cand-20260810-agent-city-brainvoice-fact-checking-recon
+signal_refs:
+  - signal_id: sig-20260810-agent-city-issue-137-brainvoice-fact-checking
+    source_kind: github_issue
+    repository: kimeisele/agent-city
+    source_native_ref: kimeisele/agent-city#137
+target_repository: kimeisele/agent-city
+objective: >
+  Recon: determine the current validity and root cause of the agent-city#137
+  report at the pinned baseline — whether Brain/BrainVoice outputs can present
+  event claims (e.g. a "severe agent unresponsiveness crisis") that do not
+  trace to concrete city_stats/thread_state evidence — the investigation
+  itself is the mission.
+decision_question: >
+  At the exact pinned Agent City baseline, does the #137 report reproduce, and
+  if so, what is the single bounded root cause and what bounded remediation (if
+  any) is warranted?
+bounded_scope: >
+  Scout-only recon: inspect the current Brain/BrainVoice output path
+  (city/brain.py _parse_json_thought, city/brain_voice.py narration,
+  city/brain_context.py build_context_snapshot), the city_stats/thread_state
+  data available at claim-generation time, and relevant history and tests, to
+  determine current validity and root cause of the #137 report. Report exactly
+  one evidence-backed repair candidate or none.
+scope_enforcement: declared
+prescribes_repair: false
+hard_constraints:
+  - "The Scout performs the source investigation; the Director does not (POL-11)."
+  - "Do not assume the #137 report is true or false; determine current reality from repository evidence at the pinned baseline."
+  - "The Issue's proposed post-processing approach is NON-AUTHORITATIVE: do not implement 'post-process Brain thought output' merely because the Issue suggested it."
+  - "Evaluate every reported Brain factual claim against concrete city_stats/thread_state evidence; claims without evidence are not findings."
+  - "Do not change production semantics merely to make output verifiable unless evidence proves a defect (POL-08)."
+  - "Exactly one bounded repair candidate or none."
+  - "No Federation HQ architecture changes; no Review Gate changes."
+stop_conditions:
+  - "The reported behavior cannot be reproduced at the pinned baseline and no evidence-backed defect is found."
+  - "An active overlapping PR/issue already owns the same defect."
+  - "The question requires a broader product-policy decision rather than a bounded finding."
+  - "Required repository evidence cannot be verified."
+expected_allowed_outcomes:
+  - approved
+  - changes_requested
+  - blocked
+  - invalid_candidate
+  - mission_rejected
+policy_reference: docs/HQ_MISSION_POLICY.md
+policy_version: "0.1.0"
+policy_sha256: "7d3c4eb4b6528e4aef515b429aafcdb6d9dc228d6feea098582b10a2a4f2241d"
+status: proposed
+creation_provenance:
+  author_role: director
+  source_reference: "kimeisele/federation-hq#35 (director-cycle-20260810-agent-city-live-pilot-01)"
+created_at: "2026-08-10T13:38:00Z"
