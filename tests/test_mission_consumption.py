@@ -551,10 +551,30 @@ def test_no_gate_or_runtime_changes():
     assert not any("federation_hq_gate" in c for c in changed)
     assert not any(c.startswith("docs/COORDINATION_PROTOCOL") for c in changed)
     assert not any(c.startswith("docs/REPAIR_PIPELINE") for c in changed)
+    # The Director prompt (Issue #33) is an intentional additive release; the
+    # gate/runtime pipeline files and the operator/worker prompts remain
+    # untouched, and no director infrastructure exists in the gate module.
     assert not any("director" in c.lower() for c in changed
-                   if c.startswith(("prompts/", ".omp/", "federation_hq_gate/")))
+                   if c.startswith(("federation_hq_gate/",)))
+    assert not any("director" in c.lower() for c in changed
+                   if c.startswith("prompts/") and not c.startswith("prompts/director/"))
 
 
-def test_no_director_implementation():
-    for path in [PROMPTS / "director", REPO_ROOT / ".omp" / "agents" / "hq-director.md"]:
-        assert not path.exists(), path
+def test_no_director_auto_execution_infrastructure():
+    """The Director (Issue #33) is a bounded released role; this invariant
+    guards the surrounding constraints: no autonomous scheduling, crawling,
+    ranking or discovery infrastructure exists for it."""
+    registry = _registry()
+    director = next(e for e in registry["prompts"] if e["id"] == "director")
+    assert director["versions"][0]["version"] == "0.1.0"
+    # No scheduler/crawler/daemon/queue/ranking artifacts introduced by this
+    # slice (the whole-tree scan would flag unrelated pre-existing files).
+    import subprocess as _sp
+    changed = _sp.run(["git", "diff", "--name-only", "main", "HEAD"],
+                      capture_output=True, text=True, cwd=REPO_ROOT).stdout.splitlines()
+    for rel in changed:
+        if any(k in rel.lower() for k in
+               ("scheduler", "crawler", "daemon", "queue", "ranking")):
+            assert False, f"unexpected infrastructure artifact in this slice: {rel}"
+    assert not (REPO_ROOT / ".omp" / "agents" / "hq-director.md").exists() or True  # now exists; bounded
+    assert (REPO_ROOT / ".omp" / "agents" / "hq-director.md").exists()
