@@ -245,12 +245,22 @@ def test_retro_candidate_source_identifies_projection():
 
 
 def test_ledger_retro_entries_dated_as_projection_state():
+    """Retrospective (Issue #23) ledger entries are dated at the projection
+    timestamp and identified as retroactive; LIVE entries (first ingestion,
+    e.g. MissionContract Pilot 01) keep their own timestamps and are not
+    mislabeled as retroactive. The ledger top-level updated_at equals the
+    latest entry update time."""
     ledger = _load(LEDGER)
-    assert ledger["updated_at"] == PROJECTION_TIMESTAMP
-    for item in ledger["items"]:
+    retro = [i for i in ledger["items"] if "Retroactive (Issue #23)" in i["last_observed_evidence"]]
+    live = [i for i in ledger["items"] if "Retroactive (Issue #23)" not in i["last_observed_evidence"]]
+    assert retro, "expected retrospective ledger entries"
+    for item in retro:
         assert item["updated_at"] == PROJECTION_TIMESTAMP
-        assert "Retroactive (Issue #23)" in item["last_observed_evidence"]
         assert "runs/run-" in item["last_observed_evidence"]
+    for item in live:
+        assert "Retroactive (Issue #23)" not in item["last_observed_evidence"]
+        assert item["updated_at"] != PROJECTION_TIMESTAMP
+    assert ledger["updated_at"] == max(i["updated_at"] for i in ledger["items"])
     header = LEDGER.read_text(encoding="utf-8").splitlines()
     assert any("retroactively assigned" in line for line in header)
 
