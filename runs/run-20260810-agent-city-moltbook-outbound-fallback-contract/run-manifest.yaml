@@ -1,13 +1,7 @@
-# Run manifest — run-20260810-agent-city-moltbook-outbound-fallback-contract
-#
-# Federation HQ MissionContract Pilot 01 — first REAL MissionContract-native
-# run. Operator@0.3.0 consumes the exact canonical mission package; the
-# MissionContract is authoritative (no maintenance_request).
-
 kind: federation_hq_run_manifest
 run_id: run-20260810-agent-city-moltbook-outbound-fallback-contract
 target_repository: kimeisele/agent-city
-baseline_sha: "e01d011bd563e964afb55901a4ed9474191aec59"
+baseline_sha: e01d011bd563e964afb55901a4ed9474191aec59
 coordination:
   protocol_version: 0.1.0
   issue_number: 29
@@ -17,37 +11,36 @@ prompt_pins:
   operator:
     id: operator
     version: 0.3.0
-    sha256: "c06adf517332b57aa7e300bf7cac43bd2ac2e6131181add5b85f39356e9cac79"
+    sha256: c06adf517332b57aa7e300bf7cac43bd2ac2e6131181add5b85f39356e9cac79
   scout:
     id: scout
     version: 0.2.0
-    sha256: "eb93cbb94d489df94cd64cde59316fcb650f344244c097c11e024b0093011837"
+    sha256: eb93cbb94d489df94cd64cde59316fcb650f344244c097c11e024b0093011837
   repair:
     id: repair
     version: 0.2.0
-    sha256: "d997d221e88cd5904a62ac2580aa1a91197e96c48587a43b3200e459c26064c7"
+    sha256: d997d221e88cd5904a62ac2580aa1a91197e96c48587a43b3200e459c26064c7
   review:
     id: review
     version: 0.2.0
-    sha256: "53ca110b92ded24522b04c247ea1abd808180047dd84f64304eb5591e70dad5e"
+    sha256: 53ca110b92ded24522b04c247ea1abd808180047dd84f64304eb5591e70dad5e
 mission_input:
   mission_id: mission-20260810-agent-city-moltbook-outbound-fallback-contract
   candidate:
     path: missions/mission-20260810-agent-city-moltbook-outbound-fallback-contract/mission-candidate.yaml
-    hq_commit_sha: "ad83a4bf5b7590ac0eb3cc5ba2d008686bb53a59"
-    sha256: "f6a4a86899321cc7b3ba608a532a198e404832b8cb610ad055a8a8a252a21777"
+    hq_commit_sha: ad83a4bf5b7590ac0eb3cc5ba2d008686bb53a59
+    sha256: f6a4a86899321cc7b3ba608a532a198e404832b8cb610ad055a8a8a252a21777
   contract:
     path: missions/mission-20260810-agent-city-moltbook-outbound-fallback-contract/mission-contract.yaml
-    hq_commit_sha: "ad83a4bf5b7590ac0eb3cc5ba2d008686bb53a59"
-    sha256: "eccbc79cf7fd5aad5b1609b54785db3eb17a87e8ca45f36720b5c47516fd4afb"
+    hq_commit_sha: ad83a4bf5b7590ac0eb3cc5ba2d008686bb53a59
+    sha256: eccbc79cf7fd5aad5b1609b54785db3eb17a87e8ca45f36720b5c47516fd4afb
   admission_ledger:
     path: mission/ledger.yaml
-    hq_commit_sha: "ad83a4bf5b7590ac0eb3cc5ba2d008686bb53a59"
-    sha256: "951379fe0e898ca3dee75495afbda47ffbfbe66eeab5ddcc7bfb7afd4dc6203fa"
-created_at: "2026-08-10T05:45:00Z"
-notes: >
-  Federation HQ MissionContract Pilot 01 — first real MissionContract-native
-  run (ADR-0002 step 3). Mission input pinned at formulation merge commit
-  ad83a4bf (Issue #27 closed). Target main verified live at run opening to
-  resolve to baseline SHA e01d011b; Review Gate active (federation-hq/review,
-  App 4528340, approvals 0). HQ main at run opening: ad83a4bf.
+    hq_commit_sha: ad83a4bf5b7590ac0eb3cc5ba2d008686bb53a59
+    sha256: 951379fe0e898ca3dee75495afbda47ffbfe66eeab5ddcc7bfb7afd4dc6203fa
+created_at: '2026-08-10T05:45:00Z'
+notes: "Federation HQ MissionContract Pilot 01 \u2014 first real MissionContract-native\
+  \ run (ADR-0002 step 3). Mission input pinned at formulation merge commit ad83a4bf\
+  \ (Issue #27 closed). Target main verified live at run opening to resolve to baseline\
+  \ SHA e01d011b; Review Gate active (federation-hq/review, App 4528340, approvals\
+  \ 0). HQ main at run opening: ad83a4bf.\n"
