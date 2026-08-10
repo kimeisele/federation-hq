@@ -272,8 +272,13 @@ def test_mission_input_manifest_mode_valid() -> None:
                        "hq_commit_sha": "0" * 40, "sha256": "0" * 64},
         "contract": {"path": "missions/mission-fixture-bounded-recon/mission-contract.yaml",
                       "hq_commit_sha": "0" * 40, "sha256": "0" * 64},
+        "admission_ledger": {"path": "mission/ledger.yaml",
+                              "hq_commit_sha": "0" * 40, "sha256": "0" * 64},
     }
     doc["prompt_pins"]["operator"]["version"] = "0.3.0"
+    doc["prompt_pins"]["scout"]["version"] = "0.2.0"
+    doc["prompt_pins"]["repair"]["version"] = "0.2.0"
+    doc["prompt_pins"]["review"]["version"] = "0.2.0"
     errors = _errors_for("run-manifest", doc)
     assert not errors, errors
     semantic: list[str] = []

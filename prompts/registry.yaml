@@ -131,7 +131,7 @@ prompts:
       '
   - version: 0.3.0
     file: operator/v0.3.0.md
-    sha256: cc62580a831d40a5d370b5fcc5df34d536b61c1e9821ec8f1f7402c75382db33
+    sha256: 96d3b57c543fbf3fabe8faa235e0e627b0cd3212afaae0bebb9476706bcb6dee
     status: released
     released: '2026-08-10'
     changelog: 'MAJOR release (Issue #25): MissionContract-native Operator. New authoritative
@@ -144,4 +144,6 @@ prompts:
       semantic rewriting of the MissionContract into an invented maintenance_request;
       inventing a mission decision from corrupted input. Legacy maintenance_request
       mode unchanged and still supported; no runtime pipeline/state-machine/Gate changes;
-      no Director.'
+      no Director. PR-local review fix: admission evaluated against the exact point-in-time
+      admission-time ledger snapshot (mission_input.admission_ledger pin); live-ledger
+      mutations never change historical admission validity.'

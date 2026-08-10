@@ -139,12 +139,13 @@
       "type": "string"
     },
     "mission_input": {
-      "description": "MissionContract-native mission pin (operator@0.3.0). Exactly one of maintenance_request or mission_input must be present. Pins the exact canonical MissionCandidate + MissionContract as committed Federation HQ artifacts; the MissionContract is authoritative and is never copied into the manifest.",
+      "description": "MissionContract-native mission pin (operator@0.3.0). Exactly one of maintenance_request or mission_input must be present. Pins the exact canonical MissionCandidate + MissionContract as committed Federation HQ artifacts plus the point-in-time admission-time Mission Ledger snapshot; the MissionContract is authoritative and is never copied into the manifest.",
       "type": "object",
       "required": [
         "mission_id",
         "candidate",
-        "contract"
+        "contract",
+        "admission_ledger"
       ],
       "properties": {
         "mission_id": {
@@ -156,6 +157,10 @@
         },
         "contract": {
           "$ref": "#/$defs/mission_artifact_pin"
+        },
+        "admission_ledger": {
+          "$ref": "#/$defs/mission_artifact_pin",
+          "description": "Point-in-time Mission Ledger snapshot against which POL-04 admission was decided. Exact repo-relative path (mission/ledger.yaml), exact HQ commit SHA, exact SHA-256 of the ledger bytes; bytes must exist at that commit. Later Ledger mutations must not change historical admission validity."
         }
       },
       "additionalProperties": false

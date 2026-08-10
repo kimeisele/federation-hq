@@ -151,6 +151,9 @@ def _mission_input_manifest(contract_sha: str | None = None, commit: str | None 
             "contract": {"path": f"{FIXTURE_MISSION}/mission-contract.yaml",
                          "hq_commit_sha": commit or _head(),
                          "sha256": contract_sha or _sha256(FIXTURE_CONTRACT)},
+            "admission_ledger": {"path": "mission/ledger.yaml",
+                                 "hq_commit_sha": commit or _head(),
+                                 "sha256": _sha256(LEDGER)},
         },
         "created_at": "2026-08-10T03:00:31Z",
     }
@@ -306,6 +309,136 @@ def test_worker_prompts_resolve_mission_contract_themselves():
     assert "may NOT broaden the MissionContract" in " ".join(scout.split())
     review = (PROMPTS / "review" / "v0.2.0.md").read_text()
     assert "compliance with the MissionContract boundaries" in " ".join(review.split())
+
+
+# ── Review fix: point-in-time admission + lifecycle ────────────────────────
+
+
+def test_mission_native_worker_chain_enforced():
+    for pid in ("scout", "repair", "review"):
+        doc = _mission_input_manifest()
+        doc["prompt_pins"][pid]["version"] = "0.1.0"
+        errors = []
+        validate_artifacts.check_manifest_mission_mode(doc, "test", errors)
+        assert any(pid in e and "MissionContract-native worker release" in e for e in errors), (pid, errors)
+
+
+def test_manifest_mission_id_mismatch_invalid():
+    """A manifest mission_id that is not bound to its pinned package fails:
+    the canonical package location rule couples mission_id to the package
+    path, and the pinned-byte identity chain verifies mission_id agreement."""
+    doc = _mission_input_manifest()
+    doc["mission_input"]["mission_id"] = "mission-other"
+    errors = []
+    validate_artifacts.check_mission_pin(doc, REPO_ROOT, REPO_ROOT / "contracts", "test", errors)
+    assert any("canonical package location" in e for e in errors)
+    # And at the document level, a candidate/contract mission_id disagreement
+    # is invalid input.
+    cand = _load(FIXTURE_CANDIDATE)
+    contr = dict(_load(FIXTURE_CONTRACT))
+    contr["mission_id"] = "mission-other"
+    decision, problems = _admit(cand, contr)
+    assert decision == "invalid_input"
+    assert any("mission_id" in p for p in problems)
+
+
+def test_manifest_target_mismatch_invalid(tmp_path):
+    doc = _mission_input_manifest()
+    doc["target_repository"] = "kimeisele/other-repo"
+    errors = []
+    validate_artifacts.check_mission_pin(doc, REPO_ROOT, REPO_ROOT / "contracts", "test", errors)
+    assert any("target_repository" in e for e in errors)
+
+
+def test_wrong_admission_ledger_sha_invalid():
+    doc = _mission_input_manifest()
+    doc["mission_input"]["admission_ledger"]["sha256"] = "f" * 64
+    errors = []
+    validate_artifacts.check_mission_pin(doc, REPO_ROOT, REPO_ROOT / "contracts", "test", errors)
+    assert any("admission_ledger" in e and "sha256" in e for e in errors)
+
+
+def test_wrong_admission_ledger_commit_invalid():
+    doc = _mission_input_manifest()
+    doc["mission_input"]["admission_ledger"]["hq_commit_sha"] = "0" * 40
+    errors = []
+    validate_artifacts.check_mission_pin(doc, REPO_ROOT, REPO_ROOT / "contracts", "test", errors)
+    assert any("admission_ledger" in e and "hq_commit_sha" in e for e in errors)
+
+
+def test_non_canonical_package_location_invalid():
+    """A pinned candidate path outside missions/<mission-id>/mission-candidate.yaml
+    is rejected even when the bytes exist at the commit (here: pointing the
+    candidate pin at the committed contract file)."""
+    doc = _mission_input_manifest()
+    doc["mission_input"]["candidate"]["path"] = f"{FIXTURE_MISSION}/mission-contract.yaml"
+    doc["mission_input"]["candidate"]["sha256"] = _sha256(FIXTURE_CONTRACT)
+    errors = []
+    validate_artifacts.check_mission_pin(doc, REPO_ROOT, REPO_ROOT / "contracts", "test", errors)
+    assert any("canonical package location" in e for e in errors)
+
+
+def test_terminal_contract_statuses_not_executable():
+    cand = _load(FIXTURE_CANDIDATE)
+    for status in ("mission_rejected", "cancelled", "completed"):
+        contr = dict(_load(FIXTURE_CONTRACT))
+        contr["status"] = status
+        if status == "mission_rejected":
+            contr["rejection_reason"] = "existing framing rejection"
+        decision, problems = _admit(cand, contr)
+        assert decision == ("mission_rejected" if status == "mission_rejected"
+                            else "invalid_input"), (status, problems)
+        assert any(status in p for p in problems)
+
+
+def test_static_package_valid_after_live_ledger_changes():
+    """The historical lifecycle invariant: a package is statically valid and
+    a historical manifest stays valid against its PINNED ledger snapshot even
+    after the LIVE ledger records the signal as completed."""
+    cand = _load(FIXTURE_CANDIDATE)
+    contr = _load(FIXTURE_CONTRACT)
+    # T0: admission-time ledger WITHOUT the fixture signal.
+    t0_ledger = {"kind": "federation_hq_mission_ledger", "schema_version": "0.1.0",
+                 "items": [i for i in _load(LEDGER)["items"]
+                           if i["signal_id"] != cand["signal_refs"][0]["signal_id"]],
+                 "updated_at": "2026-08-10T03:00:31Z"}
+    decision, problems = _admit(cand, contr, t0_ledger)
+    assert decision == "admitted", problems
+
+    # Static package validation never consults any ledger.
+    errors = []
+    validate_artifacts.validate_static_mission_package(
+        cand, contr, REPO_ROOT / "contracts", REPO_ROOT, "test", errors)
+    assert not errors, errors
+
+    # T1: live ledger gains completed for the signal.
+    t1_ledger = dict(t0_ledger)
+    t1_ledger["items"] = list(t0_ledger["items"]) + [{
+        "signal_id": cand["signal_refs"][0]["signal_id"], "source_kind": "test_node",
+        "source_native_ref": "x", "disposition": "completed",
+        "updated_at": "2026-08-10T03:30:00Z"}]
+
+    # T2: a NEW mission from the same signal against the CURRENT (T1) ledger
+    # without override is blocked; with override it admits.
+    decision, problems = _admit(cand, contr, t1_ledger)
+    assert decision == "invalid_input", problems
+    assert any("terminal ledger disposition" in p for p in problems)
+
+    cand_override = dict(cand)
+    cand_override["prior_disposition_override"] = {
+        "ledger_signal_id": cand["signal_refs"][0]["signal_id"],
+        "prior_disposition": "completed",
+        "new_evidence_refs": ["https://example.com/evidence/new"],
+    }
+    decision, problems = _admit(cand_override, contr, t1_ledger)
+    assert decision == "admitted", problems
+
+    # T3: the HISTORICAL manifest re-validates against its PINNED T0 ledger
+    # bytes (point-in-time), not the live ledger.
+    errors = []
+    validate_artifacts.check_mission_pin(
+        _mission_input_manifest(), REPO_ROOT, REPO_ROOT / "contracts", "test", errors)
+    assert not errors, errors
 
 
 # ── Rules 18-19: runtime unchanged, no Director ───────────────────────────

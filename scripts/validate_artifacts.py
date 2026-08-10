@@ -1001,24 +1001,56 @@ def check_manifest_mission_mode(doc: dict, where: str, errors: list[str]) -> Non
         )
         return
     if has_mission:
-        op = (doc.get("prompt_pins") or {}).get("operator") or {}
+        pins = doc.get("prompt_pins") or {}
+        op = pins.get("operator") or {}
         version = op.get("version")
         if version != "0.3.0":
             errors.append(
                 f"{where}: mission_input manifests require operator@0.3.0 "
                 f"(MissionContract-native Operator), got operator@{version}"
             )
+        # MissionContract-native worker chain: the same release set must be
+        # used so every worker implements the MissionContract composition
+        # contract (legacy workers treat maintenance_request as authority).
+        for pid, expected in (("scout", "0.2.0"), ("repair", "0.2.0"), ("review", "0.2.0")):
+            worker = pins.get(pid) or {}
+            if worker.get("version") != expected:
+                errors.append(
+                    f"{where}: mission_input manifests require {pid}@{expected} "
+                    f"(MissionContract-native worker release), got {pid}@{worker.get('version')}"
+                )
+
+
+def _pinned_bytes(repo_root: Path, commit: str, path: str) -> bytes | None:
+    """Exact bytes of *path* at *commit* (git cat-file), or None."""
+    result = subprocess.run(
+        ["git", "cat-file", "-p", f"{commit}:{path}"],
+        capture_output=True, cwd=repo_root,
+    )
+    if result.returncode != 0:
+        return None
+    return result.stdout
 
 
 def check_mission_pin(doc: dict, repo_root: Path, schemas_dir: Path,
                       where: str, errors: list[str]) -> None:
-    """Verify a manifest's mission_input pins: repository-relative paths that
-    exist, exact SHA-256 of the bytes, and exact HQ commit SHAs that contain
-    those bytes. The MissionContract is never copied into the manifest."""
+    """Verify a manifest's mission_input pins and the manifest identity chain.
+
+    For each pin (candidate, contract, admission_ledger): repository-relative
+    path, exact SHA-256 of the bytes, and an exact HQ commit SHA that
+    contains those bytes. The PINNED COMMIT BYTES are the historical pin
+    authority — the current working tree is never substituted. Then load
+    Candidate/Contract/Ledger from the pinned commit bytes and verify the
+    identity chain (mission_id, target_repository, source_candidate_id,
+    signal provenance, canonical missions/<mission-id>/ package location)
+    and the point-in-time admission decision against the PINNED admission
+    ledger snapshot.
+    """
     mission_input = doc.get("mission_input")
     if not isinstance(mission_input, dict):
         return
-    for label in ("candidate", "contract"):
+    pins: dict[str, dict] = {}
+    for label in ("candidate", "contract", "admission_ledger"):
         pin = mission_input.get(label)
         if not isinstance(pin, dict):
             errors.append(f"{where}.mission_input.{label}: missing pin")
@@ -1032,35 +1064,115 @@ def check_mission_pin(doc: dict, repo_root: Path, schemas_dir: Path,
         artifact = (repo_root / path).resolve()
         if not artifact.exists():
             errors.append(f"{where}.mission_input.{label}: artifact not found at {path}")
-            continue
-        if isinstance(sha, str) and sha != hashlib.sha256(artifact.read_bytes()).hexdigest():
-            errors.append(f"{where}.mission_input.{label}: sha256 does not match the bytes at {path}")
-        if isinstance(commit, str):
-            result = subprocess.run(
-                ["git", "cat-file", "-p", f"{commit}:{path}"],
-                capture_output=True, cwd=repo_root,
+        elif isinstance(sha, str) and sha != hashlib.sha256(artifact.read_bytes()).hexdigest():
+            errors.append(
+                f"{where}.mission_input.{label}: sha256 does not match the bytes at {path}"
             )
-            if result.returncode != 0 or not isinstance(sha, str) or \
-                    hashlib.sha256(result.stdout).hexdigest() != sha:
+        if isinstance(commit, str):
+            pinned = _pinned_bytes(repo_root, commit, path)
+            if pinned is None or not isinstance(sha, str) or \
+                    hashlib.sha256(pinned).hexdigest() != sha:
                 errors.append(
                     f"{where}.mission_input.{label}: hq_commit_sha {commit} does not contain "
                     f"{path} with the pinned bytes"
                 )
+            else:
+                pins[label] = {"path": path, "sha256": sha, "commit": commit, "bytes": pinned}
+        else:
+            errors.append(f"{where}.mission_input.{label}: hq_commit_sha is required")
+
+    if not all(label in pins for label in ("candidate", "contract", "admission_ledger")):
+        return  # pins already failed; skip the identity chain
+
+    mission_id = mission_input.get("mission_id")
+    cand_path = pins["candidate"]["path"]
+    contr_path = pins["contract"]["path"]
+    # Canonical package location.
+    for label, path in (("candidate", cand_path), ("contract", contr_path)):
+        expected = f"missions/{mission_id}/{('mission-candidate' if label == 'candidate' else 'mission-contract')}.yaml"
+        if isinstance(mission_id, str) and path != expected:
+            errors.append(
+                f"{where}.mission_input.{label}: canonical package location required, "
+                f"got {path!r} expected {expected!r}"
+            )
+
+    def _parse(label: str) -> dict | None:
+        try:
+            doc = yaml.safe_load(pins[label]["bytes"].decode("utf-8"))
+        except Exception:
+            errors.append(f"{where}.mission_input.{label}: pinned bytes are not valid YAML")
+            return None
+        return doc if isinstance(doc, dict) else None
+
+    cand_doc = _parse("candidate")
+    contr_doc = _parse("contract")
+    ledger_doc = _parse("admission_ledger")
+    if cand_doc is None or contr_doc is None or ledger_doc is None:
+        return
+
+    # Manifest identity chain against the PINNED bytes.
+    if cand_doc.get("mission_id") != mission_id:
+        errors.append(
+            f"{where}.mission_input: manifest mission_id {mission_id!r} does not match "
+            f"the pinned candidate mission_id {cand_doc.get('mission_id')!r}"
+        )
+    if contr_doc.get("mission_id") != mission_id:
+        errors.append(
+            f"{where}.mission_input: manifest mission_id {mission_id!r} does not match "
+            f"the pinned contract mission_id {contr_doc.get('mission_id')!r}"
+        )
+    target = doc.get("target_repository")
+    if cand_doc.get("target_repository") != target:
+        errors.append(
+            f"{where}: manifest target_repository {target!r} does not match the pinned "
+            f"candidate target_repository {cand_doc.get('target_repository')!r}"
+        )
+    if contr_doc.get("target_repository") != target:
+        errors.append(
+            f"{where}: manifest target_repository {target!r} does not match the pinned "
+            f"contract target_repository {contr_doc.get('target_repository')!r}"
+        )
+    if contr_doc.get("source_candidate_id") != cand_doc.get("candidate_id"):
+        errors.append(
+            f"{where}.mission_input: contract source_candidate_id does not match the "
+            f"pinned candidate_id"
+        )
+    cand_signals = {r.get("signal_id") for r in cand_doc.get("signal_refs", [])}
+    contract_signals = {r.get("signal_id") for r in contr_doc.get("signal_refs", [])}
+    if not cand_signals or not cand_signals <= contract_signals:
+        errors.append(
+            f"{where}.mission_input: pinned contract signal identities do not cover "
+            f"the pinned candidate signals"
+        )
+
+    # Point-in-time admission against the PINNED admission-time ledger bytes.
+    decision, problems = evaluate_mission_admission(
+        cand_doc, contr_doc, ledger_doc, schemas_dir, repo_root)
+    if decision != "admitted":
+        for problem in problems:
+            errors.append(f"{where}.mission_input: {problem}")
 
 
 def evaluate_mission_admission(candidate_doc: dict, contract_doc: dict, ledger: dict | None,
                                schemas_dir: Path, repo_root: Path) -> tuple[str, list[str]]:
-    """The mission admission decision for a MissionContract-native run.
+    """POINT-IN-TIME mission admission for a MissionContract-native run.
 
     Returns (decision, problems): decision is one of
     ``admitted`` | ``invalid_input`` | ``mission_rejected``.
     - invalid_input: structural/integrity failures (schema, policy pin,
-      provenance chain, ledger reopen guard without override) — never infer
-      a mission decision from corrupted input.
+      provenance chain, non-executable terminal contract status, ledger
+      reopen guard without override) — never infer a mission decision from
+      corrupted input.
     - mission_rejected: structurally valid, correctly pinned, but the framing
-      violates Mission Policy (POL-02 unbounded framing or an already
-      rejected contract) — terminal admission outcome BEFORE any Scout
-      dispatch.
+      violates Mission Policy (POL-02 unbounded framing) or the contract is
+      already terminally mission_rejected — terminal admission outcome
+      BEFORE any Scout dispatch; the existing rejection is preserved, not
+      re-derived.
+
+    The ledger argument is the EXACT admission-time snapshot (a pinned
+    admission_ledger for existing manifests; the current ledger bytes for a
+    new run being formulated, pinned before the manifest is created). The
+    live ledger is never consulted here.
     """
     problems: list[str] = []
     _validate_mission_doc(candidate_doc, schemas_dir, repo_root, "mission-candidate", problems)
@@ -1092,20 +1204,68 @@ def evaluate_mission_admission(candidate_doc: dict, contract_doc: dict, ledger: 
     if problems:
         return "invalid_input", problems
 
-    # Semantic mission-framing rejection (structurally valid input).
-    if contract_doc.get("status") == "mission_rejected":
+    # Terminal MissionContract statuses (executable vs non-executable).
+    status = contract_doc.get("status")
+    if status == "mission_rejected":
+        problems.append(
+            "mission admission: contract is terminally mission_rejected; the existing "
+            f"rejection is preserved, not re-derived (reason: {contract_doc.get('rejection_reason') or 'none'})"
+        )
         return "mission_rejected", problems
+    if status in ("cancelled", "completed"):
+        problems.append(
+            f"mission admission: contract status {status!r} is not executable as a new "
+            f"mission; revisiting the underlying signal requires a NEW "
+            f"MissionCandidate/MissionContract path with Ledger override semantics (POL-04)"
+        )
+        return "invalid_input", problems
+    if status != "proposed":
+        problems.append(
+            f"mission admission: contract status {status!r} is not permitted for execution"
+        )
+        return "invalid_input", problems
+
+    # Semantic mission-framing rejection (structurally valid input).
     objective = str(contract_doc.get("objective") or "").lower()
     if re.search(r"improve (the )?(overall )?(quality|health) of (the )?(repository|repo)", objective):
         problems.append("POL-02: unbounded 'improve this repo' framing")
         return "mission_rejected", problems
 
-    # Mission Ledger POL-04 reopen guard.
+    # Mission Ledger POL-04 reopen guard against the EXACT admission-time
+    # ledger snapshot passed in.
     ledger_errors: list[str] = []
     check_ledger_reopen(candidate_doc, ledger, "mission admission", ledger_errors)
     if ledger_errors:
         return "invalid_input", ledger_errors
     return "admitted", []
+
+
+def validate_static_mission_package(candidate_doc: dict, contract_doc: dict,
+                                    schemas_dir: Path, repo_root: Path,
+                                    where: str, errors: list[str]) -> None:
+    """Static MissionPackage validation: the immutable Candidate/Contract
+    relationships of a committed missions/<mission-id>/ package.
+
+    Static validation NEVER consults the Mission Ledger — admission is a
+    point-in-time decision made against the ledger snapshot pinned at run
+    opening; a historical mission package does not become invalid merely
+    because the live ledger later recorded its completion.
+    """
+    _validate_mission_doc(candidate_doc, schemas_dir, repo_root, f"{where}/candidate", errors)
+    _validate_mission_doc(contract_doc, schemas_dir, repo_root, f"{where}/contract", errors)
+    if contract_doc.get("source_candidate_id") != candidate_doc.get("candidate_id"):
+        errors.append(
+            f"{where}: contract source_candidate_id does not match the candidate_id"
+        )
+    cand_signals = {r.get("signal_id") for r in candidate_doc.get("signal_refs", [])}
+    contract_signals = {r.get("signal_id") for r in contract_doc.get("signal_refs", [])}
+    if not cand_signals or not cand_signals <= contract_signals:
+        errors.append(f"{where}: contract signal identities do not cover the candidate signals")
+    if candidate_doc.get("mission_id") is not None and \
+            candidate_doc["mission_id"] != contract_doc.get("mission_id"):
+        errors.append(f"{where}: candidate mission_id does not agree with the contract")
+    if candidate_doc.get("target_repository") != contract_doc.get("target_repository"):
+        errors.append(f"{where}: target repository disagreement")
 
 
 # ── Committed run bundle checks ────────────────────────────────────────────
@@ -1311,8 +1471,11 @@ def main(argv: list[str] | None = None) -> int:
                     else:
                         validate_value(ledger_doc, ledger_schema, "mission/ledger.yaml", errors)
                         check_paths(ledger_doc, repo_root, errors)
-        # Committed mission packages under missions/<mission-id>/: each
-        # package must validate and, for executable fixtures, admit.
+        # Committed mission packages under missions/<mission-id>/: STATIC
+        # validation only. Admission is a point-in-time decision against the
+        # ledger snapshot pinned at run opening; the live ledger is never
+        # consulted here, so a historical package whose signal later became
+        # completed remains valid.
         missions_dir = repo_root / "missions"
         if missions_dir.is_dir():
             for mission_dir in sorted(p for p in missions_dir.iterdir() if p.is_dir()):
@@ -1327,12 +1490,9 @@ def main(argv: list[str] | None = None) -> int:
                 except Exception as exc:
                     errors.append(f"missions/{mission_dir.name}: could not load: {exc}")
                     continue
-                decision, problems = evaluate_mission_admission(
-                    cand_doc, contr_doc, ledger_doc, schemas_dir, repo_root)
-                if decision == "admitted":
-                    continue
-                for problem in problems:
-                    errors.append(f"missions/{mission_dir.name}: {problem}")
+                validate_static_mission_package(
+                    cand_doc, contr_doc, schemas_dir, repo_root,
+                    f"missions/{mission_dir.name}", errors)
 
     if errors:
         if not args.quiet:
