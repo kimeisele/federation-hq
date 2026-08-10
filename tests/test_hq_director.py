@@ -421,11 +421,14 @@ def test_mixed_commit_mission_input_valid():
     import subprocess as _sp
     c = _sp.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
                 cwd=REPO_ROOT).stdout.strip()
-    # B = the pre-slice main commit; it contains the same ledger bytes as HEAD
-    # (the ledger is unchanged in this slice) -> B != C, both real commits.
+    # B = the pre-slice main commit; the admission Ledger is pinned to the
+    # EXACT bytes at B (later live cycles legitimately add ledger items, so
+    # the working-tree ledger is never substituted) -> B != C, both real
+    # commits.
     b = "af28e5b3cd1eefdb660c3a69da4bbd7397c0bcae"
     assert b != c
-    ledger_bytes = (REPO_ROOT / "mission" / "ledger.yaml").read_bytes()
+    ledger_bytes = validate_artifacts._pinned_bytes(REPO_ROOT, b, "mission/ledger.yaml")
+    assert ledger_bytes is not None
     ledger_sha = hashlib.sha256(ledger_bytes).hexdigest()
     doc = {
         "kind": "federation_hq_run_manifest", "run_id": "run-mixed-pin",

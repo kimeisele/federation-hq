@@ -129,6 +129,13 @@ def test_legacy_manifests_still_valid():
 
 
 def _mission_input_manifest(contract_sha: str | None = None, commit: str | None = None) -> dict:
+    commit = commit or _head()
+    # The admission Ledger pin is the EXACT bytes at the pinned commit
+    # (point-in-time authority); the working-tree ledger is never
+    # substituted — live cycles legitimately add ledger items.
+    pinned_ledger = validate_artifacts._pinned_bytes(REPO_ROOT, commit, "mission/ledger.yaml")
+    ledger_sha = hashlib.sha256(pinned_ledger).hexdigest() if pinned_ledger is not None \
+        else _sha256(LEDGER)
     return {
         "kind": "federation_hq_run_manifest",
         "run_id": "run-test-mission-input",
@@ -150,14 +157,14 @@ def _mission_input_manifest(contract_sha: str | None = None, commit: str | None 
         "mission_input": {
             "mission_id": "mission-fixture-bounded-recon",
             "candidate": {"path": f"{FIXTURE_MISSION}/mission-candidate.yaml",
-                          "hq_commit_sha": commit or _head(),
+                          "hq_commit_sha": commit,
                           "sha256": _sha256(FIXTURE_CANDIDATE)},
             "contract": {"path": f"{FIXTURE_MISSION}/mission-contract.yaml",
-                         "hq_commit_sha": commit or _head(),
+                         "hq_commit_sha": commit,
                          "sha256": contract_sha or _sha256(FIXTURE_CONTRACT)},
             "admission_ledger": {"path": "mission/ledger.yaml",
-                                 "hq_commit_sha": commit or _head(),
-                                 "sha256": _sha256(LEDGER)},
+                                 "hq_commit_sha": commit,
+                                 "sha256": ledger_sha},
         },
         "created_at": "2026-08-10T03:00:31Z",
     }

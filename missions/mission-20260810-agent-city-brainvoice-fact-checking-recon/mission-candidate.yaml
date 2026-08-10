@@ -1,0 +1,48 @@
+# Director cycle director-cycle-20260810-agent-city-live-pilot-01 (kimeisele/federation-hq#35).
+# SELECTED: bounded Recon Mission. Current validity/root cause of agent-city#137
+# requires source/history/testing investigation, which the Director must not
+# perform itself (POL-11); the investigation is the mission.
+kind: federation_hq_mission_candidate
+candidate_id: cand-20260810-agent-city-brainvoice-fact-checking-recon
+signal_refs:
+  - signal_id: sig-20260810-agent-city-issue-137-brainvoice-fact-checking
+    source_kind: github_issue
+    repository: kimeisele/agent-city
+    source_native_ref: kimeisele/agent-city#137
+    last_observed_evidence: >
+      Issue #137 is open (labels brain, help-wanted; opened 2026-03-17). It
+      reports Brain/BrainVoice outputs presenting unsupported events such as a
+      "severe agent unresponsiveness crisis" when thread_state contains zero
+      agent responses, and requests traceability of factual claims to concrete
+      city_stats/thread_state evidence. The Issue's proposed post-processing
+      approach is NON-AUTHORITATIVE and must not be treated as a predetermined
+      fix.
+target_repository: kimeisele/agent-city
+problem_statement: >
+  The current validity and root cause of the agent-city#137 report are
+  unproven: whether Brain/BrainVoice can emit event claims unsupported by the
+  current city_stats/thread_state evidence at the pinned baseline, and what
+  single bounded remediation (if any) is warranted. Determining this requires
+  source/history/testing investigation — a bounded Recon Mission, not a
+  Director-side diagnosis.
+disposition: selected
+mission_id: mission-20260810-agent-city-brainvoice-fact-checking-recon
+policy_eligibility:
+  policy_reference: docs/HQ_MISSION_POLICY.md
+  eligible: true
+  reasons:
+    - "POL-01 bounded evidence-backed github_issue signal (#137 open, concrete claim)"
+    - "POL-02 bounded objective: determine current validity/root cause at the pinned baseline, not 'improve the Brain'"
+    - "POL-03 one bounded work item (the recon investigation)"
+    - "POL-04 no prior terminal disposition for this signal in the canonical Ledger"
+    - "POL-06 no open PR overlap (GitHub search: 0 open PRs reference #137)"
+    - "POL-07 no architecture expansion (recon scope only)"
+    - "POL-10 framing remains rejectable by Operator admission"
+overlap_refs: []
+evidence:
+  - "kimeisele/agent-city#137 (open; labels brain, help-wanted)"
+  - "GitHub search repo:kimeisele/agent-city is:pr 137 in:title,body -> 0 results (2026-08-10)"
+  - "canonical mission/ledger.yaml @ e061c1a7: signal not previously ingested"
+  - "agent-city main live a975b7da (expected baseline)"
+source: "Director cycle director-cycle-20260810-agent-city-live-pilot-01 (kimeisele/federation-hq#35)"
+created_at: "2026-08-10T13:38:00Z"
