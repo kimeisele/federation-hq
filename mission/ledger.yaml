@@ -50,4 +50,16 @@ items:
       - run-20260809-agent-city-contract-proposal-service-sync
     last_observed_evidence: "Retroactive (Issue #23): federation-hq#21 Stabilization 02; stale Layer-5 test contract reconciled (Model B registry-authoritative; production untouched); target PR kimeisele/agent-city#2716 merged e01d011b. Canonical evidence: runs/run-20260809-agent-city-contract-proposal-service-sync/."
     updated_at: "2026-08-10T03:00:31Z"
-updated_at: "2026-08-10T03:00:31Z"
+  - signal_id: sig-20260810-agent-city-moltbook-outbound-fallback-test
+    source_kind: test_node
+    repository: kimeisele/agent-city
+    source_native_ref: tests/test_treasury.py::TestMoltbookOutboundFallback::test_fallback_path_exists
+    disposition: active
+    candidate_id: cand-20260810-agent-city-moltbook-outbound-fallback-contract
+    mission_id: mission-20260810-agent-city-moltbook-outbound-fallback-contract
+    related_run_ids: []
+    last_observed_evidence: >
+      Human-authored MissionContract Pilot 01: focused Moltbook outbound fallback
+      test references MoltbookOutboundHook; exact disposition awaits Scout.
+    updated_at: "2026-08-10T05:34:17Z"
+updated_at: "2026-08-10T05:34:17Z"
