@@ -181,7 +181,7 @@ def test_policy_pin_wrong_version_invalid(tmp_path):
 
 def test_policy_pin_missing_reference_invalid(tmp_path):
     base = _load(_retro_files("mission-contract", "17")[0])
-    for ref, expect in [("docs/does-not-exist.md", "not found"),
+    for ref, expect in [("docs/does-not-exist.md", "does not resolve to the canonical"),
                         ("../../etc/passwd", "escapes")]:
         bad = dict(base)
         bad["policy_reference"] = ref

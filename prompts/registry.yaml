@@ -131,7 +131,7 @@ prompts:
       '
   - version: 0.3.0
     file: operator/v0.3.0.md
-    sha256: 96d3b57c543fbf3fabe8faa235e0e627b0cd3212afaae0bebb9476706bcb6dee
+    sha256: c06adf517332b57aa7e300bf7cac43bd2ac2e6131181add5b85f39356e9cac79
     status: released
     released: '2026-08-10'
     changelog: 'MAJOR release (Issue #25): MissionContract-native Operator. New authoritative

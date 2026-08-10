@@ -864,62 +864,69 @@ def _resolve_policy_version(text: str) -> str | None:
     return match.group(1) if match else None
 
 
-def check_mission_policy_pin(doc: dict, repo_root: Path, where: str, errors: list[str]) -> None:
-    """Prove a MissionContract's policy pin resolves to the canonical policy.
+def _policy_pin_problems(contract_doc: dict, policy_bytes: bytes, where: str) -> list[str]:
+    """Prove a MissionContract's policy pin against EXACT policy bytes.
 
-    Fail closed when: the policy reference is missing or escapes the
-    repository, does not resolve to the canonical HQ Mission Policy, the
-    version marker cannot be resolved, the supplied policy_sha256 differs
-    from the actual canonical policy bytes, or the supplied policy_version
-    differs from the marker. The policy is never duplicated into the
-    contract; docs/HQ_MISSION_POLICY.md stays the single policy source.
+    Used with the CURRENT canonical policy bytes for new formulations and
+    with the historical policy bytes resolved at the pinned contract HQ
+    commit for existing Run Manifests. Never duplicated into the contract;
+    docs/HQ_MISSION_POLICY.md stays the single policy source.
     """
-    if doc.get("kind") != "federation_hq_mission_contract":
-        return
-    reference = doc.get("policy_reference")
+    problems: list[str] = []
+    reference = contract_doc.get("policy_reference")
     if not isinstance(reference, str) or not reference:
-        errors.append(f"{where}: policy_reference is required")
-        return
+        problems.append(f"{where}: policy_reference is required")
+        return problems
     if is_escape_risk(reference):
-        errors.append(f"{where}: policy_reference {reference!r} escapes the repository")
-        return
-    policy_path = (repo_root / reference).resolve()
-    canonical = (repo_root / _CANONICAL_POLICY_PATH).resolve()
-    if not policy_path.exists():
-        errors.append(f"{where}: policy file not found: {reference}")
-        return
-    if policy_path != canonical:
-        errors.append(
+        problems.append(f"{where}: policy_reference {reference!r} escapes the repository")
+        return problems
+    if Path(reference).as_posix() != _CANONICAL_POLICY_PATH.as_posix():
+        problems.append(
             f"{where}: policy_reference {reference!r} does not resolve to the canonical "
             f"HQ Mission Policy ({_CANONICAL_POLICY_PATH.as_posix()})"
         )
-        return
-    try:
-        policy_bytes = policy_path.read_bytes()
-    except OSError as exc:
-        errors.append(f"{where}: cannot read policy file {reference}: {exc}")
-        return
+        return problems
     actual_hash = hashlib.sha256(policy_bytes).hexdigest()
-    supplied_hash = doc.get("policy_sha256")
+    supplied_hash = contract_doc.get("policy_sha256")
     if not isinstance(supplied_hash, str) or supplied_hash != actual_hash:
-        errors.append(
-            f"{where}: policy_sha256 {supplied_hash!r} does not match the canonical policy "
+        problems.append(
+            f"{where}: policy_sha256 {supplied_hash!r} does not match the policy "
             f"bytes ({actual_hash})"
         )
     try:
         policy_text = policy_bytes.decode("utf-8")
     except UnicodeDecodeError:
-        errors.append(f"{where}: policy file is not UTF-8 text")
-        return
+        problems.append(f"{where}: policy file is not UTF-8 text")
+        return problems
     actual_version = _resolve_policy_version(policy_text)
-    supplied_version = doc.get("policy_version")
+    supplied_version = contract_doc.get("policy_version")
     if actual_version is None:
-        errors.append(f"{where}: cannot resolve the policy version marker in {reference}")
+        problems.append(f"{where}: cannot resolve the policy version marker")
     elif not isinstance(supplied_version, str) or supplied_version != actual_version:
-        errors.append(
+        problems.append(
             f"{where}: policy_version {supplied_version!r} does not match the policy "
             f"version marker ({actual_version})"
         )
+    return problems
+
+
+def check_mission_policy_pin(doc: dict, repo_root: Path, where: str, errors: list[str]) -> None:
+    """Prove a MissionContract's policy pin against the CURRENT canonical
+    policy bytes (new-formulation context). Existing Run Manifests resolve
+    policy bytes from the pinned contract commit instead (see
+    check_mission_pin)."""
+    if doc.get("kind") != "federation_hq_mission_contract":
+        return
+    policy_path = (repo_root / _CANONICAL_POLICY_PATH).resolve()
+    if not policy_path.exists():
+        errors.append(f"{where}: canonical policy file not found")
+        return
+    try:
+        policy_bytes = policy_path.read_bytes()
+    except OSError as exc:
+        errors.append(f"{where}: cannot read canonical policy: {exc}")
+        return
+    errors.extend(_policy_pin_problems(doc, policy_bytes, where))
 
 
 def check_ledger_reopen(doc: dict, ledger: dict | None, where: str, errors: list[str]) -> None:
@@ -985,8 +992,11 @@ def _validate_mission_doc(doc: dict, schemas_dir: Path, repo_root: Path,
     validate_value(doc, schema, where, errors)
     check_paths(doc, repo_root, errors)
     check_mission_artifact(doc, where, errors)
-    if kind == "federation_hq_mission_contract":
-        check_mission_policy_pin(doc, repo_root, where, errors)
+    # NOTE: the policy pin is NOT validated here. Policy-byte proof happens
+    # in the admission context only: current canonical bytes for a new
+    # formulation, pinned-contract-commit bytes for an existing Run
+    # Manifest (check_mission_pin). Static package validity must not depend
+    # forever on today's policy bytes.
 
 
 def check_manifest_mission_mode(doc: dict, where: str, errors: list[str]) -> None:
@@ -1032,6 +1042,25 @@ def _pinned_bytes(repo_root: Path, commit: str, path: str) -> bytes | None:
     return result.stdout
 
 
+def _validate_pinned_ledger(ledger_doc: dict, schemas_dir: Path, where: str) -> list[str]:
+    """Validate pinned admission-ledger bytes: schema plus canonical kind and
+    schema_version. Malformed or non-Ledger bytes are never treated as an
+    empty ledger."""
+    problems: list[str] = []
+    try:
+        ledger_schema = json.loads(
+            (schemas_dir / "mission" / "mission-ledger.schema.json").read_text(encoding="utf-8")
+        )
+    except (json.JSONDecodeError, OSError) as exc:
+        problems.append(f"{where}: cannot read ledger schema: {exc}")
+        return problems
+    validate_value(ledger_doc, ledger_schema, where, problems)
+    if ledger_doc.get("kind") != "federation_hq_mission_ledger" or \
+            ledger_doc.get("schema_version") != "0.1.0":
+        problems.append(f"{where}: pinned bytes are not a v0.1 Mission Ledger")
+    return problems
+
+
 def check_mission_pin(doc: dict, repo_root: Path, schemas_dir: Path,
                       where: str, errors: list[str]) -> None:
     """Verify a manifest's mission_input pins and the manifest identity chain.
@@ -1061,25 +1090,27 @@ def check_mission_pin(doc: dict, repo_root: Path, schemas_dir: Path,
         if not isinstance(path, str) or is_escape_risk(path):
             errors.append(f"{where}.mission_input.{label}: path must be repository-relative")
             continue
-        artifact = (repo_root / path).resolve()
-        if not artifact.exists():
-            errors.append(f"{where}.mission_input.{label}: artifact not found at {path}")
-        elif isinstance(sha, str) and sha != hashlib.sha256(artifact.read_bytes()).hexdigest():
+        # The admission Ledger pin is canonical: only mission/ledger.yaml.
+        if label == "admission_ledger" and Path(path).as_posix() != "mission/ledger.yaml":
             errors.append(
-                f"{where}.mission_input.{label}: sha256 does not match the bytes at {path}"
+                f"{where}.mission_input.admission_ledger: canonical ledger path required, "
+                f"got {path!r} expected mission/ledger.yaml"
             )
-        if isinstance(commit, str):
-            pinned = _pinned_bytes(repo_root, commit, path)
-            if pinned is None or not isinstance(sha, str) or \
-                    hashlib.sha256(pinned).hexdigest() != sha:
-                errors.append(
-                    f"{where}.mission_input.{label}: hq_commit_sha {commit} does not contain "
-                    f"{path} with the pinned bytes"
-                )
-            else:
-                pins[label] = {"path": path, "sha256": sha, "commit": commit, "bytes": pinned}
-        else:
+        if not isinstance(commit, str):
             errors.append(f"{where}.mission_input.{label}: hq_commit_sha is required")
+            continue
+        # PINNED COMMIT BYTES are the historical authority. The current
+        # working tree is never substituted and never required to match: the
+        # current package is governed separately by validate_static_mission_package.
+        pinned = _pinned_bytes(repo_root, commit, path)
+        if pinned is None or not isinstance(sha, str) or \
+                hashlib.sha256(pinned).hexdigest() != sha:
+            errors.append(
+                f"{where}.mission_input.{label}: hq_commit_sha {commit} does not contain "
+                f"{path} with the pinned bytes"
+            )
+            continue
+        pins[label] = {"path": path, "sha256": sha, "commit": commit, "bytes": pinned}
 
     if not all(label in pins for label in ("candidate", "contract", "admission_ledger")):
         return  # pins already failed; skip the identity chain
@@ -1108,6 +1139,12 @@ def check_mission_pin(doc: dict, repo_root: Path, schemas_dir: Path,
     contr_doc = _parse("contract")
     ledger_doc = _parse("admission_ledger")
     if cand_doc is None or contr_doc is None or ledger_doc is None:
+        return
+    # The PINNED admission-ledger bytes must be a valid Mission Ledger —
+    # malformed or non-Ledger bytes are never treated as an empty ledger.
+    ledger_errors = _validate_pinned_ledger(ledger_doc, schemas_dir, f"{where}.mission_input.admission_ledger")
+    if ledger_errors:
+        errors.extend(ledger_errors)
         return
 
     # Manifest identity chain against the PINNED bytes.
@@ -1145,16 +1182,38 @@ def check_mission_pin(doc: dict, repo_root: Path, schemas_dir: Path,
             f"the pinned candidate signals"
         )
 
-    # Point-in-time admission against the PINNED admission-time ledger bytes.
+    # Historical Mission Policy: resolve the governing policy bytes from the
+    # SAME pinned contract commit (git object), never today's working tree.
+    policy_ref = contr_doc.get("policy_reference")
+    if not isinstance(policy_ref, str) or is_escape_risk(policy_ref):
+        errors.append(f"{where}.mission_input: contract policy_reference is invalid")
+        return
+    contract_commit = pins["contract"]["commit"]
+    policy_bytes = _pinned_bytes(repo_root, contract_commit, policy_ref)
+    if policy_bytes is None:
+        errors.append(
+            f"{where}.mission_input: policy {policy_ref!r} not found at contract commit "
+            f"{contract_commit}"
+        )
+        return
+    policy_problems = _policy_pin_problems(contr_doc, policy_bytes, f"{where}.mission_input")
+    if policy_problems:
+        errors.extend(policy_problems)
+        return
+
+    # Point-in-time admission against the PINNED admission-time ledger bytes
+    # and the historical policy bytes.
     decision, problems = evaluate_mission_admission(
-        cand_doc, contr_doc, ledger_doc, schemas_dir, repo_root)
+        cand_doc, contr_doc, ledger_doc, schemas_dir, repo_root,
+        policy_bytes=policy_bytes)
     if decision != "admitted":
         for problem in problems:
             errors.append(f"{where}.mission_input: {problem}")
 
 
 def evaluate_mission_admission(candidate_doc: dict, contract_doc: dict, ledger: dict | None,
-                               schemas_dir: Path, repo_root: Path) -> tuple[str, list[str]]:
+                               schemas_dir: Path, repo_root: Path,
+                               policy_bytes: bytes | None = None) -> tuple[str, list[str]]:
     """POINT-IN-TIME mission admission for a MissionContract-native run.
 
     Returns (decision, problems): decision is one of
@@ -1177,6 +1236,19 @@ def evaluate_mission_admission(candidate_doc: dict, contract_doc: dict, ledger: 
     problems: list[str] = []
     _validate_mission_doc(candidate_doc, schemas_dir, repo_root, "mission-candidate", problems)
     _validate_mission_doc(contract_doc, schemas_dir, repo_root, "mission-contract", problems)
+    if problems:
+        return "invalid_input", problems
+
+    # Policy pin: new formulations validate against the CURRENT canonical
+    # policy bytes; an existing Run Manifest passes the historical policy
+    # bytes resolved at the pinned contract commit (check_mission_pin).
+    if policy_bytes is None:
+        try:
+            policy_bytes = (repo_root / _CANONICAL_POLICY_PATH).read_bytes()
+        except OSError as exc:
+            problems.append(f"mission admission: cannot read canonical policy: {exc}")
+            return "invalid_input", problems
+    problems.extend(_policy_pin_problems(contract_doc, policy_bytes, "mission admission"))
     if problems:
         return "invalid_input", problems
 

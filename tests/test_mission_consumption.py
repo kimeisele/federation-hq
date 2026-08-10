@@ -175,14 +175,14 @@ def test_wrong_candidate_hash_blocked():
     doc["mission_input"]["candidate"]["sha256"] = "f" * 64
     errors = []
     validate_artifacts.check_mission_pin(doc, REPO_ROOT, REPO_ROOT / "contracts", "test", errors)
-    assert any("candidate" in e and "sha256" in e for e in errors)
+    assert any("candidate" in e and "pinned bytes" in e for e in errors)
 
 
 def test_wrong_contract_hash_blocked():
     doc = _mission_input_manifest(contract_sha="f" * 64)
     errors = []
     validate_artifacts.check_mission_pin(doc, REPO_ROOT, REPO_ROOT / "contracts", "test", errors)
-    assert any("contract" in e and "sha256" in e for e in errors)
+    assert any("contract" in e and "pinned bytes" in e for e in errors)
 
 
 def test_wrong_hq_commit_blocked():
@@ -355,7 +355,7 @@ def test_wrong_admission_ledger_sha_invalid():
     doc["mission_input"]["admission_ledger"]["sha256"] = "f" * 64
     errors = []
     validate_artifacts.check_mission_pin(doc, REPO_ROOT, REPO_ROOT / "contracts", "test", errors)
-    assert any("admission_ledger" in e and "sha256" in e for e in errors)
+    assert any("admission_ledger" in e and "pinned bytes" in e for e in errors)
 
 
 def test_wrong_admission_ledger_commit_invalid():
@@ -439,6 +439,103 @@ def test_static_package_valid_after_live_ledger_changes():
     validate_artifacts.check_mission_pin(
         _mission_input_manifest(), REPO_ROOT, REPO_ROOT / "contracts", "test", errors)
     assert not errors, errors
+
+
+# ── Final pinning review fix: canonicality, commit-bound policy, tree sep ──
+
+
+def test_admission_ledger_canonical_path_required():
+    for bad_path in ("mission/other.yaml", "examples/mission/mission-ledger.example.yaml",
+                     "missions/mission-fixture-bounded-recon/mission-contract.yaml"):
+        doc = _mission_input_manifest()
+        doc["mission_input"]["admission_ledger"]["path"] = bad_path
+        errors = []
+        validate_artifacts.check_mission_pin(doc, REPO_ROOT, REPO_ROOT / "contracts", "test", errors)
+        assert any("canonical ledger path required" in e for e in errors), (bad_path, errors)
+
+
+def test_admission_ledger_wrong_kind_invalid():
+    """Pinned ledger bytes with the wrong kind must fail — never treated as
+    an empty ledger."""
+    ledger = _load(LEDGER)
+    bad = dict(ledger)
+    bad["kind"] = "federation_hq_mission_candidate"
+    problems = validate_artifacts._validate_pinned_ledger(
+        bad, REPO_ROOT / "contracts", "ledger")
+    assert any("not a v0.1 Mission Ledger" in p for p in problems)
+
+
+def test_admission_ledger_structurally_malformed_invalid():
+    """Malformed pinned ledger bytes fail the ledger schema (missing
+    required fields are not tolerated as an empty ledger)."""
+    ledger = _load(LEDGER)
+    bad = dict(ledger)
+    del bad["items"]
+    problems = validate_artifacts._validate_pinned_ledger(
+        bad, REPO_ROOT / "contracts", "ledger")
+    assert any("missing required field" in p for p in problems)
+    assert any("items" in p for p in problems)
+
+
+def test_policy_pin_is_bytes_bound_not_path_bound():
+    """P0-P3 mechanics: the policy pin is proven against EXACT bytes.
+    Historical validation uses the pinned-commit policy bytes; a contract
+    claiming an old hash against different current bytes fails."""
+    contract = _load(FIXTURE_CONTRACT)
+    current_policy = (REPO_ROOT / "docs" / "HQ_MISSION_POLICY.md").read_bytes()
+    # v0.2 simulation: current bytes + a version bump marker -> different hash.
+    v02_bytes = current_policy.replace(b"**Policy version:** `0.1.0`",
+                                       b"**Policy version:** `0.2.0`")
+    assert v02_bytes != current_policy
+    assert not validate_artifacts._policy_pin_problems(contract, current_policy, "p")
+    problems = validate_artifacts._policy_pin_problems(contract, v02_bytes, "p")
+    assert any("policy_sha256" in p for p in problems)
+    assert any("policy_version" in p for p in problems)
+    # A NEW contract pinned against the v0.2 bytes must carry the v0.2 hash.
+    import hashlib
+    v02_contract = dict(contract)
+    v02_contract["policy_sha256"] = hashlib.sha256(v02_bytes).hexdigest()
+    v02_contract["policy_version"] = "0.2.0"
+    assert not validate_artifacts._policy_pin_problems(v02_contract, v02_bytes, "p")
+    # A new contract falsely claiming the old v0.1 hash against v0.2 bytes fails.
+    problems = validate_artifacts._policy_pin_problems(contract, v02_bytes, "p")
+    assert problems
+
+
+def test_historical_pin_uses_pinned_commit_policy():
+    """check_mission_pin resolves the policy bytes at the pinned contract
+    commit (git object) — today's working tree is never substituted."""
+    doc = _mission_input_manifest()
+    errors = []
+    validate_artifacts.check_mission_pin(doc, REPO_ROOT, REPO_ROOT / "contracts", "test", errors)
+    assert not errors, errors
+    contract_commit = doc["mission_input"]["contract"]["hq_commit_sha"]
+    pinned_policy = validate_artifacts._pinned_bytes(
+        REPO_ROOT, contract_commit, "docs/HQ_MISSION_POLICY.md")
+    assert pinned_policy is not None
+    contract = _load(FIXTURE_CONTRACT)
+    assert hashlib.sha256(pinned_policy).hexdigest() == contract["policy_sha256"]
+    # The historical contract would NOT validate against simulated v0.2 bytes.
+    v02 = pinned_policy.replace(b"`0.1.0`", b"`0.2.0`")
+    assert validate_artifacts._policy_pin_problems(contract, v02, "p")
+
+
+
+def test_historical_pin_independent_of_working_tree_bytes():
+    """The pinned commit bytes are the historical authority; a different
+    current working-tree copy does not invalidate the historical manifest."""
+    doc = _mission_input_manifest()
+    original = FIXTURE_CANDIDATE.read_bytes()
+    modified = original.replace(b"Fixture signal for admission validation",
+                                b"MODIFIED working-tree copy for the separation test")
+    assert modified != original
+    try:
+        FIXTURE_CANDIDATE.write_bytes(modified)
+        errors = []
+        validate_artifacts.check_mission_pin(doc, REPO_ROOT, REPO_ROOT / "contracts", "test", errors)
+        assert not errors, errors  # commit C still contains the pinned bytes
+    finally:
+        FIXTURE_CANDIDATE.write_bytes(original)
 
 
 # ── Rules 18-19: runtime unchanged, no Director ───────────────────────────
