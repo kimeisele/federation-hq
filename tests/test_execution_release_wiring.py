@@ -62,29 +62,49 @@ def _sha256(path: Path) -> str:
 # ── Run-manifest release proof (new run initialization) ───────────────────
 
 
-def test_new_run_manifest_pins_exact_current_release_set():
-    """A NEW run initialization pins operator 0.3.1 / scout 0.2.0 /
-    repair 0.2.1 / review 0.2.1 with exact registry hashes."""
-    manifest = {
+def _director_handoff() -> dict:
+    """Model the director@0.1.1 execution_prompt_pins: resolved from the
+    canonical registry and verified against exact prompt bytes — the real
+    runtime source of the Operator's required inputs."""
+    pins = {}
+    for pid, ver in [("operator", "0.3.1"), ("scout", "0.2.0"),
+                     ("repair", "0.2.1"), ("review", "0.2.1")]:
+        entry = _released(pid, ver)
+        assert entry["status"] == "released", pid
+        actual = _sha256(PROMPTS / entry["file"])
+        assert actual == entry["sha256"], pid
+        pins[pid] = {"id": pid, "version": ver, "sha256": actual}
+    return {"execution_prompt_pins": pins}
+
+
+def _manifest_from_handoff(handoff: dict) -> dict:
+    """The Run Manifest's prompt_pins COPY the supplied handoff pins exactly
+    (handoff.operator -> manifest.prompt_pins.operator, etc.). Any
+    substitution to another version would break W3/W4 identity."""
+    return {
         "kind": "federation_hq_run_manifest",
         "run_id": "run-test-release-wiring",
         "pipeline_state": "requested",
-        "prompt_pins": {
-            pid: {"id": pid, "version": ver,
-                  "sha256": _released(pid, ver)["sha256"]}
-            for pid, ver in CURRENT_SET.items() if pid != "director"
-        },
+        "prompt_pins": {pid: dict(pin)
+                        for pid, pin in handoff["execution_prompt_pins"].items()},
     }
+
+
+def test_new_run_manifest_copies_director_handoff_pins():
+    """A NEW run's manifest pins are the EXACT Director handoff pins
+    (operator 0.3.1 / scout 0.2.0 / repair 0.2.1 / review 0.2.1), copied —
+    not independently selected."""
+    handoff = _director_handoff()
+    manifest = _manifest_from_handoff(handoff)
     pins = manifest["prompt_pins"]
     assert pins["operator"]["version"] == "0.3.1"
     assert pins["scout"]["version"] == "0.2.0"
     assert pins["repair"]["version"] == "0.2.1"
     assert pins["review"]["version"] == "0.2.1"
-    for pid, ver in [("operator", "0.3.1"), ("scout", "0.2.0"),
-                     ("repair", "0.2.1"), ("review", "0.2.1")]:
-        entry = _released(pid, ver)
-        assert entry["status"] == "released"
-        assert pins[pid]["sha256"] == entry["sha256"] == _sha256(PROMPTS / entry["file"])
+    # no substitution to historical releases
+    assert pins["operator"]["version"] != "0.3.0"
+    assert pins["repair"]["version"] != "0.2.0"
+    assert pins["review"]["version"] != "0.2.0"
 
 
 def test_worker_wrappers_are_manifest_pin_driven():
@@ -173,6 +193,79 @@ def test_registered_governance_releases_exact():
     for pid, ver in [("operator", "0.3.1"), ("repair", "0.2.1"), ("review", "0.2.1")]:
         entry = _released(pid, ver)
         assert _sha256(PROMPTS / entry["file"]) == entry["sha256"], (pid, ver)
+
+
+# ── Pin handoff continuity (final review fix, Issue #41) ────────────────────
+
+
+def test_w1_director_handoff_requires_all_four_pins():
+    """director@0.1.1 must require handoff of the exact four execution pins
+    with exact SHA verification, and BLOCK on any pin failure."""
+    text = _flat(_prompt("director", "0.1.1"))
+    assert "execution_prompt_pins" in text
+    assert "operator: 0.3.1" in text
+    assert "scout: 0.2.0" in text
+    assert "repair: 0.2.1" in text
+    assert "review: 0.2.1" in text
+    assert "BLOCKED — execution release pins" in text
+    assert "status: released" in text
+    assert "registry SHA-256 must equal the exact bytes" in text
+    assert '"latest"' in text and "do NOT substitute another release" in text
+
+
+def test_w2_operator_wrapper_consumes_not_chooses():
+    text = _flat((OMP / "hq-operator.md").read_text())
+    low = text.lower()
+    assert "execution_prompt_pins" in text
+    assert "BLOCKED — execution release pins" in text
+    assert "must not choose versions yourself" in low
+    assert "resolve \"latest\"" in low
+    assert "copy the supplied pins" in low
+    assert "current latest" in low
+
+
+def test_w3_handoff_to_manifest_pin_identity():
+    """Manifest prompt_pins are BYTE/VALUE-IDENTICAL to the Director handoff
+    pins for all four roles; substitution (e.g. 0.2.0/0.3.0) breaks this."""
+    handoff = _director_handoff()
+    manifest = _manifest_from_handoff(handoff)
+    for pid in ("operator", "scout", "repair", "review"):
+        supplied = handoff["execution_prompt_pins"][pid]
+        recorded = manifest["prompt_pins"][pid]
+        assert recorded == supplied, pid
+        assert recorded["id"] == pid and recorded["version"] == supplied["version"]
+        assert recorded["sha256"] == supplied["sha256"]
+
+
+def test_w4_prompt_hash_chain_exact():
+    """registry SHA == actual prompt byte SHA == handoff SHA == manifest SHA
+    for every supplied pin."""
+    handoff = _director_handoff()
+    manifest = _manifest_from_handoff(handoff)
+    for pid in ("operator", "scout", "repair", "review"):
+        entry = _released(pid, manifest["prompt_pins"][pid]["version"])
+        chain = [
+            entry["sha256"],
+            _sha256(PROMPTS / entry["file"]),
+            handoff["execution_prompt_pins"][pid]["sha256"],
+            manifest["prompt_pins"][pid]["sha256"],
+        ]
+        assert len(set(chain)) == 1, (pid, chain)
+
+
+def test_w5_historical_run_untouched():
+    """Pilot #37's manifest remains pinned to its historical releases."""
+    manifest = yaml.safe_load((REPO_ROOT / "runs"
+        / "run-20260810-agent-city-brainvoice-fact-checking-recon"
+        / "run-manifest.yaml").read_text(encoding="utf-8"))
+    pins = manifest["prompt_pins"]
+    assert pins["operator"]["version"] == "0.3.0"
+    assert pins["scout"]["version"] == "0.2.0"
+    assert pins["repair"]["version"] == "0.2.0"
+    assert pins["review"]["version"] == "0.2.0"
+    for pid in ("operator", "scout", "repair", "review"):
+        entry = _released(pid, pins[pid]["version"])
+        assert pins[pid]["sha256"] == entry["sha256"] == _sha256(PROMPTS / entry["file"]), pid
 
 
 # ── Historical bytes unchanged ────────────────────────────────────────────

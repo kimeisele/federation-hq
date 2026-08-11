@@ -252,11 +252,16 @@ prompts:
       cycles are never terminalized; no-mission cycles spawn no workers.'
   - version: 0.1.1
     file: director/v0.1.1.md
-    sha256: d1a0ab9b54588925ecc3a72621f67f0d0139f5f6acd5ab960ab8afefbdf42270
+    sha256: 98cfe55821a567bb57e1a7463a629b87b28b0e1f12cc6a8667f8fc383754da52
     status: released
     released: '2026-08-11'
     changelog: 'PATCH release wiring update: Director selection/persistence semantics
       unchanged. Downstream canonical Operator release updated from operator@0.3.0
       to operator@0.3.1 so new Director-selected runs activate Execution Resource
       Governance v0.1 (focused-first repair, differential Review, heavy retry circuit
-      breaker, mechanical heavy-command guard).'
+      breaker, mechanical heavy-command guard). Final review fix: the Director handoff
+      now carries the exact execution prompt pins (operator@0.3.1, scout@0.2.0, repair@0.2.1,
+      review@0.2.1 with id/version/sha256) resolved from prompts/registry.yaml and
+      verified against exact prompt bytes before Operator spawn; unresolvable/unreleased/hash-invalid
+      pins -> BLOCKED — execution release pins (no Operator spawn, no latest fallback,
+      no substitution).'
