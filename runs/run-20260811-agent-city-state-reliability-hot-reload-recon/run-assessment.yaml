@@ -1,0 +1,60 @@
+# RunAssessment — run-20260811-agent-city-state-reliability-hot-reload-recon
+#
+# Terminal assessment of the Director-cycle recon mission
+# (director-cycle-20260811-resource-governance-benchmark-01, federation-hq#43;
+# Resource Governance Live Benchmark 01).
+# Facts only; derived from the canonical run record in this directory.
+# The Mission Foundation defines the schema
+# (contracts/mission/run-assessment.schema.json); this artifact is recorded
+# in the run's canonical record directory.
+kind: federation_hq_run_assessment
+assessment_id: assess-20260811-agent-city-state-reliability-hot-reload-recon
+mission_id: mission-20260811-agent-city-state-reliability-hot-reload-recon
+run_id: run-20260811-agent-city-state-reliability-hot-reload-recon
+target_repository: kimeisele/agent-city
+baseline_sha: "df486b90dfe95376a5b5e4ed4c6924a8e7efeb57"
+terminal_outcome: approved
+diagnosis: >
+  Recon confirmed agent-city#14 is PARTIALLY valid at the pinned baseline
+  df486b90: Area 1 (atomic state writes with backup recovery) REPRODUCES as
+  a latent data-loss defect — CityCouncil._auto_save (city/council.py:162-167)
+  and MayorLifecycleBridge.persist_mayor (city/mayor/lifecycle.py:52-64)
+  persist via non-atomic write_text with no backup/temp; corrupt input is
+  silently discarded to empty state (council.py:152-160, lifecycle.py:31-44),
+  so no recovery is possible (reproduced deterministically: truncated
+  council_state.json -> empty council with elected_mayor=None, member_count=0,
+  zero backup files; persist_mayor runs every heartbeat
+  city/mayor/kernel.py:143,210-211; council_state.json CI-cached across runs
+  .github/workflows/agent-city-heartbeat.yml:75,209). tests/test_layer7.py
+  contains exactly #14's 6 "Current Coverage" tests (all pass; the 3 RED
+  tests never existed) and tests/hardening/test_state_corruption.py codifies
+  survival-by-empty-state (data loss), conflicting with #14's recover-from-
+  backup criterion. Area 2 (config hot-reload) is PARTIAL — get_config()
+  (config/__init__.py:28-44) auto-reloads on mtime (verified 0.5->0.42) but
+  no reload_config() exists and import-time constants stay frozen (verified)
+  — NOT selected. Area 3 (state versioning/migration) is ABSENT — no version
+  keys; _perform_state_migration (factory.py:392-470) is a bespoke one-time
+  drain-and-drop, not a versioned framework — NOT selected (broader than a
+  bounded repair). Repair (candidate c1, Area 1 only): atomic
+  temp+fsync+os.replace writes with bounded .bak rotation (STATE_BACKUPS=5)
+  and load-time recovery from the most recent valid backup for council and
+  mayor state (existing federation_nadi/federation_relay pattern); 3 Issue
+  #14 RED tests added, 2 hardening tests reconciled to data preservation;
+  target PR kimeisele/agent-city#2719 merged f210303f. Areas 2/3 untouched.
+defect_disposition: production_defect
+repair_class: production
+review_verdict: approved
+gate_verified: true
+gate_check_run_id: "93861350091"
+target_merged: true
+target_merge_sha: "f210303f107a7f80720b76327d572611de7282fe"
+run_record_merged: true
+human_role_handoffs: 0
+rework_count: 1
+ledger_disposition: completed
+evidence_locations:
+  - "runs/run-20260811-agent-city-state-reliability-hot-reload-recon/run-manifest.yaml"
+  - "runs/run-20260811-agent-city-state-reliability-hot-reload-recon/repair-candidate.yaml"
+  - "runs/run-20260811-agent-city-state-reliability-hot-reload-recon/repair-result.yaml"
+  - "runs/run-20260811-agent-city-state-reliability-hot-reload-recon/review-result.yaml"
+created_at: "2026-08-11T17:15:00Z"

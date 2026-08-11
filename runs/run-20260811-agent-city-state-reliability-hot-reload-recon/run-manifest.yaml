@@ -6,7 +6,7 @@ coordination:
   protocol_version: 0.1.0
   issue_number: 45
   issue_url: https://github.com/kimeisele/federation-hq/issues/45
-pipeline_state: requested
+pipeline_state: approved
 prompt_pins:
   operator:
     id: operator
@@ -62,3 +62,17 @@ notes: >
   run-20260811-agent-city-state-reliability-hot-reload-recon; heavy retry
   circuit breaker (0 identical retries after timeout/SIGTERM/resource
   exhaustion); at most 1 concurrent heavy verification command per run.
+  Pipeline (all adapter-dispatched via path B, depth-2 workaround recorded):
+  Scout (Benchmark01Scout) submitted candidate c1 -> accepted (b6fee498);
+  Repair (Benchmark01Repair) repaired c1, local-only first -> rework_request
+  msg-bench01-0005 (remote head required, REPAIR_PIPELINE invariant 3) ->
+  branch pushed + PR kimeisele/agent-city#2719 -> repair_result accepted
+  (4b8aaf12); Review (Benchmark01Review) independently checked exact remote
+  head a6602da1, verdict approved (environmental-qualified) -> accepted
+  (81ebaeb); federation-hq/review Gate published (check 93861350091,
+  App 4528340, success); Integrator (Benchmark01Integrator) merged target PR
+  #2719 normally at exact approved head -> agent-city main f210303f.
+  Resource governance: 0 HEAVY commands, 0 BUSY refusals, 0 PRESSURED
+  refusals, 0 identical heavy retries; pressure preflight PRESSURED
+  (load_1m 85.38/68.36, normalized ~21.34/17.09 vs 1.5) -> no broad suite
+  attempted by any worker; focused-first verification throughout.
