@@ -250,3 +250,13 @@ prompts:
       Ledger-only decision PR (BLOCKED — Director decision persistence if unmergeable);
       already-terminal signals are reported without redundant mutation; ambiguous
       cycles are never terminalized; no-mission cycles spawn no workers.'
+  - version: 0.1.1
+    file: director/v0.1.1.md
+    sha256: d1a0ab9b54588925ecc3a72621f67f0d0139f5f6acd5ab960ab8afefbdf42270
+    status: released
+    released: '2026-08-11'
+    changelog: 'PATCH release wiring update: Director selection/persistence semantics
+      unchanged. Downstream canonical Operator release updated from operator@0.3.0
+      to operator@0.3.1 so new Director-selected runs activate Execution Resource
+      Governance v0.1 (focused-first repair, differential Review, heavy retry circuit
+      breaker, mechanical heavy-command guard).'
