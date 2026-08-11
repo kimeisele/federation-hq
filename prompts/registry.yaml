@@ -250,3 +250,23 @@ prompts:
       Ledger-only decision PR (BLOCKED — Director decision persistence if unmergeable);
       already-terminal signals are reported without redundant mutation; ambiguous
       cycles are never terminalized; no-mission cycles spawn no workers.'
+  - version: 0.1.1
+    file: director/v0.1.1.md
+    sha256: f25514337e853b1755efd745e8395e16ca46582f27297d2489fd4256277104a9
+    status: released
+    released: '2026-08-11'
+    changelog: 'PATCH release wiring update: Director selection/persistence semantics
+      unchanged. Downstream canonical Operator release updated from operator@0.3.0
+      to operator@0.3.1 so new Director-selected runs activate Execution Resource
+      Governance v0.1 (focused-first repair, differential Review, heavy retry circuit
+      breaker, mechanical heavy-command guard). Final review fix: the Director handoff
+      now carries the exact execution prompt pins (operator@0.3.1, scout@0.2.0, repair@0.2.1,
+      review@0.2.1 with id/version/sha256) resolved from prompts/registry.yaml and
+      verified against exact prompt bytes before Operator spawn; unresolvable/unreleased/hash-invalid
+      pins -> BLOCKED — execution release pins (no Operator spawn, no latest fallback,
+      no substitution). Final consistency fix: the Runtime Sequence explicitly resolves
+      and verifies the execution release pins BEFORE the Operator spawn (step 8),
+      fails BLOCKED — execution release pins as a pre-spawn path (step 9), and the
+      spawn payload carries the verified execution_prompt_pins alongside the canonical
+      mission/admission references (step 10) — no pin-less Operator spawn instruction
+      remains.'

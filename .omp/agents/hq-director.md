@@ -28,7 +28,7 @@ Builder, not the Reviewer.
 ## Role definition
 
 Load and follow the EXACT canonical prompt pinned for director in
-`prompts/registry.yaml` (`director@0.1.0` → `prompts/director/v0.1.0.md`).
+`prompts/registry.yaml` (`director@0.1.1` → `prompts/director/v0.1.1.md`).
 That file is the single source of your role semantics — this wrapper adds
 nothing to them.
 

@@ -110,13 +110,13 @@ def test_worker_wrappers_remain_spawn_denied():
 
 def test_director_wrapper_loads_canonical_prompt():
     text = (REPO_ROOT / ".omp" / "agents" / "hq-director.md").read_text()
-    assert "director@0.1.0" in text and "prompts/director/v0.1.0.md" in text
+    assert "director@0.1.1" in text and "prompts/director/v0.1.1.md" in text
     assert len(text) < 4000  # thin wrapper, no duplicated semantics
 
 
 def test_operator_wrapper_loads_canonical_prompt():
     text = (REPO_ROOT / ".omp" / "agents" / "hq-operator.md").read_text()
-    assert "operator@0.3.0" in text and "prompts/operator/v0.3.0.md" in text
+    assert "operator@0.3.1" in text and "prompts/operator/v0.3.1.md" in text
     assert len(text) < 4000
 
 
