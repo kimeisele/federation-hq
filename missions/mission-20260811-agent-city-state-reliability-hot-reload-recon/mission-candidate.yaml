@@ -1,0 +1,54 @@
+# Director cycle director-cycle-20260811-resource-governance-benchmark-01
+# (kimeisele/federation-hq#43).
+# SELECTED: bounded Recon Mission. Current validity of the agent-city#14
+# Layer-7 State Reliability / Hot-Reload report requires source/history/testing
+# investigation, which the Director must not perform itself (POL-11); the
+# investigation is the mission. Issue #14 prose is evidence of a reported work
+# item, NOT proof that all three gaps still exist at the current baseline and
+# NOT a repair prescription.
+kind: federation_hq_mission_candidate
+candidate_id: cand-20260811-agent-city-state-reliability-hot-reload-recon
+signal_refs:
+  - signal_id: sig-20260811-agent-city-issue-14-state-reliability-hot-reload
+    source_kind: github_issue
+    repository: kimeisele/agent-city
+    source_native_ref: kimeisele/agent-city#14
+    last_observed_evidence: >
+      Agent City Issue #14 is currently open (created 2026-03-01, labels
+      layer-7, tdd, infrastructure). It reports three missing Layer-7 State
+      Reliability / Hot-Reload areas: atomic state writes with backup
+      recovery, config hot-reload during heartbeat, and state
+      versioning/migration, with acceptance criteria including atomic writes
+      with backup rotation, config hot-reload, and 9+ Layer-7 tests. The
+      Issue predates current Agent City main and its implementation
+      assumptions may be stale relative to the current baseline.
+target_repository: kimeisele/agent-city
+problem_statement: >
+  The current validity of the agent-city#14 report is unproven: whether any
+  of the three reported Layer-7 State Reliability / Hot-Reload gaps (atomic
+  state writes with backup recovery; config hot-reload during heartbeat;
+  state versioning/migration) remain reproducible at the pinned baseline,
+  and what single bounded remediation (if any) is warranted. Determining
+  this requires source/history/testing investigation — a bounded Recon
+  Mission, not a Director-side diagnosis and not a repair prescription.
+disposition: selected
+mission_id: mission-20260811-agent-city-state-reliability-hot-reload-recon
+policy_eligibility:
+  policy_reference: docs/HQ_MISSION_POLICY.md
+  eligible: true
+  reasons:
+    - "POL-01 bounded evidence-backed github_issue signal (#14 open, concrete reported areas and acceptance criteria)"
+    - "POL-02 bounded objective: determine which (if any) reported gaps remain at the pinned baseline, not 'improve Layer 7'"
+    - "POL-03 one bounded work item (the recon investigation)"
+    - "POL-04 no prior terminal disposition for this signal in the canonical Ledger"
+    - "POL-06 no in-flight PR overlap found (GitHub search: no open PR owns the reported gaps)"
+    - "POL-07 no architecture expansion (recon scope only)"
+    - "POL-10 framing remains rejectable by Operator admission"
+overlap_refs: []
+evidence:
+  - "kimeisele/agent-city#14 (open; created 2026-03-01; labels layer-7, tdd, infrastructure)"
+  - "GitHub search repo:kimeisele/agent-city is:pr 14 -> only unrelated PRs (#2571 draft federation-PR containment; #2247 merged maintenance); no in-flight work owns the reported gaps (2026-08-11)"
+  - "canonical mission/ledger.yaml @ bcfcae2b: signal not previously ingested (no prior disposition)"
+  - "agent-city main live df486b90 (expected baseline; PR #2718 merge)"
+source: "Director cycle director-cycle-20260811-resource-governance-benchmark-01 (kimeisele/federation-hq#43)"
+created_at: "2026-08-11T15:57:00Z"

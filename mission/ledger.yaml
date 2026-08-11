@@ -101,4 +101,21 @@ items:
       federation research review request is not bounded Agent City
       repair/recon work for the HQ pipeline.
     updated_at: "2026-08-10T13:38:00Z"
-updated_at: "2026-08-10T18:25:00Z"
+  - signal_id: sig-20260811-agent-city-issue-14-state-reliability-hot-reload
+    source_kind: github_issue
+    repository: kimeisele/agent-city
+    source_native_ref: kimeisele/agent-city#14
+    disposition: active
+    candidate_id: cand-20260811-agent-city-state-reliability-hot-reload-recon
+    mission_id: mission-20260811-agent-city-state-reliability-hot-reload-recon
+    related_run_ids: []
+    last_observed_evidence: >
+      Director cycle #43 (2026-08-11): Issue #14 open (created 2026-03-01;
+      labels layer-7, tdd, infrastructure), reports three Layer-7 State
+      Reliability / Hot-Reload areas (atomic state writes with backup
+      recovery, config hot-reload during heartbeat, state versioning/
+      migration); selected as a bounded Recon Mission — current validity
+      requires source/history/testing, the Director does not diagnose or
+      prescribe repair (POL-11). No prior disposition for this signal.
+    updated_at: "2026-08-11T15:57:00Z"
+updated_at: "2026-08-11T15:57:00Z"
