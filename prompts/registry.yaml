@@ -51,6 +51,23 @@ prompts:
       accepted RepairCandidate determines the concrete repair; the pinned MissionContract''s
       bounded_scope/hard_constraints remain binding declared scope; no reinterpretation
       of mission selection. Prior artifacts unaffected.'
+  - version: 0.2.1
+    file: repair/v0.2.1.md
+    sha256: 1cbcfa28a9a95a8b6db34d36951caf0bb4920abea7a04500b4160402c5963cf2
+    status: released
+    released: '2026-08-10'
+    changelog: 'PATCH additive release (Issue #39): Execution Resource Governance
+      v0.1. Focused-first verification (reproduce candidate on baseline with focused
+      evidence, verify with focused/relevant regression tests, repo-native lint/type/static
+      checks); broad/full suite permitted only when repo governance requires, broad
+      cross-cutting effects, or bounded checks cannot establish safety — max 1 broad/full-suite
+      execution per repair attempt; heavy retry circuit breaker (0 identical retries
+      after timeout/SIGTERM/resource exhaustion; choose bounded verification, alternative
+      evidence, or blocked environment_resource_exhaustion; retry only on concrete
+      environment recovery, recorded); host-pressure preflight before heavy commands
+      (scripts/check_execution_pressure.py, PRESSURED blocks start, UNKNOWN does not);
+      environmental timeout classification recorded instead of repeated reruns. repair@0.2.0
+      bytes immutable; prior artifacts unaffected.'
 - id: review
   name: Independent Repair Reviewer
   description: Independently verifies the exact remote head and records a verdict.
@@ -75,6 +92,25 @@ prompts:
       independently verifies both repair correctness and compliance with the pinned
       MissionContract boundaries; no approval of repairs exceeding the contract; independence
       from Repair unchanged. Prior artifacts unaffected.'
+  - version: 0.2.1
+    file: review/v0.2.1.md
+    sha256: 4f9f786992f9b1b7729b6933acd46d442d9c0986a4122ae0fedb5db0d82ba8c0
+    status: released
+    released: '2026-08-10'
+    changelog: 'PATCH additive release (Issue #39): Execution Resource Governance
+      v0.1. Reviewer NOT required to rerun every repair_result command — independently
+      verifies every material semantic claim via the cheapest sufficient evidence
+      path; differential regression strategy (focused tests at head -> neighboring/component
+      tests -> at most one broad head run -> baseline replay of ONLY exact head failing
+      test IDs + concrete suspects); Reviewer broad/full-suite budget default 1, absolute
+      max 2 per review attempt (second requires stating the concrete unresolved question
+      first), never a third; heavy retry circuit breaker (0 identical retries after
+      timeout/SIGTERM/resource exhaustion); host-pressure preflight before heavy commands;
+      environmental classification (deterministic regression vs environment-induced
+      timeout only with evidence; residual uncertainty -> blocked environment_resource_exhaustion;
+      no indefinite retry); exact-SHA CI usable as independent broad-suite evidence.
+      Semantic Review independence unchanged. review@0.2.0 bytes immutable; prior
+      artifacts unaffected.'
 - id: operator
   name: HQ Operator
   description: Coordinates the three-role repair workflow via GitHub-native structured
@@ -147,6 +183,22 @@ prompts:
       no Director. PR-local review fix: admission evaluated against the exact point-in-time
       admission-time ledger snapshot (mission_input.admission_ledger pin); live-ledger
       mutations never change historical admission validity.'
+  - version: 0.3.1
+    file: operator/v0.3.1.md
+    sha256: bfc38344aba5e9bb0eda61d059aa4bd03bfee046175b2963af3158b39265aefd
+    status: released
+    released: '2026-08-10'
+    changelog: 'PATCH coordination release (Issue #39): Execution Resource Governance
+      v0.1. Assignments reference the governance (focused-first verification, heavy-command
+      budgets, heavy retry circuit breaker, host-pressure preflight); at most ONE
+      concurrent heavy verification command per run; a worker timeout is NOT license
+      for endless re-dispatch/retry of the same heavy verification; persistent worker
+      resource exhaustion (environment_resource_exhaustion) after bounded verification
+      terminalizes the run blocked with the concrete environmental cause via the existing
+      blocker terminalization path. No state-machine, protocol, artifact, or Gate
+      semantics changed; Operator still performs no tests itself and no semantic review
+      authority moves to Operator. operator@0.3.0 bytes immutable; prior artifacts
+      unaffected.'
 - id: director
   name: HQ Mission Director
   description: HQ Mission Director — selects at most one bounded mission from explicit
