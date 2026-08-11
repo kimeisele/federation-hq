@@ -268,6 +268,27 @@ def test_w5_historical_run_untouched():
         assert pins[pid]["sha256"] == entry["sha256"] == _sha256(PROMPTS / entry["file"]), pid
 
 
+def test_w6_runtime_sequence_consistent_with_pin_handoff():
+    """The canonical Director Runtime Sequence must itself include
+    execution_prompt_pins before/at the hq-operator spawn instruction, and
+    BLOCKED — execution release pins must be a pre-spawn failure path. No
+    pin-less Operator spawn instruction may remain."""
+    text = _prompt("director", "0.1.1")
+    seq = text.split("## Runtime sequence (time ordering)", 1)[1].split("## Handoff", 1)[0]
+    flat = _flat(seq)
+    low = flat.lower()
+    # pins resolved+verified BEFORE spawn
+    assert flat.index("resolve and verify the exact execution release pins") < flat.index("spawn the isolated `hq-operator`")
+    # spawn payload carries the pins
+    assert "execution_prompt_pins" in flat
+    assert "only canonical mission/admission references and exact verified execution metadata" in low
+    # pre-spawn blocked path
+    assert "blocked — execution release pins" in low
+    assert flat.index("blocked — execution release pins".title() if False else "`BLOCKED — execution release pins`") < flat.index("spawn the isolated `hq-operator`")
+    # no pin-less spawn instruction remains in the sequence
+    assert "with ONLY canonical references: the" not in flat
+
+
 # ── Historical bytes unchanged ────────────────────────────────────────────
 
 
