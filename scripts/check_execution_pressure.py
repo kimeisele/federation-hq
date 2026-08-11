@@ -14,14 +14,19 @@ Exit codes / output:
 Observed fields are printed as `key=value` lines so callers can log them:
 
     cpu_count=4
-    load_1m=12.4
-    normalized_load=3.1
-    threshold=4.0
+    load_1m=6.0
+    normalized_load=1.5
+    threshold=1.5
 
 Threshold: repository-configured via env FHQ_HEAVY_LOAD_THRESHOLD (a float
->= 0.5), else the default 4.0. It is a *normalized* load (load_1m /
-cpu_count) above which a heavy job SHOULD NOT start. UNKNOWN never blocks
-focused work. No persistent state is created.
+>= 0.5), else the default 1.5 (normalized load = load_1m / cpu_count). The
+default is a conservative v0.1 HEURISTIC for deciding whether to launch
+another CPU-heavy repository-wide verification: a normalized load around 1.0
+already means roughly one runnable/uninterruptible task per CPU on average,
+so a NEW heavy job should preserve headroom. It is NOT a universal CPU-
+utilization truth — load average is a pressure signal, not CPU utilization;
+the repository/environment may override. UNKNOWN never blocks focused work.
+No persistent state is created.
 """
 
 from __future__ import annotations
@@ -29,12 +34,13 @@ from __future__ import annotations
 import os
 import sys
 
+DEFAULT_THRESHOLD = 1.5
+MIN_ACCEPTED_THRESHOLD = 0.5
+
 
 def _cpu_count() -> int:
     try:
-        import os as _os
-
-        return _os.cpu_count() or 1
+        return os.cpu_count() or 1
     except Exception:
         return 1
 
@@ -70,11 +76,21 @@ def _threshold() -> float:
     if raw:
         try:
             value = float(raw)
-            if value >= 0.5:
+            if value >= MIN_ACCEPTED_THRESHOLD:
                 return value
         except ValueError:
             pass
-    return 4.0
+    return DEFAULT_THRESHOLD
+
+
+def decide(load_1m: float | None, cpu_count: int, threshold: float) -> int:
+    """0 = OK, 1 = UNKNOWN (load unavailable), 2 = PRESSURED."""
+    if load_1m is None:
+        return 1
+    normalized = load_1m / cpu_count
+    if normalized >= threshold:
+        return 2
+    return 0
 
 
 def main() -> int:
@@ -92,7 +108,8 @@ def main() -> int:
     print(f"load_1m={load:.2f}")
     print(f"normalized_load={normalized:.2f}")
     print(f"threshold={threshold}")
-    if normalized >= threshold:
+    status = decide(load, cpu, threshold)
+    if status == 2:
         print("PRESSURED")
         return 2
     print("OK")

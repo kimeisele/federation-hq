@@ -71,13 +71,26 @@ def test_pressure_helper_output_shape():
 
 def test_pressure_helper_threshold_parsing(monkeypatch):
     monkeypatch.delenv("FHQ_HEAVY_LOAD_THRESHOLD", raising=False)
-    assert pressure._threshold() == 4.0
+    assert pressure._threshold() == pressure.DEFAULT_THRESHOLD == 1.5
     monkeypatch.setenv("FHQ_HEAVY_LOAD_THRESHOLD", "0.7")
     assert pressure._threshold() == 0.7
     monkeypatch.setenv("FHQ_HEAVY_LOAD_THRESHOLD", "0.001")  # below min -> default
-    assert pressure._threshold() == 4.0
+    assert pressure._threshold() == 1.5
     monkeypatch.setenv("FHQ_HEAVY_LOAD_THRESHOLD", "banana")
-    assert pressure._threshold() == 4.0
+    assert pressure._threshold() == 1.5
+
+
+def test_pressure_default_threshold_scenarios():
+    """Review-fix acceptance: default 1.5 normalized, conservative heuristic."""
+    assert pressure.DEFAULT_THRESHOLD == 1.5
+    # cpu=4, load_1m=4.0 -> normalized 1.0 -> OK (headroom preserved)
+    assert pressure.decide(4.0, 4, 1.5) == 0
+    # cpu=4, load_1m=6.0 -> normalized 1.5 -> PRESSURED (>= threshold)
+    assert pressure.decide(6.0, 4, 1.5) == 2
+    # cpu=4, load_1m=16.0 -> normalized 4.0 -> PRESSURED
+    assert pressure.decide(16.0, 4, 1.5) == 2
+    # UNKNOWN unchanged: load unavailable never blocks focused work
+    assert pressure.decide(None, 4, 1.5) == 1
 
 
 def test_pressure_helper_main_states(monkeypatch):
@@ -190,6 +203,9 @@ def test_pressure_preflight_referenced_before_heavy_commands():
         low = _flat_low(_prompt(pid, ver))
         assert "check_execution_pressure.py" in low, pid
         assert "pressured" in low and "unknown does not block focused work" in low, pid
+        # heavy commands route through the mechanical guard
+        assert "run_heavy_command.py" in low, pid
+        assert "--run-id" in low, pid
 
 
 # ── Concurrent heavy work bound (Operator) ────────────────────────────────
@@ -262,11 +278,24 @@ def test_released_original_bytes_immutable():
 
 
 def test_successors_are_minimal_additive():
-    """Successors preserve the originals' content (one documented exception:
-    the review 0.2.1 baseline allowed-action line, reworded to the
-    differential strategy)."""
+    """Successors preserve the originals' content. Documented rewrites only:
+    the header identity lines (self-identify as the successor release) and the
+    review 0.2.1 baseline allowed-action line (reworded to the differential
+    strategy)."""
     exceptions = {
-        ("review", "0.2.1"): {"- Re-running baseline commands at the baseline SHA to compare."},
+        ("repair", "0.2.1"): {
+            "# Targeted Repair Builder — v0.2.0",
+            "**Prompt id:** `repair` · **Version:** `0.2.0` · **Release:** 2026-08-10",
+        },
+        ("review", "0.2.1"): {
+            "# Independent Repair Reviewer — v0.2.0",
+            "**Prompt id:** `review` · **Version:** `0.2.0` · **Release:** 2026-08-10",
+            "- Re-running baseline commands at the baseline SHA to compare.",
+        },
+        ("operator", "0.3.1"): {
+            "# HQ Operator — v0.3.0",
+            "**Prompt id:** `operator` · **Version:** `0.3.0` · **Release:** 2026-08-10",
+        },
     }
     for pid, old, new in [("repair", "0.2.0", "0.2.1"),
                           ("review", "0.2.0", "0.2.1"),
@@ -278,3 +307,166 @@ def test_successors_are_minimal_additive():
         missing = [ln for ln in orig.splitlines()
                    if ln.strip() and ln.strip() not in skip and ln.strip() not in succ_flat]
         assert not missing, (pid, missing[:5])
+
+
+# ── Prompt self-identity (review fix #1) ──────────────────────────────────
+
+
+def test_successor_prompts_self_identify_as_their_version():
+    """The successor files must self-identify as their OWN release, matching
+    the registry — not their old parent release."""
+    expected = {
+        ("repair", "0.2.1", "# Targeted Repair Builder — v0.2.1",
+         "**Prompt id:** `repair` · **Version:** `0.2.1` · **Release:** 2026-08-11"),
+        ("review", "0.2.1", "# Independent Repair Reviewer — v0.2.1",
+         "**Prompt id:** `review` · **Version:** `0.2.1` · **Release:** 2026-08-11"),
+        ("operator", "0.3.1", "# HQ Operator — v0.3.1",
+         "**Prompt id:** `operator` · **Version:** `0.3.1` · **Release:** 2026-08-11"),
+    }
+    for pid, ver, title, idline in expected:
+        text = _prompt(pid, ver)
+        assert title in text, (pid, ver)
+        assert idline in text, (pid, ver)
+        entry = _released(pid, ver)
+        assert entry["file"] == f"{pid}/v{ver}.md"
+        # file-internal version matches the registry version, not path/hash
+        assert f"**Version:** `{ver}`" in text, (pid, ver)
+
+
+def test_successor_prompts_do_not_self_identify_as_old_release():
+    for pid, ver in [("repair", "0.2.1"), ("review", "0.2.1")]:
+        text = _prompt(pid, ver)
+        assert "Version: `0.2.0`" not in text, pid
+    assert "Version: `0.3.0`" not in _prompt("operator", "0.3.1")
+
+
+# ── Mechanical guard: real process/lease behavior (review fix #3) ─────────
+
+import os as _os  # noqa: E402
+import subprocess as _sp  # noqa: E402
+
+WRAPPER = SCRIPTS / "run_heavy_command.py"
+
+
+def _guard_env() -> dict:
+    env = dict(_os.environ)
+    env["FHQ_HEAVY_LOAD_THRESHOLD"] = "9999"  # force OK for pure lease tests
+    return env
+
+
+def test_guard_requires_nonempty_run_id():
+    r = _sp.run([sys.executable, str(WRAPPER), "--run-id", "", "--", "true"],
+                capture_output=True, text=True)
+    assert r.returncode == 1
+    r2 = _sp.run([sys.executable, str(WRAPPER), "--run-id", "../evil", "--", "true"],
+                 capture_output=True, text=True)
+    assert r2.returncode == 1
+
+
+def test_guard_same_run_concurrent_heavy_rejected():
+    """A alive for run-test-1; B with the SAME run id must refuse fast (BUSY);
+    after A exits, C with the same run id executes (lease released)."""
+    a = _sp.Popen([sys.executable, str(WRAPPER), "--run-id", "run-test-1",
+                   "--", "sleep", "2"], env=_guard_env())
+    try:
+        import time
+        time.sleep(0.5)
+        b = _sp.run([sys.executable, str(WRAPPER), "--run-id", "run-test-1",
+                     "--", "sleep", "0.1"], capture_output=True, text=True, env=_guard_env())
+        assert b.returncode == 3, b.stderr
+        assert "BUSY" in b.stderr
+    finally:
+        a.wait()
+    c = _sp.run([sys.executable, str(WRAPPER), "--run-id", "run-test-1",
+                 "--", "true"], env=_guard_env())
+    assert c.returncode == 0
+
+
+def test_guard_different_runs_independent():
+    """run-test-1 and run-test-2 acquire their per-run leases independently."""
+    a = _sp.Popen([sys.executable, str(WRAPPER), "--run-id", "run-test-1",
+                   "--", "sleep", "2"], env=_guard_env())
+    try:
+        import time
+        time.sleep(0.5)
+        c = _sp.run([sys.executable, str(WRAPPER), "--run-id", "run-test-2",
+                     "--", "true"], env=_guard_env())
+        assert c.returncode == 0
+    finally:
+        a.wait()
+
+
+def test_guard_child_exit_code_propagated():
+    r = _sp.run([sys.executable, str(WRAPPER), "--run-id", "run-test-exit",
+                 "--", sys.executable, "-c", "import sys; sys.exit(7)"], env=_guard_env())
+    assert r.returncode == 7
+
+
+def test_guard_pilot37_scenario_same_run_broad_rerun_rejected():
+    """Pilot #37 regression: 'Reviewer broad run A still alive + retry broad
+    run B starts concurrently' for the same HQ run id is mechanically
+    impossible — B is refused by the per-run lease."""
+    run_id = "run-20260810-agent-city-brainvoice-fact-checking-recon"
+    a = _sp.Popen([sys.executable, str(WRAPPER), "--run-id", run_id,
+                   "--", "sleep", "2"], env=_guard_env())
+    try:
+        import time
+        time.sleep(0.5)
+        b = _sp.run([sys.executable, str(WRAPPER), "--run-id", run_id,
+                     "--", "sleep", "0.1"], capture_output=True, text=True, env=_guard_env())
+        assert b.returncode == 3
+    finally:
+        a.wait()
+
+
+def test_guard_pressured_prevents_launch_and_releases_lease(monkeypatch, tmp_path):
+    """Lease acquired -> pressure checked -> child NOT launched -> lease
+    released; once pressure is OK the same run id executes."""
+    import run_heavy_command as guard
+
+    marker = tmp_path / "launched.marker"
+    cmd = [sys.executable, "-c", f"open({str(marker)!r}, 'w').close()"]
+
+    # PRESSURED: child must not run; exit 4; lease released afterwards.
+    monkeypatch.setattr(guard, "pressure_status", lambda: 2)
+    assert guard.main(["--run-id", "run-test-pressure", "--", *cmd]) == 4
+    assert not marker.exists(), "child launched despite PRESSURED"
+
+    # Same run id, pressure OK: executes; lease reacquirable (no stale lease).
+    monkeypatch.setattr(guard, "pressure_status", lambda: 0)
+    assert guard.main(["--run-id", "run-test-pressure", "--", *cmd]) == 0
+    assert marker.exists()
+
+
+def test_guard_pressured_ok_after_recovery_same_run(monkeypatch, tmp_path):
+    """After a PRESSURED refusal the lease is not stuck: a later OK attempt
+    with the SAME run id executes."""
+    import run_heavy_command as guard
+
+    marker = tmp_path / "recovered.marker"
+    monkeypatch.setattr(guard, "pressure_status", lambda: 2)
+    assert guard.main(["--run-id", "run-test-recover", "--", "true"]) == 4
+    monkeypatch.setattr(guard, "pressure_status", lambda: 0)
+    r = guard.main(["--run-id", "run-test-recover", "--", sys.executable,
+                    "-c", f"open({str(marker)!r}, 'w').close()"])
+    assert r == 0 and marker.exists()
+
+
+def test_guard_inprocess_second_acquire_refused():
+    """Same-process double acquire raises (flock on separate descriptors)."""
+    import run_heavy_command as guard
+
+    fd1 = guard.acquire_lock("run-test-inproc")
+    try:
+        try:
+            guard.acquire_lock("run-test-inproc")
+            raise AssertionError("second acquire must fail")
+        except OSError:
+            pass
+    finally:
+        import os as _os2
+        _os2.close(fd1)
+    # after release the lease is reacquirable
+    fd2 = guard.acquire_lock("run-test-inproc")
+    import os as _os3
+    _os3.close(fd2)
