@@ -12,7 +12,13 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
+      # Full history is required: the validator resolves historical immutable
+      # pins (Candidate/Contract@C, AdmissionLedger@B) via git object access
+      # (git cat-file). A shallow checkout would lack those commits and the
+      # validator would report missing pinned bytes for valid artifacts.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
