@@ -83,7 +83,11 @@ verification set.
    cpu_count/load_1m/normalized_load). A heavy job SHOULD NOT start when
    PRESSURED. Threshold repository-configurable via
    `FHQ_HEAVY_LOAD_THRESHOLD` (normalized load = load_1m / cpu_count; default
-   4.0); transparent UNKNOWN where load average is unavailable; UNKNOWN does
+   1.5 — a conservative v0.1 heuristic: a normalized load around 1.0 already
+   means roughly one runnable/uninterruptible task per CPU on average, so a
+   new heavy job should preserve headroom; load average is a pressure signal,
+   not CPU utilization; the environment may override); transparent UNKNOWN
+   where load average is unavailable; UNKNOWN does
    not block focused work. No daemon, scheduler, or telemetry database.
 6. **No concurrent heavy work per run** (`operator@0.3.1`): max 1 concurrent
    heavy verification command within one run; timeout is not license for

@@ -470,3 +470,94 @@ def test_guard_inprocess_second_acquire_refused():
     fd2 = guard.acquire_lock("run-test-inproc")
     import os as _os3
     _os3.close(fd2)
+
+
+# ── Wrapper-death fail safety (final review fix) ──────────────────────────
+
+import signal as _signal  # noqa: E402
+import time as _time  # noqa: E402
+
+_CHILD_CODE = (
+    "import os, sys, time\n"
+    "with open(sys.argv[1], 'w') as f:\n"
+    "    f.write(str(os.getpid()))\n"
+    "time.sleep(60)\n"
+)
+
+
+def _wait_marker(path: Path, timeout: float = 15.0) -> int:
+    """Wait for the child handshake marker; return the recorded child pid."""
+    deadline = _time.time() + timeout
+    while _time.time() < deadline:
+        if path.exists():
+            return int(path.read_text().strip())
+        _time.sleep(0.1)
+    raise AssertionError("heavy child never started (marker handshake timed out)")
+
+
+def _alive(pid: int) -> bool:
+    try:
+        _os.kill(pid, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+def test_wrapper_death_child_retains_same_run_lease(tmp_path):
+    """Wrapper death while the heavy child survives must NOT free the lease:
+    the child inherits the lock fd, so a second same-run wrapper stays BUSY
+    until the child exits; after child exit the lease is reacquirable."""
+    marker = tmp_path / "started.marker"
+    run_id = "run-test-wrapper-death"
+    wrapper = [sys.executable, str(WRAPPER), "--run-id", run_id, "--",
+               sys.executable, "-c", _CHILD_CODE, str(marker)]
+    a = _sp.Popen(wrapper, env=_guard_env())
+    child_pid = None
+    try:
+        child_pid = _wait_marker(marker)
+        assert _alive(child_pid), "child should be alive after start"
+
+        # Terminate ONLY wrapper A; the heavy child survives (orphaned).
+        a.terminate()
+        a.wait(timeout=10)
+        assert not _alive(a.pid), "wrapper A should be dead"
+        assert _alive(child_pid), "heavy child should survive wrapper death"
+
+        # While the surviving child lives, the same-run lease is still held.
+        b = _sp.run([sys.executable, str(WRAPPER), "--run-id", run_id,
+                     "--", "true"], capture_output=True, text=True, env=_guard_env())
+        assert b.returncode == 3, f"expected BUSY, got {b.returncode}: {b.stderr}"
+        assert "BUSY" in b.stderr
+
+        # Terminate the surviving child; lease must then be released.
+        _os.kill(child_pid, _signal.SIGTERM)
+        deadline = _time.time() + 15
+        while _time.time() < deadline and _alive(child_pid):
+            _time.sleep(0.1)
+        assert not _alive(child_pid), "heavy child should exit on SIGTERM"
+
+        c = _sp.run([sys.executable, str(WRAPPER), "--run-id", run_id,
+                     "--", "true"], env=_guard_env())
+        assert c.returncode == 0, "same-run lease must be reacquirable after child exit"
+    finally:
+        if a.poll() is None:
+            a.kill()
+            a.wait(timeout=5)
+        if child_pid is not None and _alive(child_pid):
+            _os.kill(child_pid, _signal.SIGKILL)
+        # No orphan test processes may remain after pytest.
+        assert not _alive(a.pid) and (child_pid is None or not _alive(child_pid))
+
+
+def test_adr_and_helper_agree_on_default_threshold():
+    """ADR-0005 and the pressure helper must state the SAME default (1.5)."""
+    adr = _flat((REPO_ROOT / "docs" / "decisions"
+                 / "ADR-0005-execution-resource-governance-v0.1.md").read_text())
+    assert pressure.DEFAULT_THRESHOLD == 1.5
+    assert "default 1.5" in adr
+    assert "default 4.0" not in adr  # no contradictory normative value remains
+    assert "normalized load = load_1m / cpu_count" in adr
+    assert "pressure signal, not CPU utilization" in adr
+    assert "environment may override" in adr

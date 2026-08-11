@@ -5,19 +5,22 @@ Execution Resource Governance mechanical boundary: at most ONE heavy
 verification command may run per HQ run ID. The wrapper owns, as one bounded
 operation: the host-local exclusive lease, the pressure preflight, and the
 child launch. No daemon, no Redis, no service, no database, no distributed
-lock — an OS-managed advisory file lock (fcntl.flock) whose ownership dies
-with the holding process.
+lock — an OS-managed advisory file lock (fcntl.flock). The lock file
+    descriptor is inherited by the heavy child (pass_fds), so the lease
+    lifetime is >= the heavy child lifetime: if this wrapper dies
+    unexpectedly while the child survives, the child still holds the flock
+    and a second same-run wrapper remains BUSY until the heavy child exits.
 
 Usage:
     python scripts/run_heavy_command.py --run-id <canonical run id> -- <heavy command...>
 
 Exit codes:
-    0      child exited 0 (or preflight OK and child exited 0)
+    0      child exited 0
     1      usage error
-    2      child exited nonzero (child's code is propagated instead)
     3      BUSY: another heavy command already holds the lease for this run
     4      PRESSURED: pressure preflight refused the launch (lease released)
     130    interrupted (SIGINT) while the child ran
+    other  the heavy child's exit code is propagated verbatim
 
 A stale lock FILE may remain in /tmp/federation-hq-heavy/ after a run —
 harmless, because flock ownership is tied to the open file description and
@@ -115,7 +118,12 @@ def main(argv: list[str] | None = None) -> int:
                   "heavy command; lease released", file=sys.stderr)
             return PRESSURED
         try:
-            result = subprocess.run(command)
+            # The child inherits the already-acquired lock descriptor, so
+            # the lease lifetime is >= the heavy child lifetime: if this
+            # wrapper dies while the child survives, the child still holds
+            # the flock and a second same-run wrapper stays BUSY until the
+            # child exits (OS-managed, no PID files/watchdog).
+            result = subprocess.run(command, pass_fds=(fd,))
             return result.returncode
         except KeyboardInterrupt:
             return 130
