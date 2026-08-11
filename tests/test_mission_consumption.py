@@ -204,11 +204,14 @@ def test_wrong_hq_commit_blocked():
 
 
 def test_mission_input_manifest_requires_operator_030():
+    """operator@0.2.1 is below the MissionContract-native compatibility floor
+    (0.3.0) and must be rejected in mission_input mode."""
     doc = _mission_input_manifest()
     doc["prompt_pins"]["operator"]["version"] = "0.2.1"
     errors = []
     validate_artifacts.check_manifest_mission_mode(doc, "test", errors)
-    assert any("operator@0.3.0" in e for e in errors)
+    assert any("MissionContract-native operator release" in e
+               and "minimum 0.3.0" in e for e in errors), errors
 
 
 # ── Rules 10-14: admission decision ───────────────────────────────────────
@@ -326,12 +329,15 @@ def test_worker_prompts_resolve_mission_contract_themselves():
 
 
 def test_mission_native_worker_chain_enforced():
+    """Worker releases below their MissionContract-native compatibility
+    floors (scout/repair/review 0.2.0) are rejected in mission_input mode."""
     for pid in ("scout", "repair", "review"):
         doc = _mission_input_manifest()
         doc["prompt_pins"][pid]["version"] = "0.1.0"
         errors = []
         validate_artifacts.check_manifest_mission_mode(doc, "test", errors)
-        assert any(pid in e and "MissionContract-native worker release" in e for e in errors), (pid, errors)
+        assert any(pid in e and "MissionContract-native" in e
+                   and "minimum 0.2.0" in e for e in errors), (pid, errors)
 
 
 def test_manifest_mission_id_mismatch_invalid():

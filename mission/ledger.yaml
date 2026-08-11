@@ -101,4 +101,33 @@ items:
       federation research review request is not bounded Agent City
       repair/recon work for the HQ pipeline.
     updated_at: "2026-08-10T13:38:00Z"
-updated_at: "2026-08-10T18:25:00Z"
+  - signal_id: sig-20260811-agent-city-issue-14-state-reliability-hot-reload
+    source_kind: github_issue
+    repository: kimeisele/agent-city
+    source_native_ref: kimeisele/agent-city#14
+    disposition: completed
+    candidate_id: cand-20260811-agent-city-state-reliability-hot-reload-recon
+    mission_id: mission-20260811-agent-city-state-reliability-hot-reload-recon
+    related_run_ids:
+      - run-20260811-agent-city-state-reliability-hot-reload-recon
+    last_observed_evidence: >
+      Director cycle #43 (2026-08-11) recon mission completed
+      (federation-hq#45, run run-20260811-agent-city-state-reliability-
+      hot-reload-recon): #14 report PARTIALLY reproduced at baseline
+      df486b90 — Area 1 (atomic state writes with backup recovery)
+      REPRODUCED as a latent data-loss defect (CityCouncil._auto_save
+      city/council.py:162-167 and MayorLifecycleBridge.persist_mayor
+      city/mayor/lifecycle.py:52-64 write non-atomically with no backup;
+      corrupt input silently resets to empty state council.py:152-160 /
+      lifecycle.py:31-44); Areas 2 (config hot-reload; partial mtime
+      reload exists, no reload_config API, import-time constants frozen)
+      and 3 (state versioning/migration; absent — bespoke one-time
+      drain-and-drop) assessed, NOT selected. Repair: atomic
+      temp+fsync+os.replace writes with bounded .bak rotation
+      (STATE_BACKUPS=5) and load-time recovery from most recent valid
+      backup for council+mayor state; 3 Issue #14 RED tests added, 2
+      hardening tests reconciled to data preservation; target PR
+      kimeisele/agent-city#2719 merged f210303f. Canonical evidence:
+      runs/run-20260811-agent-city-state-reliability-hot-reload-recon/.
+    updated_at: "2026-08-11T17:15:00Z"
+updated_at: "2026-08-11T17:15:00Z"

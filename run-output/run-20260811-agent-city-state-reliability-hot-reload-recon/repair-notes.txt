@@ -1,0 +1,118 @@
+REPAIR NOTES — run-20260811-agent-city-state-reliability-hot-reload-recon
+Repair worker: Benchmark01Repair (isolated hq-repair, repair@0.2.1)
+Target: kimeisele/agent-city @ df486b90dfe95376a5b5e4ed4c6924a8e7efeb57 (baseline, live-verified)
+Checkout: /tmp/bench01-repair (fresh clone; HEAD == df486b90 at branch point)
+Repair branch: repair/run-20260811-state-reliability-hot-reload-recon
+Repair head SHA: a6602da1be12dbfb4fd6a1488ad81bab83650e3e
+HQ pin verification: prompts/repair/v0.2.1.md sha256
+  2830ae50c209ae116671f1f840352b416ce26f8304cb78ee277fd9721a9b1d0f == manifest pin;
+  mission-contract.yaml sha256 db2a5b766ec204c74851120fa27bdd2091c8b38dcebfc26b22b0aac4cf86d115 == manifest pin;
+  mission-candidate.yaml sha256 2f47a797d3da054cbed29c3a3f3ba9f6facd0e18284786f8e2efcefa9e241d3b == manifest pin;
+  accepted repair-candidate.yaml (run-record copy) sha256
+  59189e0e913aa925253e39138f54c3ce5e49bc710f5e5bcc85e3603b2d9c1228 == operator acceptance pin.
+MissionContract: missions/mission-20260811-agent-city-state-reliability-hot-reload-recon/
+  mission-contract.yaml (recon; prescribes_repair: false; bounded_scope: 3 #14 areas;
+  hard_constraints respected — repair scoped to the single accepted candidate, Areas 2/3 untouched).
+
+=====================================================================
+1. BASELINE REPRODUCTION (SHA df486b90dfe95376a5b5e4ed4c6924a8e7efeb57)
+=====================================================================
+Live baseline check: git ls-remote origin main -> df486b90dfe95376a5b5e4ed4c6924a8e7efeb57
+  (agent-city main == manifest baseline; HEAD of /tmp/bench01-repair verified).
+
+Council reproduction (python3.11, /tmp/bench01-repair @ baseline):
+  1. CityCouncil(_state_path=tmp/council_state.json); run_election(Alice, Bob, hb=0)
+     -> post-save dir: ['council_state.json']                     # NO backup, NO temp
+  2. state_path.write_text('{"seats": {0: "Alice", "elected_mayor": "Alice", "proposals"')
+     -> post-corrupt dir: ['council_state.json']                  # NO backup to recover
+  3. CityCouncil(_state_path=...) from corrupt file
+     -> "Council state load failed: Expecting property name..." warning;
+        reloaded elected_mayor=None, member_count=0               # SILENT EMPTY RESET
+  4. backup files: []                                              # none exist
+
+Mayor reproduction (python3.11, /tmp/bench01-repair @ baseline):
+  1. Mayor(_state_path=tmp/mayor_state.json, _offline_mode=True);
+     set _heartbeat_count=17, _total_governance_actions=3, _total_operations=5;
+     _save_state() -> post-save dir contains mayor_state.json (no .bak)
+  2. state_path.write_text('{"heartbeat_count": 17')             # truncated mid-write
+  3. New Mayor from corrupt file -> restored heartbeat_count=0, total_operations=0
+                                                                  # SILENT RESET TO ZERO
+  4. backup files: []                                              # none exist
+
+Baseline focused test landscape (verified in fresh worktree @ df486b90):
+  $ python -m pytest tests/test_layer7.py tests/hardening/test_state_corruption.py -v
+    -> 8 passed (6 layer7 "Current Coverage" + 2 hardening survival-by-empty-state)
+  No failing baseline tests; the defect is a missing-reliability gap (#14 Area 1).
+
+=====================================================================
+2. REPAIR (head a6602da1be12dbfb4fd6a1488ad81bab83650e3e)
+=====================================================================
+Changed files (4; diffstat +288/-30):
+  city/council.py            - STATE_BACKUPS=5; _backup_paths/_rotate_backups/
+                               _atomic_write_json (temp in same dir, fsync,
+                               os.replace — pattern of federation_nadi/federation_relay);
+                               __post_init__ recovers from most recent valid .bak on
+                               corrupt primary (no silent empty reset);
+                               _auto_save uses atomic write with best-effort rotation.
+  city/mayor/lifecycle.py    - same helpers; restore_mayor recovers counters from
+                               most recent valid .bak; persist_mayor writes mayor state
+                               AND conversation tracker atomically (defect description
+                               cites tracker_path.write_text line 70).
+  tests/test_layer7.py       - +3 Issue #14 RED tests:
+                               test_council_corrupt_state_recovers_from_backup,
+                               test_mayor_corrupt_state_recovers_from_backup,
+                               test_state_backup_rotation_is_bounded (STATE_BACKUPS).
+  tests/hardening/test_state_corruption.py
+                             - reconciled: corruption with a valid backup present must
+                               preserve data (elected mayor/seats, mayor counters),
+                               not reset to empty/zero.
+
+Design notes:
+  - Backup rotation: .bak = most recent committed state; .bak.1..bak.4 older;
+    STATE_BACKUPS=5 total. Rotation is best-effort (never blocks the primary write).
+  - Recovery semantics: backup holds the last fully-committed state (one save behind
+    the primary); a mid-write crash therefore loses at most the interrupted write's
+    delta, never committed data. No-backup corrupt file still starts empty (no crash).
+  - Atomic write: identical JSON bytes to previous write_text (json.dump indent=2,
+    utf-8) — happy-path behavior unchanged.
+
+=====================================================================
+3. HEAD VERIFICATION (focused-first, Execution Resource Governance v0.1)
+=====================================================================
+$ python -m pytest tests/test_layer7.py tests/hardening/test_state_corruption.py -v
+  -> 11 passed (9 layer7 incl. 3 new RED tests; 2 hardening reconciled)
+$ python -m pytest tests/test_layer2.py::test_mayor_state_persistence -v
+  -> 1 passed (mayor restart persistence regression, full heartbeat cycle)
+$ python -m pytest "tests/test_governance.py::TestGovernancePersistence" -v
+  -> 2 passed (council marketplace state persistence regression)
+$ ruff check city/council.py city/mayor/lifecycle.py tests/test_layer7.py tests/hardening/test_state_corruption.py
+  -> OK (ruff 0.14.2; pyproject select F821/F811/F401/E)
+
+Head end-to-end checks (same scripts as baseline reproduction):
+  Council: after 2 mutations dir has council_state.json + council_state.json.bak;
+           truncate primary -> reload -> "recovered from backup";
+           elected_mayor=Alice, member_count=2, seats={0:Alice,1:Bob} preserved.
+  Mayor:   after 2 saves dir has mayor_state.json.bak + conversation_tracker.json.bak;
+           truncate primary -> reload -> "recovered from backup";
+           heartbeat_count=17, total_operations=5 preserved.
+
+Governance record: scripts/check_execution_pressure.py (federation-hq checkout)
+  reported PRESSURED (load_1m=85.38, normalized_load=21.34 -> 18.33, threshold=1.5)
+  at the time broader slices were considered; per v0.1 no HEAVY/broad command was
+  launched. 0 HEAVY commands, 0 BUSY refusals, 0 PRESSURED refusals, 0 identical
+  heavy retries. Bounded focused verification establishes regression safety: the
+  repair is a localized 2-file change with full focused coverage of every changed
+  path (happy path + corruption recovery + rotation bound), satisfying governance
+  condition (c) for the repair attempt.
+
+=====================================================================
+4. FAILURE ACCOUNTING
+=====================================================================
+baseline_failures (as recorded in repair_result):
+  - No failing baseline tests in the affected surface; the defect is a
+    missing-reliability gap (latent data loss) reproduced empirically at baseline.
+  - Latent data-loss behavior at baseline: CityCouncil.__post_init__ and
+    MayorLifecycleBridge.restore_mayor silently discard state on corrupt input
+    (truncated council_state.json -> empty council; truncated mayor_state.json ->
+    zeroed counters); no backup exists because writes are non-atomic.
+newly_introduced_failures: [] (none — all focused tests pass at head).

@@ -1,0 +1,150 @@
+kind: federation_hq_repair_candidate
+candidate_id: run-20260811-agent-city-state-reliability-hot-reload-recon-c1
+run_id: run-20260811-agent-city-state-reliability-hot-reload-recon
+target_repository: kimeisele/agent-city
+baseline_sha: df486b90dfe95376a5b5e4ed4c6924a8e7efeb57
+repository_checkout: /tmp/bench01-scout
+defect_description: >-
+  Of the three #14-reported Layer-7 State Reliability / Hot-Reload areas, the
+  first — ATOMIC STATE WRITES WITH BACKUP RECOVERY — remains reproducible at
+  the pinned baseline as a real data-loss reliability defect in the Layer-7
+  state persistence surfaces (council + mayor). The other two areas are
+  assessed below and are NOT selected as candidates.
+
+  AREA 1 (SELECTED): atomic state writes with backup recovery — GAP PRESENT.
+
+  Write path is non-atomic and produces no backup:
+  - city/council.py:162-167 CityCouncil._auto_save() persists every mutation
+    via `self._state_path.write_text(json.dumps(self.to_dict(), indent=2))` —
+    a direct truncating write. A crash/power loss mid-write leaves a truncated
+    or partially-written council_state.json; no temp file, no rename, no
+    fsync, no backup copy is ever created. grep of city/ for backup|.bak
+    rotation yields zero state-backup code (only unrelated _atomic() in
+    city/federation_v1.py:819 and review_governance/artifacts.py, which are
+    NOT wired to council/mayor state).
+  - city/mayor/lifecycle.py:52-64 MayorLifecycleBridge.persist_mayor() uses
+    the same pattern: `self.state_path.write_text(json.dumps(state, indent=2))`
+    (line 62) and tracker_path.write_text (line 70) — non-atomic, no backup.
+    persist_mayor is exercised EVERY heartbeat: Mayor.heartbeat() ->
+    _save_state() -> _lifecycle.persist_mayor(self) (city/mayor/kernel.py:143,
+    210-211), and council_state.json is persisted across heartbeat runs in
+    production via GitHub Actions cache
+    (.github/workflows/agent-city-heartbeat.yml:75,209).
+
+  Load path silently discards state on corruption instead of recovering from
+  a backup (no backup exists to recover from):
+  - city/council.py:152-160 __post_init__: on json.JSONDecodeError/KeyError it
+    logs `logger.warning("Council state load failed: %s", e)` and continues
+    with default EMPTY state — elected seats, mayor, proposals, and election
+    history are silently lost.
+  - city/mayor/lifecycle.py:31-44 restore_mayor(): on
+    (json.JSONDecodeError, KeyError, OSError, TypeError) it silently returns,
+    resetting heartbeat_count and counters to zero.
+
+  Empirical reproduction at baseline (run in /tmp/bench01-scout, python3.11):
+  1. Created CityCouncil(_state_path=tmp/council_state.json), ran an election.
+     Post-save directory contained only council_state.json — no .bak, no
+     backup rotation, no temp artifacts.
+  2. Overwrote the file with truncated JSON (simulating a mid-write crash):
+     `{"seats": {0: "Alice", "elected_mayor": "Alice", "proposals"`.
+     Directory still contained only council_state.json (no backup to recover).
+  3. Loaded a new CityCouncil(_state_path=...) from the corrupt file:
+     warning logged, council came up EMPTY (elected_mayor=None,
+     member_count=0). No recovery path exists.
+  Evidence of the reproduction is recorded in scout-notes.txt in this run
+  directory (commands + outputs).
+
+  Baseline test landscape for this area:
+  - tests/test_layer7.py (Linked to GitHub Issue #14, created 2026-03-01 in
+    commit 1c5c483 — the same day #14 was opened) contains exactly the 6
+    "Current Coverage" tests the issue lists (config loads, council
+    save/load roundtrip, election survives restart, + 3 auxiliary); the
+    issue's three RED tests were never written. All 6 pass at baseline
+    (verified: `python -m pytest tests/test_layer7.py -v` -> 6 passed).
+  - tests/hardening/test_state_corruption.py:9-28 and :30-48 codify the
+    CURRENT (defective) contract: corruption must "survive" by starting with
+    EMPTY state (assert council.elected_mayor is None, member_count == 0).
+    That test passes at baseline (verified: 2 passed) and directly conflicts
+    with #14's acceptance criterion "corrupt file mid-write -> next load
+    recovers from backup": survival-by-empty-state is data loss, not recovery.
+  - The atomic-write pattern the fix should follow already exists in the
+    codebase: city/federation_nadi.py:288-290 and
+    city/federation_relay.py:280-282 (write temp file then temp.replace(path)).
+
+  AREA 2: config hot-reload during heartbeat — PARTIALLY PRESENT / STALE.
+  config/__init__.py:28-44 get_config() auto-reloads city.yaml on mtime change
+  (verified empirically: changing governance.democratic_threshold 0.5 -> 0.42
+  in config/city.yaml makes the next get_config() return 0.42). BUT there is
+  no reload_config() symbol anywhere (grep reload_config|hot_reload across the
+  repo: zero matches), no heartbeat-phase hook triggers a reload, and
+  import-time module constants freeze config values for the process lifetime:
+  city/council.py:40-42 (DEMOCRATIC_THRESHOLD / SUPERMAJORITY_THRESHOLD),
+  city/federation.py:50-51 (DEFAULT_MOTHERSHIP), city/pokedex.py:57-58
+  (GENESIS_GRANT), city/issues.py:29-30 (LOW_PRANA_THRESHOLD),
+  city/heal_executor.py:70-72 (GIT_AUTHOR_*). Verified empirically: after the
+  city.yaml change above, council.DEMOCRATIC_THRESHOLD still read 0.5 while
+  get_config() returned 0.42. Partial mechanism exists; the issue's
+  "reload_config() -> next phase uses new value" contract is not met for the
+  constants Layer-7 logic actually reads. NOT selected: the gap is narrower
+  and partially implemented.
+
+  AREA 3: state versioning/migration — GAP PRESENT.
+  No persisted state carries a schema version: CityCouncil.to_dict()
+  (city/council.py:641-650) emits seats/elected_mayor/proposals/
+  next_proposal_num/last_election_heartbeat/market_frozen/commission_override
+  with no version key; MayorLifecycleBridge.persist_mayor()
+  (city/mayor/lifecycle.py:53-60) emits heartbeat_count/last_heartbeat/
+  discovered_agents/archived_agents/totals with no version key;
+  data/campaigns_state.json has top-level keys ['campaigns'] (no version).
+  _perform_state_migration (city/factory.py:392-470, invoked at
+  city/runtime.py:139) is a one-time "drain-and-drop" of legacy Pokedex
+  tables (discovered_repos, propagation_throttle, system_meta,
+  processed_signals) into DiscoveryLedger/SignalStateLedger — a bespoke
+  migration, NOT a versioned migration framework: nothing stamps a state
+  schema version, and no load path auto-migrates v1->v2 state. The issue's
+  RED test "write v1 state -> load with v2 code -> auto-migrates cleanly"
+  cannot pass. NOT selected: a general versioned migration framework is a
+  broader architectural change than the bounded-repair contract warrants;
+  the concrete data-loss defect in Area 1 is the single selected candidate.
+
+  Minimal expected behavior for the selected candidate: council and mayor
+  state must be persisted atomically (write temp file in the same directory,
+  fsync, then os.replace over the target — the pattern already used in
+  city/federation_nadi.py and city/federation_relay.py), with a bounded
+  backup rotation (e.g. N most recent .bak copies retained, mirroring the
+  ".vibe/state/ backups" model #14 references); on load failure the most
+  recent valid backup must be used for recovery instead of silently resetting
+  to empty state; and tests/test_layer7.py must gain the #14 RED test
+  (corrupt file mid-write -> next load recovers from backup) with
+  tests/hardening/test_state_corruption.py's survival-by-empty-state contract
+  reconciled so data preservation is asserted, not empty reset.
+baseline_failures:
+  - >-
+    No failing baseline tests for this defect (verified: tests/test_layer7.py
+    6 passed; tests/hardening/test_state_corruption.py 2 passed). The defect
+    is a missing-reliability gap with no coverage for the #14 acceptance
+    criterion: no test asserts that corrupt state recovers from a backup
+    (tests/hardening/test_state_corruption.py:9-48 instead asserts the
+    defective empty-state-reset behavior).
+  - >-
+    Latent data-loss behavior at baseline: CityCouncil.__post_init__
+    (city/council.py:152-160) and MayorLifecycleBridge.restore_mayor
+    (city/mayor/lifecycle.py:31-44) silently discard state on corrupt input;
+    reproduced empirically (truncated council_state.json -> empty council,
+    no backup file present).
+evidence_locations:
+  - city/council.py
+  - city/mayor/lifecycle.py
+  - city/mayor/kernel.py
+  - city/factory.py
+  - city/runtime.py
+  - city/federation_nadi.py
+  - city/federation_relay.py
+  - config/__init__.py
+  - tests/test_layer7.py
+  - tests/hardening/test_state_corruption.py
+  - .github/workflows/agent-city-heartbeat.yml
+  - run-output/run-20260811-agent-city-state-reliability-hot-reload-recon/repair-candidate.yaml
+  - run-output/run-20260811-agent-city-state-reliability-hot-reload-recon/scout-notes.txt
+selected_by: scout
+created_at: '2026-08-11T16:20:00Z'

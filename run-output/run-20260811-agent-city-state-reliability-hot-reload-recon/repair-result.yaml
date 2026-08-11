@@ -1,0 +1,153 @@
+kind: federation_hq_repair_result
+result_id: run-20260811-agent-city-state-reliability-hot-reload-recon-r1
+run_id: run-20260811-agent-city-state-reliability-hot-reload-recon
+candidate_id: run-20260811-agent-city-state-reliability-hot-reload-recon-c1
+target_repository: kimeisele/agent-city
+baseline_sha: df486b90dfe95376a5b5e4ed4c6924a8e7efeb57
+repair_head_sha: a6602da1be12dbfb4fd6a1488ad81bab83650e3e
+branch: repair/run-20260811-state-reliability-hot-reload-recon
+pull_request:
+  number: 2719
+  url: https://github.com/kimeisele/agent-city/pull/2719
+commands:
+  - command: >-
+      git ls-remote origin main (kimeisele/agent-city); git fetch origin;
+      git rev-parse origin/main
+    exit_code: 0
+    outcome: >-
+      Live baseline resolution: agent-city main == df486b90dfe95376a5b5e4ed4c6924a8e7efeb57,
+      matching the run-manifest baseline pin.
+  - command: >-
+      git clone https://github.com/kimeisele/agent-city.git /tmp/bench01-repair
+      && git checkout df486b90dfe95376a5b5e4ed4c6924a8e7efeb57
+      && git switch -c repair/run-20260811-state-reliability-hot-reload-recon
+    exit_code: 0
+    outcome: >-
+      Focused checkout created at the pinned baseline; branch created from it.
+      HEAD == df486b90 at branch point (working tree clean).
+  - command: >-
+      python3 - <<'EOF' (council baseline reproduction: elect+save, truncate
+      council_state.json mid-write, reload)
+    exit_code: 0
+    outcome: >-
+      DEFECT REPRODUCED at baseline: post-save directory contains only
+      council_state.json (no backup, no temp); after truncation reload logs
+      'Council state load failed' and yields elected_mayor=None, member_count=0
+      (silent empty reset); no .bak files exist. Evidence in repair-notes.txt.
+  - command: >-
+      python3 - <<'EOF' (mayor baseline reproduction: save mayor_state.json,
+      truncate mid-write, reload)
+    exit_code: 0
+    outcome: >-
+      DEFECT REPRODUCED at baseline: mayor_state.json written non-atomically
+      with no backup; after truncation a new Mayor restores heartbeat_count=0
+      and total_operations=0 (silent reset to zero); no .bak files exist.
+      Evidence in repair-notes.txt.
+  - command: >-
+      python3 -m pytest tests/test_layer7.py tests/hardening/test_state_corruption.py -v
+      (fresh worktree @ df486b90dfe95376a5b5e4ed4c6924a8e7efeb57)
+    exit_code: 0
+    outcome: >-
+      Baseline focused landscape: 8 passed (6 layer7 'Current Coverage' +
+      2 hardening survival-by-empty-state). No failing baseline tests in the
+      affected surface; the defect is a missing-reliability gap with no test
+      asserting corrupt-state recovery from backup.
+  - command: >-
+      python3 -m pytest tests/test_layer7.py tests/hardening/test_state_corruption.py -v
+      (head a6602da1be12dbfb4fd6a1488ad81bab83650e3e)
+    exit_code: 0
+    outcome: >-
+      11 passed at head: 9 layer7 (6 existing + 3 new Issue #14 RED tests:
+      test_council_corrupt_state_recovers_from_backup,
+      test_mayor_corrupt_state_recovers_from_backup,
+      test_state_backup_rotation_is_bounded) and 2 hardening tests reconciled
+      to assert data preservation on recovery.
+  - command: >-
+      python3 -m pytest tests/test_layer2.py::test_mayor_state_persistence -v
+      (head a6602da1be12dbfb4fd6a1488ad81bab83650e3e)
+    exit_code: 0
+    outcome: >-
+      1 passed: mayor heartbeat-count persistence across instances (full
+      restart roundtrip regression on the changed restore/persist path).
+  - command: >-
+      python3 -m pytest "tests/test_governance.py::TestGovernancePersistence" -v
+      (head a6602da1be12dbfb4fd6a1488ad81bab83650e3e)
+    exit_code: 0
+    outcome: >-
+      2 passed: council marketplace state persistence regression
+      (test_council_state_persists_marketplace + governance stats in
+      reflection).
+  - command: >-
+      ruff check city/council.py city/mayor/lifecycle.py tests/test_layer7.py
+      tests/hardening/test_state_corruption.py
+    exit_code: 0
+    outcome: >-
+      OK — repository-native lint clean (ruff 0.14.2; pyproject.toml select
+      F821/F811/F401/E, line-length 100).
+  - command: >-
+      python3 - <<'EOF' (council head verification: two atomic saves then
+      truncate primary and reload)
+    exit_code: 0
+    outcome: >-
+      RECOVERY OK at head: after two saves directory holds council_state.json +
+      council_state.json.bak (no .tmp residue); truncating the primary and
+      reloading recovers the last committed state from backup
+      (elected_mayor=Alice, member_count=2, seats={0:'Alice',1:'Bob'}).
+  - command: >-
+      python3 - <<'EOF' (mayor head verification: two atomic saves then
+      truncate primary and reload)
+    exit_code: 0
+    outcome: >-
+      MAYOR RECOVERY OK at head: mayor_state.json.bak and
+      conversation_tracker.json.bak created; truncating the primary and
+      reloading recovers committed counters from backup
+      (heartbeat_count=17, total_operations=5).
+  - command: >-
+      python3 scripts/check_execution_pressure.py (federation-hq checkout)
+    exit_code: 0
+    outcome: >-
+      PRESSURED (load_1m=85.38, normalized_load=21.34 then 18.33, threshold
+      1.5). Per Execution Resource Governance v0.1 no HEAVY/broad command was
+      launched; bounded focused verification establishes regression safety
+      (localized 2-file repair, governance condition (c)). 0 HEAVY commands,
+      0 BUSY refusals, 0 PRESSURED refusals, 0 identical heavy retries.
+  - command: >-
+      git push -u origin repair/run-20260811-state-reliability-hot-reload-recon
+      (kimeisele/agent-city remote; rework_request msg-bench01-0005)
+    exit_code: 0
+    outcome: >-
+      Branch pushed; remote ref now points at a6602da1be12dbfb4fd6a1488ad81bab83650e3e
+      (verified via git ls-remote). Remote head available for the Independent
+      Reviewer (REPAIR_PIPELINE invariant 3).
+  - command: >-
+      gh pr create --repo kimeisele/agent-city --base main
+      --head repair/run-20260811-state-reliability-hot-reload-recon
+      --title "fix(state): atomic council+mayor state writes with backup
+      recovery (#14 Area 1)"
+    exit_code: 0
+    outcome: >-
+      Normal target PR opened per the Operator's explicit authorization
+      (rework_request msg-bench01-0005) and the repo's contribution process:
+      PR #2719, base main @ df486b90, head a6602da1, state OPEN, mergeable.
+      URL https://github.com/kimeisele/agent-city/pull/2719.
+baseline_failures:
+  - >-
+    No failing baseline tests in the affected surface (verified at baseline
+    df486b90dfe95376a5b5e4ed4c6924a8e7efeb57: tests/test_layer7.py 6 passed;
+    tests/hardening/test_state_corruption.py 2 passed). The defect is a
+    missing-reliability gap: no test asserts that corrupt state recovers from
+    a backup.
+  - >-
+    Latent data-loss behavior at baseline (reproduced empirically):
+    CityCouncil.__post_init__ (city/council.py) and
+    MayorLifecycleBridge.restore_mayor (city/mayor/lifecycle.py) silently
+    discard state on corrupt input — truncated council_state.json loads as an
+    empty council (elected_mayor=None, member_count=0) and truncated
+    mayor_state.json restores zeroed counters — because writes are non-atomic
+    (write_text; no temp+replace, no fsync, no backup) and no backup exists to
+    recover from.
+newly_introduced_failures: []
+evidence_locations:
+  - run-output/run-20260811-agent-city-state-reliability-hot-reload-recon/repair-result.yaml
+  - run-output/run-20260811-agent-city-state-reliability-hot-reload-recon/repair-notes.txt
+created_at: "2026-08-11T16:43:00Z"

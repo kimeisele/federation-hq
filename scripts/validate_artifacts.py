@@ -999,10 +999,44 @@ def _validate_mission_doc(doc: dict, schemas_dir: Path, repo_root: Path,
     # forever on today's policy bytes.
 
 
+def parse_release_version(version: object) -> tuple[int, int, int] | None:
+    """Parse an exactly normal numeric MAJOR.MINOR.PATCH prompt version.
+
+    Returns the (major, minor, patch) tuple, or None when the value is not a
+    string of exactly three numeric dot-separated components. Used ONLY for
+    compatibility-floor comparison; never for string comparison and never as
+    a "latest" resolution."""
+    if not isinstance(version, str):
+        return None
+    parts = version.split(".")
+    if len(parts) != 3:
+        return None
+    try:
+        return tuple(int(part) for part in parts)  # type: ignore[return-value]
+    except ValueError:
+        return None
+
+
+# MissionContract-native compatibility FLOORS (not current-release pins).
+# A mission_input manifest is valid when each role's recorded released
+# version is at or above the role's known compatibility boundary. Exact
+# current runtime selection lives in director@0.1.1 -> execution_prompt_pins,
+# never here — this avoids freezing one current release tuple into the
+# validator and repeating the release-wiring defect.
+MISSION_NATIVE_MINIMUMS: dict[str, tuple[int, int, int]] = {
+    "operator": (0, 3, 0),
+    "scout": (0, 2, 0),
+    "repair": (0, 2, 0),
+    "review": (0, 2, 0),
+}
+
+
 def check_manifest_mission_mode(doc: dict, where: str, errors: list[str]) -> None:
     """A run manifest uses exactly one of legacy maintenance_request or
-    MissionContract-native mission_input; mission_input manifests require the
-    MissionContract-native Operator release (operator@0.3.0)."""
+    MissionContract-native mission_input; mission_input manifests require a
+    MissionContract-native compatible released prompt version at or above the
+    role's compatibility floor (release existence/hash correctness is
+    enforced separately by check_prompt_pins)."""
     has_legacy = doc.get("maintenance_request") is not None
     has_mission = doc.get("mission_input") is not None
     if has_legacy == has_mission:
@@ -1012,22 +1046,22 @@ def check_manifest_mission_mode(doc: dict, where: str, errors: list[str]) -> Non
         return
     if has_mission:
         pins = doc.get("prompt_pins") or {}
-        op = pins.get("operator") or {}
-        version = op.get("version")
-        if version != "0.3.0":
-            errors.append(
-                f"{where}: mission_input manifests require operator@0.3.0 "
-                f"(MissionContract-native Operator), got operator@{version}"
-            )
-        # MissionContract-native worker chain: the same release set must be
-        # used so every worker implements the MissionContract composition
-        # contract (legacy workers treat maintenance_request as authority).
-        for pid, expected in (("scout", "0.2.0"), ("repair", "0.2.0"), ("review", "0.2.0")):
-            worker = pins.get(pid) or {}
-            if worker.get("version") != expected:
+        for pid, floor in MISSION_NATIVE_MINIMUMS.items():
+            pin = pins.get(pid) or {}
+            version = pin.get("version")
+            parsed = parse_release_version(version)
+            if parsed is None:
                 errors.append(
-                    f"{where}: mission_input manifests require {pid}@{expected} "
-                    f"(MissionContract-native worker release), got {pid}@{worker.get('version')}"
+                    f"{where}: mission_input requires a MissionContract-native {pid} "
+                    f"release (minimum {'.'.join(str(x) for x in floor)}), "
+                    f"got unparseable version {version!r}"
+                )
+                continue
+            if parsed < floor:
+                errors.append(
+                    f"{where}: mission_input requires a MissionContract-native {pid} "
+                    f"release (minimum {'.'.join(str(x) for x in floor)}), "
+                    f"got {pid}@{version}"
                 )
 
 

@@ -1,0 +1,113 @@
+SCOUT NOTES — run-20260811-agent-city-state-reliability-hot-reload-recon
+Scout worker: Benchmark01Scout (isolated hq-scout, scout@0.2.0)
+Target: kimeisele/agent-city @ df486b90dfe95376a5b5e4ed4c6924a8e7efeb57 (main, live-verified)
+Checkout: /tmp/bench01-scout (git clone + checkout df486b90, HEAD verified)
+HQ pin verification: prompts/scout/v0.2.0.md sha256 eb93cbb94d489df94cd64cde59316fcb650f344244c097c11e024b0093011837 == manifest pin;
+  mission-contract.yaml sha256 db2a5b766ec204c74851120fa27bdd2091c8b38dcebfc26b22b0aac4cf86d115 == manifest pin;
+  mission-candidate.yaml sha256 2f47a797d3da054cbed29c3a3f3ba9f6facd0e18284786f8e2efcefa9e241d3b == manifest pin
+  (all verified with shasum -a 256 against runs/.../run-manifest.yaml).
+MissionContract: missions/mission-20260811-agent-city-state-reliability-hot-reload-recon/mission-contract.yaml
+  (recon; prescribes_repair: false; bounded_scope: 3 #14 areas; exactly one candidate or none).
+
+=====================================================================
+1. ISSUE #14 (evidence of reported work item, not proof of gaps)
+=====================================================================
+Title: "Layer 7: State Reliability & Hot-Reload (TDD)"
+Created 2026-03-01; open; labels layer-7, tdd, infrastructure. No comments.
+Body (verbatim core):
+  Current Coverage (6 tests): Config loads city.yaml; Council state save/load
+    roundtrip; Election survives restart.
+  Missing (RED tests to write):
+    Atomic state writes prevent corruption — Corrupt file mid-write -> next
+      load recovers from backup
+    Config hot-reload during heartbeat — Change city.yaml -> reload_config()
+      -> next phase uses new value
+    State versioning and migration — Write v1 state -> load with v2 code ->
+      auto-migrates cleanly
+  Steward-Protocol to Wire: StateService centralized state management;
+    Automatic backup rotation (like .vibe/state/ backups); Version migration
+    (like SynapseStore v1->v2->v3)
+  Acceptance Criteria: Atomic writes with backup rotation; Config hot-reload
+    mechanism; 9+ total Layer 7 tests passing.
+
+=====================================================================
+2. REPRODUCTION EVIDENCE (commands run at baseline checkout)
+=====================================================================
+$ python -m pytest tests/test_layer7.py -v
+  -> 6 passed (test_config_loads, test_config_has_all_sections,
+     test_council_persistence_roundtrip, test_council_election_survives_restart,
+     test_council_no_state_path_no_file, test_council_from_dict)
+  -> matches Issue #14 "Current Coverage (6 tests)"; the 3 RED tests are absent.
+
+$ python -m pytest tests/hardening/test_state_corruption.py -v
+  -> 2 passed (test_corrupted_mayor_state_survives, test_corrupted_council_state_survives)
+  -> these codify survival-by-EMPTY-STATE (data loss), conflicting with #14's
+     "recovers from backup" criterion.
+
+Gap 1 reproduction (atomic writes w/ backup recovery):
+  Script (python):
+    from city.council import CityCouncil
+    tmpdir = tempfile.mkdtemp(); state_path = Path(tmpdir)/"council_state.json"
+    c = CityCouncil(_state_path=state_path)
+    c.run_election([{"name":"Alice","prana":5000,"guardian":"G1","position":1}], 0)
+    1a. dir after save: ['council_state.json']            # NO backup, no temp
+    state_path.write_text('{"seats": {0: "Alice", "elected_mayor": "Alice", "proposals"')
+    1c. dir after corrupt: ['council_state.json']         # NO backup to recover
+    c2 = CityCouncil(_state_path=state_path)
+    1d. c2.elected_mayor -> None; c2.member_count -> 0   # silent empty reset
+    1e. backup files: []                                  # none exist
+  Code anchors:
+    city/council.py:152-160 __post_init__ (load; JSONDecodeError/KeyError ->
+      logger.warning, continue with empty state)
+    city/council.py:162-167 _auto_save (write_text, non-atomic, no backup)
+    city/mayor/lifecycle.py:31-44 restore_mayor (silent return on corrupt)
+    city/mayor/lifecycle.py:52-64 persist_mayor (write_text, non-atomic)
+    city/mayor/kernel.py:143,210-211 (heartbeat -> _save_state -> persist_mayor)
+    .github/workflows/agent-city-heartbeat.yml:75,209 (council_state.json in CI cache)
+  Atomic pattern ALREADY present for the fix: city/federation_nadi.py:288-290,
+    city/federation_relay.py:280-282 (temp file + replace).
+
+Gap 2 reproduction (config hot-reload):
+  Script (python):
+    cfg_path = Path("config/city.yaml"); orig = cfg_path.read_text()
+    import city.council as cm; before = cm.DEMOCRATIC_THRESHOLD   # 0.5
+    cfg_path.write_text(orig.replace("democratic_threshold: 0.5",
+                                     "democratic_threshold: 0.42"))
+    get_config()["governance"]["democratic_threshold"] -> 0.42     # reloaded
+    cm.DEMOCRATIC_THRESHOLD -> 0.5                                 # FROZEN at import
+    hasattr(..., "reload_config") -> False                         # no API
+  grep reload_config|hot_reload across repo -> zero matches.
+  Code anchors: config/__init__.py:28-44 (mtime auto-reload);
+    city/council.py:40-42, city/federation.py:50-51, city/pokedex.py:57-58,
+    city/issues.py:29-30, city/heal_executor.py:70-72 (import-time frozen constants).
+
+Gap 3 reproduction (state versioning/migration):
+  CityCouncil.to_dict() (city/council.py:641-650) — no version key.
+  MayorLifecycleBridge.persist_mayor() (city/mayor/lifecycle.py:53-60) — no version key.
+  data/campaigns_state.json top-level keys: ['campaigns'] — no version.
+  _perform_state_migration (city/factory.py:392-470; invoked city/runtime.py:139)
+    is a one-time drain-and-drop of legacy Pokedex tables
+    (discovered_repos/propagation_throttle/system_meta/processed_signals) into
+    DiscoveryLedger/SignalStateLedger — not a versioned migration framework.
+
+=====================================================================
+3. OVERLAP CHECK
+=====================================================================
+No open PR owns the reported gaps:
+  gh search prs --repo kimeisele/agent-city "state reliability"|"hot-reload"|"atomic write" (open) -> none.
+  Issue #14 timeline cross-references: #15 (issue: Autonomous Infrastructure — unrelated),
+    #44/#45 (404, not resolvable as PRs/issues). No in-flight work.
+
+=====================================================================
+4. CONCLUSION
+=====================================================================
+All three reported areas assessed at baseline; exactly ONE bounded repair
+candidate selected: AREA 1 — atomic state writes with backup recovery for
+Layer-7 council + mayor state (data-loss defect, empirically reproduced,
+bounded fix following the existing federation_nadi/federation_relay
+temp+replace pattern). Areas 2 (config hot-reload; partial mtime reload exists,
+import-time constants frozen, no reload_config API) and 3 (state
+versioning/migration; absent — only a bespoke one-time drain-and-drop
+migration) are documented but NOT selected. Deliverable:
+repair-candidate.yaml (candidate_id
+run-20260811-agent-city-state-reliability-hot-reload-recon-c1).

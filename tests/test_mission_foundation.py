@@ -513,12 +513,13 @@ def test_canonical_run_artifacts_unchanged():
     # run-assessment.yaml in runs/<run-id>/ is the canonical executed-run
     # terminal feedback (Issue #31) since MissionContract Pilot 01; the
     # retrospective projection artifacts never live in runs/. The canonical
-    # executed runs are exactly the two completed MissionContract-native
-    # pilots (Pilot 01 and the first live Director Pilot run #37); no other
-    # run directory may carry an assessment.
+    # executed runs are exactly the three completed MissionContract-native
+    # runs (Pilot 01, run #37, and Resource Governance Benchmark 01); no
+    # other run directory may carry an assessment.
     canonical_runs = {
         "run-20260810-agent-city-moltbook-outbound-fallback-contract",
         "run-20260810-agent-city-brainvoice-fact-checking-recon",
+        "run-20260811-agent-city-state-reliability-hot-reload-recon",
     }
     assessed = {assessment.parent.name
                 for assessment in (REPO_ROOT / "runs").glob("*/run-assessment*.yaml")}

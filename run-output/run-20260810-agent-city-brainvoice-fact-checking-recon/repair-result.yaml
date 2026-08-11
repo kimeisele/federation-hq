@@ -1,0 +1,171 @@
+kind: federation_hq_repair_result
+result_id: run-20260810-agent-city-brainvoice-fact-checking-recon-r1
+run_id: run-20260810-agent-city-brainvoice-fact-checking-recon
+candidate_id: run-20260810-agent-city-brainvoice-fact-checking-recon-c1
+target_repository: kimeisele/agent-city
+baseline_sha: a975b7da810b22587efd826411d08fb7d4b7d36b
+repair_head_sha: 0fddd1bbe859867d0fa1966620854877bee1a5dd
+branch: repair/run-20260810-brainvoice-fact-checking-grounding-gate
+pull_request:
+  number: 2718
+  url: https://github.com/kimeisele/agent-city/pull/2718
+commands:
+  - command: >-
+      shasum -a 256 prompts/repair/v0.2.0.md
+      runs/run-20260810-agent-city-brainvoice-fact-checking-recon/repair-candidate.yaml
+      missions/mission-20260810-agent-city-brainvoice-fact-checking-recon/mission-contract.yaml
+    exit_code: 0
+    outcome: >-
+      Pin verification byte-exact: repair@0.2.0 d997d221... (matches manifest
+      prompt_pins.repair), candidate a269d069... (matches manifest + assignment
+      msg-brainvoice-0004), mission-contract 119a783d... (matches manifest
+      mission_input.contract.sha256).
+  - command: >-
+      git clone https://github.com/kimeisele/agent-city.git /tmp/brainvoice-repair
+      && git checkout a975b7da810b22587efd826411d08fb7d4b7d36b && git rev-parse HEAD
+    exit_code: 0
+    outcome: >-
+      Clean clone at /tmp/brainvoice-repair; HEAD verified =
+      a975b7da810b22587efd826411d08fb7d4b7d36b (pinned baseline).
+  - command: >-
+      python -m pytest tests/test_brain.py tests/test_brain_context.py
+      tests/test_brain_digest.py tests/test_thread_state.py -q
+    exit_code: 0
+    outcome: >-
+      BASELINE reproduction: 153 passed. Defect reproduced as a structural gap
+      (no claim-verification code in city/ or tests/; ungrounded comprehension
+      accepted verbatim and posted with only confidence + repetition gates).
+  - command: python -m pytest -q
+    exit_code: 2
+    outcome: >-
+      BASELINE full suite: 6 collection errors (tests/federation_v1 +
+      test_federation_v1_{admission,assignment,hardening,ready_work_item}.py)
+      due to missing committed fixture tests/fixtures/federation_v1/keys/test_keys.json.
+      Pre-existing at baseline; unrelated to the candidate.
+  - command: >-
+      python -m pytest --ignore=tests/federation_v1
+      --ignore=tests/test_federation_v1_admission.py
+      --ignore=tests/test_federation_v1_assignment.py
+      --ignore=tests/test_federation_v1_hardening.py
+      --ignore=tests/test_federation_v1_ready_work_item.py -q --tb=no -rf
+    exit_code: 1
+    outcome: >-
+      BASELINE rest-of-suite: 19 failed / 1935 passed / 1 skipped. The 19
+      failures are pre-existing and unrelated to the candidate (layer1/layer6/
+      mayor/pr_gate_e2e/review_governance; full list in baseline_failures).
+  - command: >-
+      python -m pytest tests/test_brain_gates.py tests/test_brain_context.py
+      tests/test_brain.py tests/test_brain_digest.py tests/test_thread_state.py -q
+    exit_code: 0
+    outcome: >-
+      HEAD: 185 passed (153 baseline + 32 new: 12 TestGroundingGate + 1
+      thread_stats aggregate + 19 shifted collection from new classes).
+      New grounding-gate contract covered by tests.
+  - command: >-
+      python -m pytest --ignore=tests/federation_v1
+      --ignore=tests/test_federation_v1_admission.py
+      --ignore=tests/test_federation_v1_assignment.py
+      --ignore=tests/test_federation_v1_hardening.py
+      --ignore=tests/test_federation_v1_ready_work_item.py -q --tb=no -rf
+    exit_code: 1
+    outcome: >-
+      HEAD rest-of-suite: 41 failed / 1926 passed / 1 skipped. The 19
+      non-timeout failures are byte-identical IDs to baseline. The 22
+      additional failures are all 'Timeout (>30.0s) from pytest-timeout'
+      caused by machine overload (load average ~630 on 4 cores) — proven
+      environmental by isolated re-runs at head AND baseline under the same
+      load (both: 21 passed / 1 timeout on the same test,
+      test_campaign_cli_apply_list_show). No newly introduced failures.
+  - command: >-
+      python -m pytest <22 timed-out tests> -q --tb=line -rf  # head checkout
+    exit_code: 1
+    outcome: >-
+      HEAD isolated re-run of the 22 full-suite timeouts: 21 passed, 1 timeout
+      (test_campaign_cli_apply_list_show — CLI subprocess test, slow under
+      load). Confirms the full-suite timeouts were environmental.
+  - command: >-
+      python -m pytest <same 22 tests> -q --tb=line -rf  # baseline checkout
+    exit_code: 1
+    outcome: >-
+      BASELINE isolated re-run of the same 22 tests under the same machine
+      load: 21 passed, 1 timeout (same test). Identical to head — the timeouts
+      reproduce at baseline and are NOT introduced by the repair.
+  - command: >-
+      python -m ruff check city/brain_gates.py city/brain_context.py
+      city/brain_voice.py city/karma_handlers/brain_health.py
+      city/hooks/moksha/reflection_stats.py tests/test_brain_context.py
+    exit_code: 0
+    outcome: >-
+      Lint clean on changed files (0 diagnostics). brain_voice.py and
+      test_brain_gates.py retain only their 14 pre-existing baseline
+      diagnostics (E501/F401); no new lint errors introduced.
+  - command: >-
+      python -c "digest_thread_state(26,'open',0.5,5,0,True) -> field summary ->
+      check_grounding(truthful) / check_grounding(fabricated)"
+    exit_code: 0
+    outcome: >-
+      END-TO-END #137 reproduction: truthful comprehension echoing digest facts
+      ('unresponsive_thread(5 human, 0 agent)', human_comments=5,
+      agent_responses=0) -> grounded (would post); fabricated crisis
+      comprehension ('economy_collapsed(total_prana=0)') -> ungrounded
+      (suppressed). Defect fixed at the posting boundary.
+  - command: >-
+      python -c "build_context_snapshot(fake ctx with 5-human/0-agent thread)
+      -> HealthCheckBuilder.build_payload"
+    exit_code: 0
+    outcome: >-
+      Health payload thread line now reads real aggregates
+      ('Threads: 6 human comments, 2 agent responses, 1 unresolved.') instead
+      of the baseline always-zero line (comment_stats() key mismatch fixed).
+  - command: >-
+      git checkout -b repair/run-20260810-brainvoice-fact-checking-grounding-gate
+      && git commit -m "fix(brain): grounding gate for posted Brain/BrainVoice
+      event claims"
+    exit_code: 0
+    outcome: >-
+      Repair committed on branch repair/run-20260810-brainvoice-fact-checking-
+      grounding-gate at 0fddd1bbe859867d0fa1966620854877bee1a5dd (7 files,
+      +651/-13).
+  - command: >-
+      git push -u origin repair/run-20260810-brainvoice-fact-checking-grounding-gate
+    exit_code: 0
+    outcome: >-
+      Branch pushed to kimeisele/agent-city (no admin/force/protection
+      changes).
+  - command: >-
+      gh pr create --repo kimeisele/agent-city --base main --head
+      repair/run-20260810-brainvoice-fact-checking-grounding-gate
+    exit_code: 0
+    outcome: >-
+      PR opened: https://github.com/kimeisele/agent-city/pull/2718. No merge,
+      no admin bypass, no protection changes.
+baseline_failures:
+  - "collection error: tests/federation_v1/test_golden_wire.py (missing tests/fixtures/federation_v1/keys/test_keys.json)"
+  - "collection error: tests/federation_v1/test_golden_wire_01a.py (missing tests/fixtures/federation_v1/keys/test_keys.json)"
+  - "collection error: tests/test_federation_v1_admission.py (missing tests/fixtures/federation_v1/keys/test_keys.json)"
+  - "collection error: tests/test_federation_v1_assignment.py (missing tests/fixtures/federation_v1/keys/test_keys.json)"
+  - "collection error: tests/test_federation_v1_hardening.py (missing tests/fixtures/federation_v1/keys/test_keys.json)"
+  - "collection error: tests/test_federation_v1_ready_work_item.py (missing tests/fixtures/federation_v1/keys/test_keys.json)"
+  - "tests/review_governance/test_b1.py::test_import_is_side_effect_free"
+  - "tests/test_layer1.py::test_jiva_derivation"
+  - "tests/test_layer1.py::test_pokedex_discover"
+  - "tests/test_layer1.py::test_pokedex_register"
+  - "tests/test_layer1.py::test_pokedex_zones"
+  - "tests/test_layer6.py::test_full_rotation_with_federation"
+  - "tests/test_layer6.py::test_bridge_post_cooldown"
+  - "tests/test_layer6.py::test_bridge_post_format"
+  - "tests/test_layer6.py::test_bridge_mission_result_post"
+  - "tests/test_layer6.py::test_bridge_directive_acks_in_content"
+  - "tests/test_layer6.py::test_create_mission_directive_creates_mission_and_proposal"
+  - "tests/test_mayor_context.py::test_context_bridge_builds_phase_context_and_syncs_services"
+  - "tests/test_mayor_execution.py::test_execution_bridge_routes_genesis"
+  - "tests/test_mayor_execution.py::test_execution_bridge_runs_moksha_self_diagnostics"
+  - "tests/test_mayor_execution.py::test_heartbeat_updates_persisted_totals"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_verdict_reads_from_real_nadi_inbox"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_full_pipeline_scanner_to_verdict"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_full_pipeline_core_file_escalation"
+  - "tests/test_pr_gate_e2e.py::TestE2EPRGatePipeline::test_full_pipeline_rejection"
+newly_introduced_failures: []
+evidence_locations:
+  - run-output/run-20260810-agent-city-brainvoice-fact-checking-recon/repair-result.yaml
+created_at: "2026-08-10T16:51:30Z"

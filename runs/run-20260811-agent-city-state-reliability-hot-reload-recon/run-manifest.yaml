@@ -1,0 +1,78 @@
+kind: federation_hq_run_manifest
+run_id: run-20260811-agent-city-state-reliability-hot-reload-recon
+target_repository: kimeisele/agent-city
+baseline_sha: df486b90dfe95376a5b5e4ed4c6924a8e7efeb57
+coordination:
+  protocol_version: 0.1.0
+  issue_number: 45
+  issue_url: https://github.com/kimeisele/federation-hq/issues/45
+pipeline_state: approved
+prompt_pins:
+  operator:
+    id: operator
+    version: 0.3.1
+    sha256: 20aa6bacd660da8438a7098f70032560f36688ea125cfb8da9ad18fcbdaa01cc
+  scout:
+    id: scout
+    version: 0.2.0
+    sha256: eb93cbb94d489df94cd64cde59316fcb650f344244c097c11e024b0093011837
+  repair:
+    id: repair
+    version: 0.2.1
+    sha256: 2830ae50c209ae116671f1f840352b416ce26f8304cb78ee277fd9721a9b1d0f
+  review:
+    id: review
+    version: 0.2.1
+    sha256: d3e59db52d144a4aeebbb149a09f1266c4948cb4d37007327966f42eee875247
+mission_input:
+  mission_id: mission-20260811-agent-city-state-reliability-hot-reload-recon
+  candidate:
+    path: missions/mission-20260811-agent-city-state-reliability-hot-reload-recon/mission-candidate.yaml
+    hq_commit_sha: 639eca6fd93653213ad837e82ee36616189e67e8
+    sha256: 2f47a797d3da054cbed29c3a3f3ba9f6facd0e18284786f8e2efcefa9e241d3b
+  contract:
+    path: missions/mission-20260811-agent-city-state-reliability-hot-reload-recon/mission-contract.yaml
+    hq_commit_sha: 639eca6fd93653213ad837e82ee36616189e67e8
+    sha256: db2a5b766ec204c74851120fa27bdd2091c8b38dcebfc26b22b0aac4cf86d115
+  admission_ledger:
+    path: mission/ledger.yaml
+    hq_commit_sha: bcfcae2b7873c213c0d5e61790daf7e470c7b68e
+    sha256: cc7e539a8a8164f77458a8fe98a00da1ad4df4818a7b4ec476af02a750dcefba
+created_at: '2026-08-11T16:08:30Z'
+notes: >
+  Resource Governance Live Benchmark 01 (Director cycle
+  director-cycle-20260811-resource-governance-benchmark-01, federation-hq#43):
+  one real one-cycle runtime benchmark run under Execution Resource Governance
+  v0.1. MissionContract-native (mission_input) run. Admission evaluated against
+  Candidate@C + Contract@C (639eca6f) + AdmissionLedger@B (bcfcae2b, sha256
+  cc7e539a...) per operator@0.3.1 — mixed-commit pins per contract; ledger@B
+  has NO prior disposition for sig-20260811-agent-city-issue-14-state-reliability-hot-reload
+  (POL-04 reopen guard passes; no prior_disposition_override needed); all
+  Mission Foundation schemas pass; provenance chain verified (source_candidate_id,
+  mission_id, signal identity, target repository, candidate disposition
+  'selected' permits execution); policy pin verified (docs/HQ_MISSION_POLICY.md
+  v0.1.0, sha256 7d3c4eb4... matches contract policy_sha256). Execution prompt
+  pins verified byte-for-byte against prompts/registry.yaml (all four
+  status: released, version + registry sha256 + prompt file bytes exact match).
+  ADMITTED; run opened. Target kimeisele/agent-city main live-verified at run
+  opening: df486b90dfe95376a5b5e4ed4c6924a8e7efeb57 (PR #2718 merge, expected
+  baseline per candidate). HQ main at run opening: 639eca6f. Coordination
+  Issue: kimeisele/federation-hq#45. Execution Resource Governance v0.1 active:
+  every HEAVY command through scripts/run_heavy_command.py --run-id
+  run-20260811-agent-city-state-reliability-hot-reload-recon; heavy retry
+  circuit breaker (0 identical retries after timeout/SIGTERM/resource
+  exhaustion); at most 1 concurrent heavy verification command per run.
+  Pipeline (all adapter-dispatched via path B, depth-2 workaround recorded):
+  Scout (Benchmark01Scout) submitted candidate c1 -> accepted (b6fee498);
+  Repair (Benchmark01Repair) repaired c1, local-only first -> rework_request
+  msg-bench01-0005 (remote head required, REPAIR_PIPELINE invariant 3) ->
+  branch pushed + PR kimeisele/agent-city#2719 -> repair_result accepted
+  (4b8aaf12); Review (Benchmark01Review) independently checked exact remote
+  head a6602da1, verdict approved (environmental-qualified) -> accepted
+  (81ebaeb); federation-hq/review Gate published (check 93861350091,
+  App 4528340, success); Integrator (Benchmark01Integrator) merged target PR
+  #2719 normally at exact approved head -> agent-city main f210303f.
+  Resource governance: 0 HEAVY commands, 0 BUSY refusals, 0 PRESSURED
+  refusals, 0 identical heavy retries; pressure preflight PRESSURED
+  (load_1m 85.38/68.36, normalized ~21.34/17.09 vs 1.5) -> no broad suite
+  attempted by any worker; focused-first verification throughout.

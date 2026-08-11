@@ -1,0 +1,120 @@
+kind: federation_hq_review_result
+review_id: run-20260811-agent-city-state-reliability-hot-reload-recon-v1
+run_id: run-20260811-agent-city-state-reliability-hot-reload-recon
+candidate_id: run-20260811-agent-city-state-reliability-hot-reload-recon-c1
+result_id: run-20260811-agent-city-state-reliability-hot-reload-recon-r1
+target_repository: kimeisele/agent-city
+reviewer_head_sha: a6602da1be12dbfb4fd6a1488ad81bab83650e3e
+verdict: approved
+created_at: "2026-08-11T17:05:00Z"
+baseline_failures_checked:
+  - >-
+    "No failing baseline tests in the affected surface": CONFIRMED — fresh
+    worktree at df486b90dfe95376a5b5e4ed4c6924a8e7efeb57;
+    python3 -m pytest tests/test_layer7.py tests/hardening/test_state_corruption.py -v
+    -> 8 passed (6 layer7 "Current Coverage" + 2 hardening
+    survival-by-empty-state), exit 0.
+  - >-
+    "Latent data-loss behavior at baseline (silent empty reset, no backup)":
+    CONFIRMED — reproduced empirically at df486b90: post-save directory holds
+    only council_state.json (no .bak, no temp); after truncating the primary
+    mid-write, a new CityCouncil reloads elected_mayor=None, member_count=0
+    (warning logged, no recovery); backup files: none. Source inspection of
+    baseline city/council.py:150-167 (write_text, no backup, except
+    (JSONDecodeError, KeyError) -> continue with defaults) and
+    city/mayor/lifecycle.py:31-70 (write_text, no backup, silent return on
+    corrupt input) corroborates.
+newly_introduced_failures_checked: []
+blockers: []
+evidence_checked:
+  - >-
+    PINS: prompts/review/v0.2.1.md sha256 d3e59db52d144a4aeebbb149a09f1266c4948cb4d37007327966f42eee875247
+    == run-manifest prompt_pins.review (byte-verified); missions/mission-20260811-agent-city-state-reliability-hot-reload-recon/mission-contract.yaml
+    sha256 db2a5b766ec204c74851120fa27bdd2091c8b38dcebfc26b22b0aac4cf86d115 == manifest
+    mission_input.contract.sha256; runs/run-20260811-agent-city-state-reliability-hot-reload-recon/repair-candidate.yaml
+    sha256 59189e0e913aa925253e39138f54c3ce5e49bc710f5e5bcc85e3603b2d9c1228 == manifest +
+    acceptance msg-bench01-0003; runs/.../repair-result.yaml sha256
+    8bbd5614d82b40da7b0648e62e85f24405411c37690771dc0cc6ee60caad74f5 == manifest +
+    acceptance msg-bench01-0006. Coordination Issue kimeisele/federation-hq#45 read in
+    full (msg-bench01-0001..0007); active assignment msg-bench01-0007 (operator -> review,
+    state_after independent_review). MissionContract prescribes_repair: false — recon
+    contract; repair scope must match candidate c1 + contract boundaries (verified below).
+  - >-
+    REMOTE HEAD: fresh clone kimeisele/agent-city to /tmp/bench01-review; git fetch +
+    checkout a6602da1be12dbfb4fd6a1488ad81bab83650e3e — exists remotely, git rev-parse
+    HEAD == a6602da1; parent df486b9 == baseline df486b90dfe95376a5b5e4ed4c6924a8e7efeb57.
+    gh pr view 2719: OPEN, headRefName repair/run-20260811-state-reliability-hot-reload-recon,
+    headRefOid a6602da1be12dbfb4fd6a1488ad81bab83650e3e, baseRefName main, baseRefOid
+    df486b90, mergeable MERGEABLE; gh api pulls/2719/commits -> exactly 1 commit
+    (a6602da1); branch ref head == a6602da1 (no new commits since review scoping).
+  - >-
+    DIFF SCOPE vs baseline: git diff --stat df486b90..a6602da1 = 4 files, +320/-32:
+    city/council.py (+81), city/mayor/lifecycle.py (+74), tests/hardening/test_state_corruption.py
+    (+73), tests/test_layer7.py (+124). No changes to config/__init__.py, city/factory.py,
+    city/runtime.py, city/mayor/kernel.py — Areas 2 (config hot-reload) and 3 (state
+    versioning/migration) untouched. Scope matches candidate c1 exactly; no expansion.
+  - >-
+    CANDIDATE FIX (Area 1, atomic writes + backup recovery): city/council.py — new
+    STATE_BACKUPS=5, _backup_paths/_rotate_backups/_atomic_write_json (temp file in same
+    dir, json.dump + flush + os.fsync, temp.replace(path) — the FederationNadi/
+    FederationRelay pattern cited in the candidate); _auto_save now calls
+    _atomic_write_json (with best-effort rotation); __post_init__ iterates
+    [primary, .bak, .bak.1..4] and restores from the most recent valid backup,
+    warning on backup recovery, "starting empty" only when no valid backup exists.
+    city/mayor/lifecycle.py — same helpers; restore_mayor recovers counters from the
+    most recent valid backup; persist_mayor writes mayor state AND conversation
+    tracker atomically (candidate cites tracker_path.write_text line 70). Backup
+    semantics: .bak holds the last fully-committed state (one save behind primary);
+    a mid-write crash loses at most the interrupted write's delta. No-op happy path
+    unchanged (same json.dump indent=2 utf-8 bytes).
+  - >-
+    TESTS (candidate-required): tests/test_layer7.py gains the 3 Issue #14 RED tests
+    (test_council_corrupt_state_recovers_from_backup, test_mayor_corrupt_state_recovers_from_backup,
+    test_state_backup_rotation_is_bounded); tests/hardening/test_state_corruption.py
+    reconciled from survival-by-empty-state to data-preservation assertions
+    (elected_mayor=Alice, member_count=2, seats preserved; mayor counters 17/3/5).
+  - >-
+    FOCUSED TESTS AT HEAD (independent run, /tmp/bench01-review @ a6602da1):
+    python3 -m pytest tests/test_layer7.py tests/hardening/test_state_corruption.py -v
+    -> 11 passed (9 layer7 = 6 existing + 3 new RED; 2 hardening reconciled), exit 0.
+    Neighboring/component: python3 -m pytest tests/test_layer2.py::test_mayor_state_persistence
+    "tests/test_governance.py::TestGovernancePersistence" -v -> 3 passed (1 mayor
+    restart persistence + 2 council marketplace persistence), exit 0.
+    ruff check city/council.py city/mayor/lifecycle.py tests/test_layer7.py
+    tests/hardening/test_state_corruption.py -> OK, exit 0.
+  - >-
+    END-TO-END HEAD VERIFICATION (independent reproduction): council — two mutations
+    then truncate primary -> reload recovers elected_mayor=Alice, member_count=2,
+    seats={0:Alice,1:Bob} from council_state.json.bak; directory holds primary + .bak,
+    no .tmp residue. Mayor — two saves (17/3/5 then 99) then truncate primary ->
+    reload recovers heartbeat_count=17, total_governance_actions=3, total_operations=5
+    from mayor_state.json.bak; conversation_tracker.json.bak created; heartbeat()
+    runs (department MURALI). Both match the repair_result's claims exactly.
+  - >-
+    BASELINE REPLAY (differential): fresh worktree /tmp/bench01-review-baseline @
+    df486b90; python3 -m pytest tests/test_layer7.py tests/hardening/test_state_corruption.py
+    -v -> 8 passed. Head failing test IDs to replay: NONE (all 14 focused/neighboring
+    tests pass at head), so no further baseline replay required per the differential
+    strategy. newly_introduced_failures: [] confirmed (no head failures observed).
+  - >-
+    CI: no PR-triggered test workflow exists in kimeisele/agent-city — .github/workflows
+    contains only agent-city-heartbeat.yml (schedule/workflow_dispatch/repository_dispatch,
+    no pull_request trigger) and manifest-world-wiki.yml (push to main, wiki paths).
+    gh pr checks 2719: no checks reported; commit check-runs: total 0. Determinate
+    absence of PR CI, not indeterminate state — local focused verification is the
+    authoritative evidence path.
+  - >-
+    GOVERNANCE RECORD (reviewer): scripts/check_execution_pressure.py at review time
+    -> PRESSURED (load_1m=68.36, normalized_load=17.09, threshold 1.5); per Execution
+    Resource Governance v0.1 no HEAVY/broad command was launched (pressure preflight
+    blocks HEAVY starts under PRESSURED; UNKNOWN/PRESSURED does not block focused
+    work). The repair is a localized 2-file production change; every changed path is
+    covered by the focused suite (happy path roundtrip, corrupt-primary recovery,
+    rotation bound, mayor restart persistence, council marketplace persistence) which
+    passes 14/14 at head and 8/8 at baseline; the differential strategy's baseline
+    replay step applies only to head FAILING IDs (none). Broad-suite evidence is not
+    warranted and was not required to establish regression safety (governance
+    condition (c)); the repair worker's identical record (0 HEAVY, 0 BUSY, 0
+    PRESSURED refusals, 0 identical heavy retries) is consistent with my observation.
+    Environmental qualification: verdict approved on focused + differential evidence
+    under PRESSURED host conditions; no residual uncertainty blocks the verdict.
