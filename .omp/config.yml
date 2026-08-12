@@ -1,0 +1,11 @@
+# Project-local OMP configuration (Federation HQ).
+#
+# OMP's native task.maxRecursionDepth defaults to 2. Federation HQ's
+# intended OMP execution topology is root(0) -> hq-director(1) ->
+# hq-operator(2) -> execution worker(3). At depth 2 the Operator loses the
+# task capability and cannot dispatch its workers. This project-local
+# override sets exactly the required bound 3 — never unlimited (-1), never
+# 4+. Workers at depth 3 cannot recursively spawn further agents (depth cap
+# plus their leaf `spawns: []` policies).
+task:
+  maxRecursionDepth: 3
