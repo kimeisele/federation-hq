@@ -130,4 +130,21 @@ items:
       kimeisele/agent-city#2719 merged f210303f. Canonical evidence:
       runs/run-20260811-agent-city-state-reliability-hot-reload-recon/.
     updated_at: "2026-08-11T17:15:00Z"
-updated_at: "2026-08-11T17:15:00Z"
+  - signal_id: sig-20260813-steward-federation-nadi-source-binding
+    source_kind: github_issue
+    repository: kimeisele/federation-hq
+    source_native_ref: kimeisele/federation-hq#53
+    disposition: active
+    candidate_id: cand-20260813-steward-federation-nadi-source-binding
+    mission_id: mission-20260813-steward-federation-nadi-source-binding
+    related_run_ids: []
+    last_observed_evidence: >
+      Federation Bootstrap PROGRAM 0a formulation: at steward-federation
+      remote head 79eeae6a624b29ca7fa6e23c40931c89b3ddb957,
+      .github/workflows/hub-heartbeat.yml downloads mutable main/nadi_kit.py
+      after checkout and executes it without binding the bytes to the
+      triggering revision. Candidate and proposed MissionContract are under
+      missions/mission-20260813-steward-federation-nadi-source-binding/;
+      target execution has not started.
+    updated_at: "2026-08-13T17:00:18Z"
+updated_at: "2026-08-13T17:00:18Z"

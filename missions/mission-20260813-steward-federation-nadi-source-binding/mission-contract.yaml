@@ -1,0 +1,56 @@
+# Federation Bootstrap PROGRAM 0a — exactly one repository and one defect.
+# This proposed contract is formulation output, not target execution.
+kind: federation_hq_mission_contract
+mission_version: "0.1.0"
+mission_id: mission-20260813-steward-federation-nadi-source-binding
+source_candidate_id: cand-20260813-steward-federation-nadi-source-binding
+signal_refs:
+  - signal_id: sig-20260813-steward-federation-nadi-source-binding
+    source_kind: github_issue
+    repository: kimeisele/federation-hq
+    source_native_ref: kimeisele/federation-hq#53
+target_repository: kimeisele/steward-federation
+objective: >
+  Bind the nadi_kit.py executed by the hub-heartbeat workflow to the exact
+  repository revision checked out for that workflow run, without changing
+  Nadi or heartbeat behavior.
+decision_question: >
+  At baseline 79eeae6a624b29ca7fa6e23c40931c89b3ddb957, what is the
+  smallest repository-scoped correction that removes mutable remote
+  nadi_kit.py execution and proves the executed file belongs to the checked
+  out commit while preserving sync-heartbeat-sync order?
+bounded_scope: >
+  Repository kimeisele/steward-federation only. Inspect and, if evidence
+  warrants repair, change only .github/workflows/hub-heartbeat.yml and one
+  focused workflow-source guard under tests/. nadi_kit.py may be read and
+  exercised but its production bytes are outside the change allowlist.
+scope_enforcement: declared
+prescribes_repair: false
+hard_constraints:
+  - "Use exact target baseline 79eeae6a624b29ca7fa6e23c40931c89b3ddb957 and review the exact remote repair head."
+  - "Do not modify nadi_kit.py production bytes."
+  - "Do not change Nadi message, signature, key, relay, mailbox, buffer, routing, retry, or sync semantics."
+  - "Preserve exactly the local execution order: sync, heartbeat, sync."
+  - "No consumer-repository, Federation HQ, FAW, OMP, runtime, credential, relay-repository, or sandbox changes."
+  - "No tag, release, package-boundary, or dependency-architecture work."
+  - "The guard must reject reintroduction of mutable remote application-code fetch and mutation of nadi_kit.py after checkout."
+stop_conditions:
+  - "The correction requires changing nadi_kit.py production semantics."
+  - "The correction requires a cross-repository change."
+  - "An active overlapping pull request takes ownership of the same workflow-source defect."
+  - "The checked-out revision cannot be made the executed source within the declared path allowlist."
+  - "Required evidence cannot be reproduced against the exact remote head."
+expected_allowed_outcomes:
+  - approved
+  - changes_requested
+  - blocked
+  - invalid_candidate
+  - mission_rejected
+policy_reference: docs/HQ_MISSION_POLICY.md
+policy_version: "0.1.0"
+policy_sha256: "7d3c4eb4b6528e4aef515b429aafcdb6d9dc228d6feea098582b10a2a4f2241d"
+status: proposed
+creation_provenance:
+  author_role: director
+  source_reference: "kimeisele/federation-hq#53"
+created_at: "2026-08-13T17:00:18Z"

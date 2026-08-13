@@ -1,0 +1,43 @@
+# Federation Bootstrap PROGRAM 0a — Director cycle federation-hq#53.
+# The explicit owner request and the pinned workflow evidence are signals;
+# target repair remains for the existing Operator/Scout/Builder/Review path.
+kind: federation_hq_mission_candidate
+candidate_id: cand-20260813-steward-federation-nadi-source-binding
+signal_refs:
+  - signal_id: sig-20260813-steward-federation-nadi-source-binding
+    source_kind: github_issue
+    repository: kimeisele/federation-hq
+    source_native_ref: kimeisele/federation-hq#53
+    last_observed_evidence: >
+      At steward-federation remote head
+      79eeae6a624b29ca7fa6e23c40931c89b3ddb957,
+      .github/workflows/hub-heartbeat.yml checks out the triggering revision,
+      then downloads nadi_kit.py from mutable steward-federation/main without
+      a digest check before executing sync, heartbeat, and sync.
+target_repository: kimeisele/steward-federation
+problem_statement: >
+  The hub heartbeat does not bind the executed nadi_kit.py bytes to the
+  workflow's checked-out repository revision. Determine and implement the
+  smallest correction that makes the workflow execute only repository code
+  bound to its triggering commit while preserving the existing
+  sync-heartbeat-sync behavior and all Nadi semantics.
+disposition: selected
+mission_id: mission-20260813-steward-federation-nadi-source-binding
+policy_eligibility:
+  policy_reference: docs/HQ_MISSION_POLICY.md
+  eligible: true
+  reasons:
+    - "POL-01 explicit owner request plus exact remote-head workflow evidence"
+    - "POL-02 bounded objective: bind one executed file to one checked-out revision"
+    - "POL-03 one semantic defect in one repository"
+    - "POL-04 no prior disposition for this signal in the canonical Ledger"
+    - "POL-06 no open pull request in steward-federation owns this defect as of 2026-08-13T17:00:18Z"
+    - "POL-07 no new architecture, protocol, runtime, or repository"
+overlap_refs: []
+evidence:
+  - "kimeisele/federation-hq#53"
+  - "kimeisele/steward-federation@79eeae6a624b29ca7fa6e23c40931c89b3ddb957:.github/workflows/hub-heartbeat.yml"
+  - "nadi_kit.py blob da2411fa72a3c896287f332dd0df75cc12a54d1c at the pinned baseline"
+  - "GitHub open-PR query for kimeisele/steward-federation returned [] at 2026-08-13T17:00:18Z"
+source: "Director cycle kimeisele/federation-hq#53; program context PRs #51 and #52"
+created_at: "2026-08-13T17:00:18Z"
