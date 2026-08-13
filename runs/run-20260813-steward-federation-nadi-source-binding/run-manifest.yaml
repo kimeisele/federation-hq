@@ -6,7 +6,7 @@ coordination:
   protocol_version: 0.1.0
   issue_number: 56
   issue_url: https://github.com/kimeisele/federation-hq/issues/56
-pipeline_state: requested
+pipeline_state: candidate_selected
 prompt_pins:
   operator:
     id: operator
