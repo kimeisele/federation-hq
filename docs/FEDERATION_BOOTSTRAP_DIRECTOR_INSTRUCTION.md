@@ -55,7 +55,7 @@ You **formulate**. You do not execute.
 Populate the schema's required fields honestly, and in particular:
 
 - `objective` — one bounded outcome, never "improve X" (POL-02).
-- `bounded_scope` — explicit repository and path allowlist. Note that `scope_enforcement` is `declared`, meaning prose rather than mechanical enforcement. Because this program spans three repositories, compensate: state paths explicitly and instruct the Reviewer to verify the diff stayed inside them.
+- `bounded_scope` — explicit repository and path allowlist. Note that `scope_enforcement` is `declared`, meaning prose rather than mechanical enforcement. Because this program spans multiple repositories and setup surfaces across separate cycles, compensate: state the current mission's single repository and paths explicitly, and instruct the Reviewer to verify the diff stayed inside them.
 - `hard_constraints` — carry forward the relevant constraints from Artifact A §9 and, for PROGRAM 4 onward, restate security controls S3–S9 as mission constraints.
 - `stop_conditions` — carry forward the stage's abort condition from Artifact A §9.
 - `expected_allowed_outcomes` — include the possibility that the mission finds no change is warranted. Scout may contradict your hypothesis (POL-09); that is a valid result, not a failure.

@@ -185,7 +185,7 @@ Additionally, the first slice targets a **dedicated sandbox repository under the
 | Untrusted content | Delegation `input` is data. It is written to a file and passed via `-f`; it is never interpolated into a shell command or a workflow expression |
 | Concurrency | Actions `concurrency: group: faw-attempt-<attempt_id>`, `cancel-in-progress: false` |
 
-**Can proceed without human change: YES for design; the App installation and secret creation are operational setup, not a decision. They are PROGRAM 0 work.**
+**Can proceed without human change: YES for design.** App installation and secret creation are owner/operator setup outside Director mission formulation. They are not part of PROGRAM 0a–0d and occur only at the later credential/setup gate.
 
 ### D4 — `steward-federation` scope
 
@@ -241,7 +241,7 @@ S1 is the single highest-value item in this program and is independent of everyt
 | `agent-template` | The runtime adapter itself; FAW integration; Actions entrypoint; runtime bootstrap; secrets contract; one executable capability | **Yes** — PROGRAMS 3, 4 |
 | `steward-federation` | S1 security correction only. Reliability repairs are a separate track | **Yes, narrowly** — PROGRAM 0 |
 | dedicated FAW relay | Transport surface for the first slice (D2). Uses existing `NadiTransport` unchanged | **Yes** — PROGRAM 5 |
-| sandbox target repo | Destination of the bounded mutation (D1) | **Yes** — separate post-P4 sandbox mission and PROGRAM 6 |
+| sandbox target repo | Destination of the bounded mutation (D1) | **Yes** — PROGRAM 6 |
 | `agent-city`, `agent-world`, `agent-internet` | S1 consumer pinning only | **Yes, narrowly** — PROGRAM 0b/0c/0d |
 | `steward`, `steward-protocol` | None | **No.** Enter only if a Scout finding demonstrates a verified dependency |
 
@@ -375,9 +375,9 @@ After 0a is accepted, S1 continues as three separate, single-repository missions
 **Reviewer.** Verify branch-namespace confinement, absence of `pull_requests` permission, secret scoping per step, and that the delegation input is never shell-interpolated.
 **In scope.** `.github/workflows/faw-attempt.yml`, `scripts/`, `.well-known/`, `docs/authority/capabilities.json`, `pyproject.toml`.
 **Out of scope.** Nadi transport wiring (P5). Discussions. Modifying the existing heartbeat's semantics.
-**Acceptance evidence.** A locally constructed signed delegation exercises the `agent-template` integration against a disposable or mock target and produces a schema-valid signed receipt as an Actions artifact. It does not write another repository. Creating a real branch in the sandbox repository is a separate, later sandbox-target mission after PROGRAM 4.
+**Acceptance evidence.** A locally constructed signed delegation exercises the `agent-template` integration against a disposable or mock target and produces a schema-valid signed receipt as an Actions artifact. It does not write another repository. The first real sandbox branch is created only by the later PROGRAM 6 mission targeting the sandbox repository.
 **Abort.** Any secret reachable from a step handling task-controlled content → halt, remediate before continuing.
-**Unlocks.** A separate sandbox-target execution mission, followed by PROGRAM 5.
+**Unlocks.** PROGRAM 5. Real sandbox mutation remains deferred to PROGRAM 6.
 
 ---
 
