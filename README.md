@@ -157,6 +157,21 @@ promised roadmap commitments):
 - dashboards, databases, and web servers,
 - any replacement for repository-native governance.
 
+## Federation Bootstrap Program (planning)
+
+The planning-only program context is identified as
+`federation-bootstrap-v0.1` and is kept in two separate artifacts:
+
+- [`docs/FEDERATION_BOOTSTRAP_PROGRAM.md`](docs/FEDERATION_BOOTSTRAP_PROGRAM.md)
+  is the architecture and program brief (Artifact A).
+- [`docs/FEDERATION_BOOTSTRAP_DIRECTOR_INSTRUCTION.md`](docs/FEDERATION_BOOTSTRAP_DIRECTOR_INSTRUCTION.md)
+  is the bootstrap instruction for the Mission Director (Artifact B).
+
+Artifact B references Artifact A as context. Neither artifact is a mission,
+run, policy, or authorization to modify a target repository. Program progress
+becomes durable only through the existing mission ledger and canonical run
+artifacts after the Director instruction is initiated.
+
 ## Development
 
 ```bash
@@ -197,7 +212,7 @@ verifies their authority feeds without committing or pushing to any branch.
 | `contracts/` | JSON Schemas for run/candidate/result/review artifacts and coordination messages |
 | `examples/` | One valid YAML example per schema |
 | `runs/` | Durable run records (one directory per run) |
-| `docs/` | Boundaries, pipeline, coordination protocol, versioning, ADRs |
+| `docs/` | Boundaries, pipeline, coordination protocol, versioning, planning artifacts, ADRs |
 | `docs/COORDINATION_PROTOCOL.md` | GitHub-native coordination protocol v0.1 (message envelope + comment examples) |
 | `.github/ISSUE_TEMPLATE/` | HQ Run / HQ Change / HQ Defect plain-Markdown Issue templates |
 | `scripts/validate_artifacts.py` | Structural artifact validation |
