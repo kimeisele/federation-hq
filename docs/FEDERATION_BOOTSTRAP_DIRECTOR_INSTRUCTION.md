@@ -42,11 +42,13 @@ You **formulate**. You do not execute.
 
 1. **In the first Director cycle, formulate PROGRAM 0 mission 0a** — the S1 security correction in `steward-federation`. It is independent of every other stage, it is the highest-value single change in the program, and nothing gates it. Its `hard_constraints` must explicitly forbid touching Nadi message semantics, buffer behaviour, or `sync()`; this mission is only about how code is obtained, not what it does. Persist the single bounded HQ formulation decision, then stop and report.
 
-2. **In a later explicit Director cycle, formulate PROGRAM 1a** — one bounded Recon Mission for `federated-agent-web` carrying an explicit `decision_question`. Its purpose is to convert Artifact A's relevant `[FACT]` claims into a canonical, run-anchored Scout finding. After that finding is accepted, another explicit Director cycle may formulate PROGRAM 1b for `agent-template`.
+2. **After 0a is accepted, complete S1 through separate later Director cycles:** formulate 0b for `agent-city`, 0c for `agent-internet`, and 0d for `agent-world`, one repository per cycle. Do not formulate a credential-introducing mission until all four S1 repository heads are evidenced.
+
+3. **In a later explicit Director cycle, formulate PROGRAM 1a** — one bounded Recon Mission for `federated-agent-web` carrying an explicit `decision_question`. Its purpose is to convert Artifact A's relevant `[FACT]` claims into a canonical, run-anchored Scout finding. After that finding is accepted, another explicit Director cycle may formulate PROGRAM 1b for `agent-template`.
 
    The `federated-agent-web` recon must additionally resolve Artifact A §13 H1 **by evidence, not by escalation**. Give Scout this decision rule: verify whether a runtime-neutral capability-execution seam can be introduced without changing FAW protocol semantics — no schema, canonicalization, verification-order, golden-vector, or `spec_version` change — and without expanding FAW into LLM routing or provider selection. If both hold, the finding is "proceed." If repository evidence shows an explicit architectural commitment would be violated, that is a stop-and-escalate finding. Do not ask a human whether an executor may be abstracted; that is what Scout and Review are for.
 
-3. **Stop and report after every cycle.** Do not formulate PROGRAM 2 until both PROGRAM 1 findings are accepted.
+4. **Stop and report after every cycle.** Do not formulate PROGRAM 2 until both PROGRAM 1 findings are accepted.
 
 ## For every MissionContract you produce
 

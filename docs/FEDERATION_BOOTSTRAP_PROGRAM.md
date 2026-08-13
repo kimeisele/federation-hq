@@ -241,16 +241,17 @@ S1 is the single highest-value item in this program and is independent of everyt
 | `agent-template` | The runtime adapter itself; FAW integration; Actions entrypoint; runtime bootstrap; secrets contract; one executable capability | **Yes** — PROGRAMS 3, 4 |
 | `steward-federation` | S1 security correction only. Reliability repairs are a separate track | **Yes, narrowly** — PROGRAM 0 |
 | dedicated FAW relay | Transport surface for the first slice (D2). Uses existing `NadiTransport` unchanged | **Yes** — PROGRAM 5 |
-| sandbox target repo | Destination of the bounded mutation (D1) | **Yes** — PROGRAM 4/6 setup |
-| `agent-city`, `agent-world`, `agent-internet`, `steward`, `steward-protocol` | None | **No.** Enter only if a Scout finding demonstrates a verified dependency |
+| sandbox target repo | Destination of the bounded mutation (D1) | **Yes** — separate post-P4 sandbox mission and PROGRAM 6 |
+| `agent-city`, `agent-world`, `agent-internet` | S1 consumer pinning only | **Yes, narrowly** — PROGRAM 0b/0c/0d |
+| `steward`, `steward-protocol` | None | **No.** Enter only if a Scout finding demonstrates a verified dependency |
 
 ---
 
 ## 8. Program dependency graph
 
 ```
-PROGRAM 0 ── security + setup ──┐
-  (S1 pin; App; sandbox repo)   │  blocks only P4+
+PROGRAM 0 ── S1 security ───────┐
+  (four repository-scoped pins)│  blocks only P4+
                                 │
 PROGRAM 1 ── recon ─────────────┼──► PROGRAM 2 ── FAW executor seam
   (bounded, per repo)           │         │      [federated-agent-web]
@@ -287,10 +288,10 @@ Each stage is one or more HQ missions. Because `target_repository` is singular b
 
 ---
 
-### PROGRAM 0 — Security prerequisite and program setup
+### PROGRAM 0 — Security prerequisite
 
-**Objective.** Remove mutable remote code execution from the federation, and create the credential and sandbox substrate.
-**Target repository.** `kimeisele/steward-federation` (mission 0a). Setup items 0b/0c are operator actions, not missions.
+**Objective.** Remove mutable remote code execution from the federation through four repository-scoped missions. Credential, relay, and sandbox creation are separate setup actions and are not performed by mission 0a.
+**Target repository.** `kimeisele/steward-federation` for mission 0a.
 **Why.** S1 is a live federation-wide compromise path; introducing autonomous coding credentials before fixing it multiplies it. Independent of every other stage.
 **Dependencies.** None. Start here.
 **Director.** Formulate 0a as a bounded security mission with an explicit `hard_constraints` entry forbidding any change to Nadi message semantics, buffer behaviour, or `sync()` — this mission is *only* about how the code is obtained.
@@ -374,9 +375,9 @@ After 0a is accepted, S1 continues as three separate, single-repository missions
 **Reviewer.** Verify branch-namespace confinement, absence of `pull_requests` permission, secret scoping per step, and that the delegation input is never shell-interpolated.
 **In scope.** `.github/workflows/faw-attempt.yml`, `scripts/`, `.well-known/`, `docs/authority/capabilities.json`, `pyproject.toml`.
 **Out of scope.** Nadi transport wiring (P5). Discussions. Modifying the existing heartbeat's semantics.
-**Acceptance evidence.** A locally-constructed signed delegation, injected via `workflow_dispatch`, produces a branch in the sandbox repo and a schema-valid signed receipt as an Actions artifact. **No maintainer machine participates.**
+**Acceptance evidence.** A locally constructed signed delegation exercises the `agent-template` integration against a disposable or mock target and produces a schema-valid signed receipt as an Actions artifact. It does not write another repository. Creating a real branch in the sandbox repository is a separate, later sandbox-target mission after PROGRAM 4.
 **Abort.** Any secret reachable from a step handling task-controlled content → halt, remediate before continuing.
-**Unlocks.** PROGRAM 5.
+**Unlocks.** A separate sandbox-target execution mission, followed by PROGRAM 5.
 
 ---
 
