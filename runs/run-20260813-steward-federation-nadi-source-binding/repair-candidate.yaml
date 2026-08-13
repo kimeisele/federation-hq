@@ -1,0 +1,34 @@
+kind: federation_hq_repair_candidate
+candidate_id: run-20260813-steward-federation-nadi-source-binding-c1
+run_id: run-20260813-steward-federation-nadi-source-binding
+target_repository: kimeisele/steward-federation
+baseline_sha: 1a7bc8d65a7eea4318db80ba1d8f710983582a3e
+defect_description: >-
+  At the pinned baseline, .github/workflows/hub-heartbeat.yml:28-33 checks out
+  steward-federation, then replaces the checked-out nadi_kit.py with bytes
+  fetched from the mutable GitHub raw URL for steward-federation/main. The
+  subsequent commands at lines 41-43 execute that replaced file for sync,
+  heartbeat, and sync. This breaks source binding: the executed application
+  bytes are not proven to belong to the workflow checkout or its triggering
+  commit, and a change to main can alter the code executed by an older or
+  otherwise pinned workflow run. The exact baseline API records nadi_kit.py
+  blob da2411fa72a3c896287f332dd0df75cc12a54d1c and the workflow blob
+  6224bd0710ba95c1bc5158df9ac33c98d7e209f0. The smallest bounded correction
+  is to execute the already checked-out nadi_kit.py and add only a focused
+  source-binding guard if needed; preserve the existing sync-heartbeat-sync
+  order and do not change nadi_kit.py or Nadi semantics.
+baseline_failures:
+  - >-
+    No failing baseline test was established for this workflow defect. The
+    existing tests/test_nadi_kit.py tests message, transport, node, signing,
+    and sync-related behavior but contains no assertion that
+    .github/workflows/hub-heartbeat.yml executes the checked-out source rather
+    than downloading mutable application code.
+evidence_locations:
+  - .github/workflows/hub-heartbeat.yml
+  - nadi_kit.py
+  - tests/test_nadi_kit.py
+  - https://github.com/kimeisele/steward-federation/commit/1a7bc8d65a7eea4318db80ba1d8f710983582a3e
+  - https://github.com/kimeisele/steward-federation/blob/1a7bc8d65a7eea4318db80ba1d8f710983582a3e/.github/workflows/hub-heartbeat.yml
+selected_by: scout
+created_at: '2026-08-13T17:27:15Z'
