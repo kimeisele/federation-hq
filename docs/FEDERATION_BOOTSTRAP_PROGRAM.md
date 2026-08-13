@@ -135,7 +135,8 @@ Not in this program, at all:
 - rewriting Nadi or designing a second message protocol
 - building an agent harness
 - multi-runtime support (build one adapter, not two)
-- a new repository
+- a new software implementation or package repository; the dedicated relay
+  and sandbox target in D1/D2 are explicit setup surfaces, not new subsystems
 - Redis / Kafka / Kubernetes / a custom queue / a permanent server
 - a web UI
 - Discussions as part of the correctness kernel
@@ -190,7 +191,7 @@ Additionally, the first slice targets a **dedicated sandbox repository under the
 
 **Consequence.** Converting a 98,314-commit live relay into a general runtime package couples the runtime's release cycle to a repository whose `main` is already an executable supply-chain surface for four nodes (§2.2). That is the exact coupling this program is trying to remove.
 
-**Default `[REC]`.** **`steward-federation` stays transport-only.** Executor seam and runtime adapter land in `federated-agent-web`, next to the verification core they serve. Node wiring lands in `agent-template`. **No new repository is created.** If a runtime package boundary later proves itself, extraction is cheap; creating it now would be a boundary asserted rather than demonstrated (and would violate POL-07).
+**Default `[REC]`.** **`steward-federation` stays transport-only.** The executor seam and pure `RuntimeResult` type land in `federated-agent-web`, next to the verification core they serve. The runtime adapter and node wiring land in `agent-template`. **No new software implementation or package repository is created.** If a runtime package boundary later proves itself, extraction is cheap; creating it now would be a boundary asserted rather than demonstrated (and would violate POL-07).
 
 **Can proceed without human change: YES.**
 
@@ -271,7 +272,12 @@ PROGRAM 1 ── recon ─────────────┼──► PROGR
                                      PROGRAM 7+ ── deferred (§12)
 ```
 
-Note the sequencing win: **PROGRAMS 2 and 3 require no credentials at all.** They are exercised against the filesystem transport and a stubbed runtime. Security work (P0) and seam work (P2/P3) therefore proceed in parallel, and the credential only becomes necessary at P4.
+Note the sequencing win: **PROGRAMS 2 and 3 require no credentials at all.** They are exercised against the filesystem transport and a stubbed runtime. Security work (P0) and seam work (P2/P3) therefore have no dependency on one another, and the credential only becomes necessary at P4. This is a dependency observation, not permission for the Director to schedule parallel cycles: each Director invocation still selects at most one MissionContract.
+
+OMP is an optional reference execution harness around the canonical HQ Issue,
+artifact, and role protocol. It is not part of FAW, the MissionContract, the
+Ledger, or the run-artifact semantics. The existing manual/external dispatch
+path remains valid when OMP is unavailable.
 
 ---
 
@@ -288,29 +294,31 @@ Each stage is one or more HQ missions. Because `target_repository` is singular b
 **Why.** S1 is a live federation-wide compromise path; introducing autonomous coding credentials before fixing it multiplies it. Independent of every other stage.
 **Dependencies.** None. Start here.
 **Director.** Formulate 0a as a bounded security mission with an explicit `hard_constraints` entry forbidding any change to Nadi message semantics, buffer behaviour, or `sync()` — this mission is *only* about how the code is obtained.
-**Scout.** Enumerate every workflow across the federation that fetches `nadi_kit.py` at runtime; report exact file, line, and credential exposure per occurrence. Do not propose reliability fixes.
-**Builder.** Replace mutable fetch with a commit-SHA-pinned fetch plus digest verification, or vendor the file. Smallest robust correction only.
-**Reviewer.** Verify no workflow resolves mutable `main`; verify no semantic change to `nadi_kit.py` behaviour; verify against actual remote head.
-**In scope.** `.github/workflows/hub-heartbeat.yml`; the equivalent fetch step in `agent-city`, `agent-internet`, `agent-world` (separate missions, one per repo).
+**Scout.** Inspect only `steward-federation`'s self-fetch and report its exact file, line, source binding, and credential exposure. Do not propose reliability fixes or inspect consumer repositories in this mission.
+**Builder.** Remove the mutable self-fetch and execute `nadi_kit.py` from the workflow's already pinned repository checkout. Smallest robust correction only.
+**Reviewer.** Verify the workflow executes only the checked-out head; verify no semantic change to `nadi_kit.py` behaviour; verify against the actual remote head.
+**In scope.** `.github/workflows/hub-heartbeat.yml` and, only if needed, one focused guard under `tests/`.
 **Out of scope.** F2 ring buffer, F3 outbox clearing, F4 replay truncation, F6 `*` mailboxes, hub topology.
-**Acceptance evidence.** Grep across all four repositories at their remote heads returns zero unpinned fetches; one heartbeat run completes green post-change; commit SHAs recorded.
+**Acceptance evidence.** `steward-federation`'s workflow contains no runtime fetch of mutable `main/nadi_kit.py`; a focused guard fails when that fetch is reintroduced; the existing `sync → heartbeat → sync` order and relevant tests remain unchanged; the exact commit SHA is recorded.
 **Abort.** If pinning breaks a running node's heartbeat and cannot be resolved within the mission's bounded scope → revert, record, re-formulate.
-**Unlocks.** PROGRAM 4 (credential introduction). Does not gate P1–P3.
+**Unlocks.** The three consumer S1 missions. PROGRAM 4 remains blocked until all of S1–S11 are satisfied. PROGRAM 0 does not gate P1–P3.
 
-*Setup items (operator, not missions):* **0b** create the GitHub App per D3 and the dedicated FAW relay repository per D2. **0c** create the sandbox target repository with `main` protected.
+After 0a is accepted, S1 continues as three separate, single-repository missions: **0b** `agent-city`, **0c** `agent-internet`, and **0d** `agent-world`. Each removes its mutable fetch or unpinned dependency without changing heartbeat or Nadi semantics. S1 is satisfied only after all four repository heads pass the cross-repository inventory check.
+
+*Setup items (operator, not missions):* create the GitHub App per D3 and the dedicated FAW relay repository per D2; create the sandbox target repository with `main` protected. These actions remain deferred until the program reaches their credential/setup gate and are not part of mission 0a.
 
 ---
 
 ### PROGRAM 1 — Repository-grounded recon
 
 **Objective.** Replace assumption with canonical findings for the two repositories that will be modified.
-**Target repository.** One recon mission each for `federated-agent-web` and `agent-template`.
+**Target repository.** PROGRAM 1a targets `federated-agent-web`; PROGRAM 1b targets `agent-template` in a later, separate Director cycle.
 **Why.** POL-01 requires evidence-backed missions. The Director must not formulate P2–P4 from this brief alone; this brief is context, not evidence.
 **Dependencies.** None.
-**Director.** Formulate two bounded Recon Missions with `decision_question` set — e.g. "What is the minimum change in `federated-agent-web` that makes the capability executor pluggable without altering `verify()`, the schemas, or `spec_version`?"
+**Director.** Formulate at most one bounded Recon Mission per cycle with `decision_question` set. Formulate PROGRAM 1a first — e.g. "What is the minimum change in `federated-agent-web` that makes the capability executor pluggable without altering `verify()`, the schemas, or `spec_version`?" After its canonical Scout result is accepted, a later explicit Director cycle may formulate PROGRAM 1b for `agent-template`.
 **Scout.** Produce canonical findings only. Explicitly permitted to contradict this brief (POL-09).
 **Builder / Reviewer.** Not engaged.
-**In scope.** `src/federated_agent_web/{demo,runner,verify,transports}.py`, `tests/`, `docs/adr/`; and for the template: `scripts/`, `.github/workflows/`, `data/federation/`, `pyproject.toml`.
+**In scope.** PROGRAM 1a: `src/federated_agent_web/{demo,runner,verify,transports}.py`, `tests/`, `docs/adr/`. PROGRAM 1b, in its later cycle: `scripts/`, `.github/workflows/`, `data/federation/`, `pyproject.toml` in `agent-template`.
 **Out of scope.** Any code change. Any repository not named.
 **Acceptance evidence.** Two Scout artifacts recorded under `runs/`, each anchored to a `baseline_sha`, each answering its `decision_question` with file-and-line references.
 **Abort.** If Scout finds the seam is not achievable without a schema or `spec_version` change → **stop the program** and escalate; that invalidates §1 finding 1 and the whole plan.
@@ -393,10 +401,10 @@ Each stage is one or more HQ missions. Because `target_repository` is singular b
 ### PROGRAM 6 — Vertical E2E proof and calibration
 
 **Objective.** Close the loop, then measure it.
-**Target repository.** `kimeisele/agent-template` (harness) plus the sandbox target.
+**Target repository.** The dedicated sandbox target. `kimeisele/agent-template` is a merged and pinned harness dependency, not a second target repository. If the harness itself requires changes, those changes are a separate earlier mission targeting `agent-template`.
 **Why.** This is the program's reason to exist.
 **Dependencies.** PROGRAMS 0–5.
-**Director.** Two missions: **6a** E2E proof against §10; **6b** calibration (D5).
+**Director.** Separate cycles against the sandbox target: **6a** E2E proof against §10; after 6a is accepted, **6b** calibration (D5).
 **Scout.** For 6b, define the measurement schema before any runs.
 **Builder.** 6a: execute the acceptance contract end to end and capture evidence. 6b: repeat the same bounded task ≥10 times, recording wall seconds, Actions minutes, provider-reported tokens, provider-reported cost, and runtime-reported cost.
 **Reviewer.** Verify every numbered clause of §10 independently, from committed evidence and Actions logs, without relying on the builder's narrative (POL-15).
@@ -450,7 +458,7 @@ A non-author must be able to verify each clause from committed evidence.
 
 **Rework limits:** two failed rework cycles on one mission → the mission framing is suspect (POL-10); return to formulation rather than continuing to build.
 
-**The Director must never:** implement target code, perform unbounded source inspection, merge work, combine repositories into one assignment, or override target-repository governance.
+**The Director must never:** implement target code, perform unbounded source inspection, merge target-repository work, combine repositories into one assignment, or override target-repository governance. Under the canonical HQ Director contract it may normally merge only its own validated Federation HQ formulation PR or Ledger-only decision PR.
 
 ---
 
@@ -488,7 +496,9 @@ With PROGRAM 3's adapter relocated to `agent-template` (§9), the remaining chan
 Residual genuinely-human element: none for v1 under the above rule. It returns only if evidence shows the seam cannot be built without touching signed bytes — which is already a §11 hard stop.
 
 **H2 — Does Federation HQ need a program-level grouping concept?**
-`[FACT]` `target_repository` is singular and required across all four contract schemas, and no schema field ties multiple missions into one program. This program spans ~10 missions across 3 repositories. Either the mission ledger is treated as sufficient linkage, or HQ adds a `program_id` — which is itself a schema change to HQ and therefore its own mission. This is newly discovered and has no default.
+`[FACT]` `target_repository` is singular and required across all four contract schemas, and no schema field ties multiple missions into one program.
+
+**Resolved for this bootstrap `[REC]`.** The existing mission Ledger, mission IDs, `related_run_ids`, `last_observed_evidence`, committed run artifacts, and the canonical program-document reference provide sufficient linkage. Stage, dependency, and unlock status belong in bounded evidence text or the coordination Issue. This program does not add `program_id`, a second program database, or a schema change. Reconsider only if an observed retrieval or integrity failure demonstrates that the existing references are insufficient.
 
 **H3 — What is the real budget ceiling per delegation, and who pays?**
 Not derivable from any repository. Needed as an input to PROGRAM 6b, not before.
