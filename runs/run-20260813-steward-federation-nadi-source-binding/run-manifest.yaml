@@ -1,0 +1,48 @@
+kind: federation_hq_run_manifest
+run_id: run-20260813-steward-federation-nadi-source-binding
+target_repository: kimeisele/steward-federation
+baseline_sha: 1a7bc8d65a7eea4318db80ba1d8f710983582a3e
+coordination:
+  protocol_version: 0.1.0
+  issue_number: 56
+  issue_url: https://github.com/kimeisele/federation-hq/issues/56
+pipeline_state: requested
+prompt_pins:
+  operator:
+    id: operator
+    version: 0.3.1
+    sha256: 20aa6bacd660da8438a7098f70032560f36688ea125cfb8da9ad18fcbdaa01cc
+  scout:
+    id: scout
+    version: 0.2.0
+    sha256: eb93cbb94d489df94cd64cde59316fcb650f344244c097c11e024b0093011837
+  repair:
+    id: repair
+    version: 0.2.1
+    sha256: 2830ae50c209ae116671f1f840352b416ce26f8304cb78ee277fd9721a9b1d0f
+  review:
+    id: review
+    version: 0.2.1
+    sha256: d3e59db52d144a4aeebbb149a09f1266c4948cb4d37007327966f42eee875247
+mission_input:
+  mission_id: mission-20260813-steward-federation-nadi-source-binding
+  candidate:
+    path: missions/mission-20260813-steward-federation-nadi-source-binding/mission-candidate.yaml
+    hq_commit_sha: b62cf4f0e46254eecb4f4725c2f411e849b85c83
+    sha256: 77ee573bbd665bf7f1cca5c6b9d546f34e74727683746cc118266c45a5fd0ebf
+  contract:
+    path: missions/mission-20260813-steward-federation-nadi-source-binding/mission-contract.yaml
+    hq_commit_sha: 7af4351bd02b5e500f1ec5fa354d1169df85779d
+    sha256: 3a8f316730c409a720ae16d38b9d5fbb9805cbe3dab9b0cb38442aff56a8897b
+  admission_ledger:
+    path: mission/ledger.yaml
+    hq_commit_sha: 969652c7788f267ed52b9e51e65aa85897b5da1c
+    sha256: 50e919f9224e06026c239f14273a94cc3cd925d05114e30b928afc8d9078067b
+created_at: "2026-08-13T17:17:10Z"
+notes: >
+  Federation Bootstrap PROGRAM 0a. Candidate and corrected Contract are pinned
+  at their exact canonical HQ commits; admission is evaluated against the
+  pre-formulation Ledger at 969652c (the signal is absent there). Target main
+  was live-verified and pinned at run opening to
+  1a7bc8d65a7eea4318db80ba1d8f710983582a3e. No target execution occurred
+  before this run record.
