@@ -534,8 +534,50 @@ retroactively constructed; that would be fabricating evidence for a process
 that did not happen. The verification that does exist: the merge SHAs above
 and the remote-head checks recorded in this session.
 
-**P4–P6 — not started.** No `faw-attempt` workflow, no dedicated relay
-repository, no sandbox target repository exists (verified 2026-08-16).
-P4 remains blocked on S2–S4 (owner setup: GitHub App, relay, sandbox).
+**P4–P6 — not started, setup surfaces created.** The relay repository
+(`faw-nadi-live-relay`) and the sandbox target repository
+(`federation-sandbox`) now exist (created 2026-08-16) with `main`
+branch-protected (no force-pushes, no deletions, admins enforced). No
+`faw-attempt` workflow, no runtime GitHub App, and no credentials exist
+yet. P4 remains blocked on S2/S3 (runtime App) and S5/S7 (workflow + secrets).
+
+**S8 implemented 2026-08-16 (agent-template#26).** The FAW runtime gained
+a default-deny write-target allowlist: `agent_runtime/allowlist.yaml`
+(policy file) enforced by `agent_runtime/target_allowlist.py`. Initial
+scope: `faw-nadi-live-relay` (`nadi/`) and `federation-sandbox` (`.`),
+branches `faw/attempt/*` only; missing/empty allowlist denies everything.
+The publish step must consult it before any write.
 
 **Consequence for the program — acceptance resolved 2026-08-16:** stages 2 and 3 are **accepted as merged, pinned interfaces** (P2/P3 each exist, are tested, and pass the org-wide verification). Owner decision: the verification that did happen — the org-wide consumer scan, the red consumer-scan finding, and remote-head inspection — is stronger evidence than the P1 Scout artifacts that were not produced. **P4 is therefore NOT blocked by the missing P1 recons.** A later stage that depends on a §2 claim must still re-verify it (POL-01) rather than assume the original `[FACT]` marking, but that re-verification is satisfied by the scan evidence for the claims already covered.
+
+## 15. Setup-surface visibility and S12 status (2026-08-16)
+
+**The sandbox and relay repositories are PUBLIC — deliberately recorded, not
+a decision.** Branch protection on a *private* repository requires GitHub
+Pro; on this account (personal, no Pro), protection only works on public
+repositories. So `federation-sandbox` and `faw-nadi-live-relay` were made
+public to get `main` protection — this is a **paywall consequence, not a
+design choice**. Consequences are recorded as constraints:
+
+- **Never** place secrets, customer data, or anything confidential in either
+  repository. Contents are test artifacts.
+- The sandbox holds only intentionally boring, bounded tasks (program §10);
+  the relay holds only Nadi mailbox staging (`nadi/`), no application code.
+
+Alternative considered: a private repo without branch protection plus a
+different control (e.g. only the runtime App's `contents: write` restricted
+to the two repos). That would work but weakens `main` protection; the public
++ protected combination was chosen for the first slice. Revisit only with a
+concrete threat model.
+
+**S12 (bounded network policy) — reclassified from "best-effort" to
+"not enforceable, documented gap".** GitHub-hosted runners have
+**unrestricted outbound network access**; a hard egress firewall exists only
+as a Technical Preview (Native Egress Firewall, audit-only, enterprise
+accounts) or via Azure VNet private networking (enterprise). Neither is
+available on this account. Therefore S12 is **not** a control that can be
+claimed here; it is a documented residual gap. The compensating controls
+that do exist: the runtime App scoped to exactly two repositories
+(D3/S2/S3), the default-deny target allowlist (S8, agent-template#26),
+deadline and output bounds (S9/S10), and the rule that delegation input is
+never shell-interpolated (S6).
