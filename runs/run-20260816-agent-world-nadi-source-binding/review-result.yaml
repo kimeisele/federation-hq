@@ -1,0 +1,26 @@
+kind: federation_hq_review_result
+review_id: run-20260816-agent-world-nadi-source-binding-v1
+run_id: run-20260816-agent-world-nadi-source-binding
+candidate_id: run-20260816-agent-world-nadi-source-binding-c1
+result_id: run-20260816-agent-world-nadi-source-binding-r1
+target_repository: kimeisele/agent-world
+reviewer_head_sha: 6e001a836f0f815feed02886fe2fb43ed93c6696
+verdict: approved
+baseline_failures_checked:
+  - >-
+    Verified the mutable fetch was present at baseline and is absent from the
+    repair head; grep across .github/ returns zero raw.githubusercontent.com
+    steward-federation/main references.
+newly_introduced_failures_checked:
+  - >-
+    Verified the pinned blob fetch and git hash-object digest gate run before
+    any nadi_kit.py execution step; a digest mismatch fails the job before the
+    heartbeat cycle starts. For agent-internet the final always() sync is
+    additionally gated on the install step outcome.
+blockers: []
+evidence_checked:
+  - >-
+    Independent fresh-context reviewer: SOLID, no blockers. Blob SHA 47d8e3bbd9cb4256612df1e21ded38b3beb48aa3
+    confirmed against the current steward-federation tree; git hash-object of
+    the fetched bytes matches.
+created_at: '2026-08-16T05:14:13Z'

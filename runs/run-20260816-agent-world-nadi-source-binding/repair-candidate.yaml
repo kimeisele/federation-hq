@@ -1,0 +1,25 @@
+kind: federation_hq_repair_candidate
+candidate_id: run-20260816-agent-world-nadi-source-binding-c1
+run_id: run-20260816-agent-world-nadi-source-binding
+target_repository: kimeisele/agent-world
+baseline_sha: 6771524abef20ef4f9b98ad366ba4bfa0968111a
+defect_description: >-
+  At the pinned baseline, .github/workflows/world-heartbeat.yml downloads nadi_kit.py from the mutable GitHub
+  raw URL for steward-federation/main and executes it with NODE_PRIVATE_KEY
+  and FEDERATION_PAT in the environment. This breaks source binding: a change
+  to main can alter the code executed by an older workflow run. The smallest
+  bounded correction is to fetch the nadi_kit.py blob at a pinned
+  content-addressed SHA and verify the digest with git hash-object before
+  execution; preserve the existing sync-heartbeat-sync order and do not
+  change nadi_kit.py or Nadi semantics.
+baseline_failures:
+  - >-
+    No failing baseline test was established for this workflow defect; the
+    repo's tests do not assert that the heartbeat executes pinned nadi_kit
+    bytes rather than a mutable remote fetch.
+evidence_locations:
+  - .github/workflows/world-heartbeat.yml
+  - https://github.com/kimeisele/steward-federation/git/blobs/47d8e3bbd9cb4256612df1e21ded38b3beb48aa3
+  - https://github.com/kimeisele/agent-world/commit/6771524abef20ef4f9b98ad366ba4bfa0968111a
+selected_by: scout
+created_at: '2026-08-16T05:14:13Z'
