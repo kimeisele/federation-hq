@@ -538,8 +538,4 @@ and the remote-head checks recorded in this session.
 repository, no sandbox target repository exists (verified 2026-08-16).
 P4 remains blocked on S2–S4 (owner setup: GitHub App, relay, sandbox).
 
-**Consequence for the program:** stages 2 and 3 are usable as merged,
-pinned interfaces (P2/P3 each exist and are tested), but they carry no
-Director-cycle acceptance artifacts. A later stage that depends on a §2
-claim must re-verify it (POL-01) rather than assume the original `[FACT]`
-marking — exactly what Artifact B requires.
+**Consequence for the program — acceptance resolved 2026-08-16:** stages 2 and 3 are **accepted as merged, pinned interfaces** (P2/P3 each exist, are tested, and pass the org-wide verification). Owner decision: the verification that did happen — the org-wide consumer scan, the red consumer-scan finding, and remote-head inspection — is stronger evidence than the P1 Scout artifacts that were not produced. **P4 is therefore NOT blocked by the missing P1 recons.** A later stage that depends on a §2 claim must still re-verify it (POL-01) rather than assume the original `[FACT]` marking, but that re-verification is satisfied by the scan evidence for the claims already covered.
