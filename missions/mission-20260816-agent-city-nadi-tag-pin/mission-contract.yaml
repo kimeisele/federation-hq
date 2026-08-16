@@ -1,0 +1,41 @@
+kind: federation_hq_mission_contract
+mission_version: "0.1.0"
+mission_id: mission-20260816-agent-city-nadi-tag-pin
+source_candidate_id: cand-20260816-agent-city-nadi-tag-pin
+signal_refs:
+  - signal_id: sig-20260816-agent-city-nadi-tag-pin
+    source_kind: github_issue
+    repository: kimeisele/federation-hq
+    source_native_ref: kimeisele/federation-hq#66
+target_repository: kimeisele/agent-city
+objective: >
+  Replace the blob-API nadi_kit.py pin with the immutable v0.1.2 tag pin in
+  the agent-city heartbeat, preserving digest verification.
+decision_question: >
+  Does the v0.1.2 tag fetch preserve byte-identical executed nadi_kit.py
+  while removing the blob-API dependency?
+bounded_scope: >
+  Repository kimeisele/agent-city only. Change only
+  .github/workflows/agent-city-heartbeat.yml and its workflow-source guard.
+scope_enforcement: declared
+prescribes_repair: false
+hard_constraints:
+  - "Digest verification (git hash-object == 47d8e3bb...) must be preserved."
+  - "No change to nadi_kit.py, Nadi semantics, or heartbeat behaviour."
+stop_conditions:
+  - "The v0.1.2 tag does not resolve to blob 47d8e3bb..."
+  - "A cross-repository change is required."
+expected_allowed_outcomes:
+  - approved
+  - changes_requested
+  - blocked
+  - invalid_candidate
+  - mission_rejected
+policy_reference: docs/HQ_MISSION_POLICY.md
+policy_version: "0.1.0"
+policy_sha256: "7d3c4eb4b6528e4aef515b429aafcdb6d9dc228d6feea098582b10a2a4f2241d"
+status: proposed
+creation_provenance:
+  author_role: director
+  source_reference: "kimeisele/federation-hq#66"
+created_at: "2026-08-16T08:14:54Z"

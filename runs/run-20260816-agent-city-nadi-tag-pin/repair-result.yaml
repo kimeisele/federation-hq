@@ -1,0 +1,26 @@
+kind: federation_hq_repair_result
+result_id: run-20260816-agent-city-nadi-tag-pin-r1
+run_id: run-20260816-agent-city-nadi-tag-pin
+candidate_id: run-20260816-agent-city-nadi-tag-pin-c1
+target_repository: kimeisele/agent-city
+baseline_sha: 5b377d75d6257805d88caed937adacc13c58c180
+repair_head_sha: 0ec56905d31e2569c2271aa18b8d9e64ac5d1d55
+branch: fix/nadi-kit-v012
+pull_request:
+  number: 2721
+  url: https://github.com/kimeisele/agent-city/pull/2721
+commands:
+  - command: python3 -m pytest tests/test_workflow_source.py
+    exit_code: 0
+    outcome: guard updated to the v0.1.2 tag pin, passes
+  - command: python3 -c "import yaml; yaml.safe_load(open('.github/workflows/agent-city-heartbeat.yml'))"
+    exit_code: 0
+    outcome: workflow YAML valid
+  - command: grep -r "steward-federation/main/nadi_kit.py" .github/ || true
+    exit_code: 1
+    outcome: zero unpinned main fetches
+baseline_failures: []
+newly_introduced_failures: []
+evidence_locations:
+  - .github/workflows/agent-city-heartbeat.yml
+created_at: '2026-08-16T08:14:54Z'
