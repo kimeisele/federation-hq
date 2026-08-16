@@ -48,7 +48,7 @@ Three findings shape everything below.
 
 ### 2.2 `steward-federation` — transport, with defects, plus one security hole
 
-`[FACT]` Full history inspected: 98,314 commits, ~1,400/day sustained, 570 MB `.git`, 110 mailboxes, 11,062 messages.
+`[FACT]` Full history inspected: 98,314 commits, ~1,400/day sustained, 731 MB server-side (API `size`; ~570 MB local `.git` at inspection), 110 mailboxes, 11,062 messages.
 
 - `NADI_BUFFER_SIZE = 144` ring buffer; 54 of 110 mailboxes sit at the cap and are silently evicting.
 - `sync()` still contains `if stats["pushed"] > 0: self.transport.clear_outbox()` while `push_to_hub` swallows per-target exceptions.
@@ -56,7 +56,9 @@ Three findings shape everything below.
 - Node identity is `ag_<hash(public_key)>` — key rotation changes identity.
 - Nine mailboxes literally named `*` hold ~1,300 undeliverable messages.
 - `HUB_REPO = "kimeisele/steward-federation"` — star topology.
-- **Security:** `agent-city`, `agent-internet`, `agent-world`, and `steward-federation` heartbeats all `curl` unpinned `nadi_kit.py` from `main` and execute it with `FEDERATION_PAT` in the environment.
+- **Security (as of 2026-08-10):** `agent-city`, `agent-internet`, `agent-world`, and `steward-federation` heartbeats all `curl` unpinned `nadi_kit.py` from `main` and execute it with `FEDERATION_PAT` in the environment. **Corrected 2026-08-16 — see §6 update and the consumer inventory below: this list was incomplete.**
+
+**Consumer inventory (corrected 2026-08-16).** The original four-repo list was wrong. An org-wide scan (all kimeisele repositories, 2026-08-16) found **16 nadi_kit consumer repositories**, reproducible in three stages: (1) `.github/workflows/*.yml` fetches/clones/installs of `nadi_kit`; (2) `.py` files importing `nadi_kit`; (3) `pyproject.toml` dependencies, plus a vendor check for an in-repo `nadi_kit.py`. The 16: `agent-city`, `agent-internet`, `agent-world`, `agent-music`, `agent-red-team`, `agent-village`, `federation-hq`, `agent-template`, `agent-template-acceptance-node-02/03/04/05`, `agent-template-proof-node-01`, `agent-research`, `steward-protocol`, and `steward-federation` itself (source). `agent-arena` vendors `nadi_kit.py` 0.1.0 directly (no fetch, no drift; owner decision 2026-08-16 to leave it until it needs 0.1.2). `mahaclaw`, `vibe-agency`, `steward-test` are relay-only (no `nadi_kit` execution).
 
 ### 2.3 `agent-template` — node infrastructure, zero FAW
 
@@ -156,6 +158,8 @@ For each: consequence → conservative default → whether the program can proce
 
 **Default `[REC]`.** The runtime's terminal artifacts are: **an isolated branch, commits, artifacts, and a signed receipt. No PR is opened by any agent.** The attempt is complete when the branch exists and the receipt verifies. A human — or later, repository-local trusted automation inside the target repo — performs the PR/merge transition.
 
+**Scope of this rule (sharpened 2026-08-16).** D1 binds the **delegated FAW runtime**: the autonomous executor that receives a signed delegation. It must not open PRs, must not write `main`, and its terminal artifact is the isolated `faw/attempt/<attempt_id>` branch plus the signed receipt. D1 does **not** cover: (a) Federation HQ repair missions, whose `repair-result` schema carries a `pull_request` reference by design and whose Builder opens a PR in the target repository through the HQ Operator path; or (b) direct owner instructions outside the Director cycle. The distinction is the authority behind the write: a runtime acting on a delegation never writes outward; HQ repair and owner-directed work write through an explicit, reviewed path.
+
 Additionally, the first slice targets a **dedicated sandbox repository under the same owner**, so the "foreign repository" question does not arise at all in v1. Same-owner vs foreign is left as a later distinction, made by ADR in FAW when there is evidence to make it with.
 
 **Can proceed without human change: YES.** This default sits strictly inside every existing rule. It also removes `pull_requests: write` from the credential model entirely (D3).
@@ -216,7 +220,7 @@ Every item below must hold **before** the first autonomous runtime credential ex
 
 | # | Control | Status |
 |---|---|---|
-| S1 | No node executes mutable remote code. `curl … main/nadi_kit.py` replaced by a commit-SHA-pinned fetch with digest verification, or a vendored copy | **Blocking. Not met.** `[FACT]` present in 4 repos |
+| S1 | No node executes mutable remote code. `curl … main/nadi_kit.py` replaced by a commit-SHA-pinned fetch with digest verification, or a vendored copy | **Satisfied 2026-08-16.** Org-wide scan: 0 unpinned `main` fetches; all 16 consumers pin `nadi-kit @ v0.1.2` (tag commit `03008a5a`, blob `47d8e3bb…`) or fetch the raw tag; `agent-arena` vendors 0.1.0 as a deliberate exception. Evidence: Block-A PRs (federation-hq#65, agent-template#25, agent-template-acceptance-node-02/03/04/05, agent-template-proof-node-01#343, agent-red-team#376, agent-village#406, agent-city#2721, agent-world#1210, agent-music#375) plus earlier slices. |
 | S2 | Runtime credential is a scoped GitHub App, not a PAT (D3) | Blocking |
 | S3 | `contents: write` only; no `pull_requests` permission (follows D1) | Blocking |
 | S4 | Writes confined to `faw/attempt/<attempt_id>`; `main` branch-protected on the sandbox target | Blocking |
@@ -506,3 +510,36 @@ Not derivable from any repository. Needed as an input to PROGRAM 6b, not before.
 
 **H4 — Does the dedicated sandbox target repository count as "not foreign" for FAW's rule?**
 D1's default avoids needing an answer for v1 by producing no PRs at all. But the moment repository-local automation converts a branch into a PR, the question becomes live. `[REC]` Record it as a FAW ADR when there is evidence, not now.
+
+## 14. Execution record (reconciled 2026-08-16)
+
+This section records how the program has actually run, so the document stays
+honest about the difference between the planned path and what happened. It
+is a factual record, not a defect report.
+
+**P0 (S1) — completed.** 0a steward-federation (hub-heartbeat executes the
+checked-out `nadi_kit.py`), then 0b/0c/0d agent-city/-internet/-world, each
+as a single-repository mission with a run record in `runs/`. Completed and
+merged 2026-08-13/2026-08-16 (PRs and merge SHAs in the individual run
+records). S1 is satisfied org-wide (§6).
+
+**P2 (FAW executor seam) and P3 (first runtime adapter) — completed, but by
+direct owner instruction, not through the Director cycle.** `execution.py`
+(FAW) and `agent_runtime/` (agent-template) exist at the remote heads and
+are merged (FAW #46/#47, agent-template #23). They were implemented per a
+direct owner mandate; **the P1 recon missions were not run** — the `[FACT]`
+claims in §2 were verified by remote-head inspection and merge-SHA checks
+rather than by canonical Scout artifacts. No P1 Scout findings were
+retroactively constructed; that would be fabricating evidence for a process
+that did not happen. The verification that does exist: the merge SHAs above
+and the remote-head checks recorded in this session.
+
+**P4–P6 — not started.** No `faw-attempt` workflow, no dedicated relay
+repository, no sandbox target repository exists (verified 2026-08-16).
+P4 remains blocked on S2–S4 (owner setup: GitHub App, relay, sandbox).
+
+**Consequence for the program:** stages 2 and 3 are usable as merged,
+pinned interfaces (P2/P3 each exist and are tested), but they carry no
+Director-cycle acceptance artifacts. A later stage that depends on a §2
+claim must re-verify it (POL-01) rather than assume the original `[FACT]`
+marking — exactly what Artifact B requires.

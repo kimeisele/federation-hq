@@ -2,12 +2,14 @@ Director Preflight — Federation Bootstrap Program Ingestion
 
 > **Historical record.** The Step −1 preflight instruction below was executed
 > before the bootstrap artifacts were ingested. It is recorded verbatim and is
-> **not live direction**. Current state: Step −1 executed; Artifacts A and B
-> ingested at `docs/FEDERATION_BOOTSTRAP_PROGRAM.md` and
-> `docs/FEDERATION_BOOTSTRAP_DIRECTOR_INSTRUCTION.md`; PROGRAM 0a formulated and
-> in progress (`runs/run-20260813-steward-federation-nadi-source-binding`,
-> `mission/ledger.yaml` sig-20260813). For live direction follow
-> `docs/FEDERATION_BOOTSTRAP_DIRECTOR_INSTRUCTION.md`.
+> **not live direction**. Status: Step −1 executed and **completed**;
+> Artifacts A and B ingested at `docs/FEDERATION_BOOTSTRAP_PROGRAM.md` and
+> `docs/FEDERATION_BOOTSTRAP_DIRECTOR_INSTRUCTION.md`; PROGRAM 0 (S1) completed
+> 2026-08-16 (`runs/run-20260813-steward-federation-nadi-source-binding` and
+> the 0b/0c/0d run records, `mission/ledger.yaml` sig-20260813). This file is
+> historical; for live direction follow
+> `docs/FEDERATION_BOOTSTRAP_DIRECTOR_INSTRUCTION.md` and the execution record
+> in `docs/FEDERATION_BOOTSTRAP_PROGRAM.md` §14.
 
 ---
 

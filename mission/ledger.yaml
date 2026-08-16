@@ -134,7 +134,7 @@ items:
     source_kind: github_issue
     repository: kimeisele/federation-hq
     source_native_ref: kimeisele/federation-hq#53
-    disposition: active
+    disposition: completed
     candidate_id: cand-20260813-steward-federation-nadi-source-binding
     mission_id: mission-20260813-steward-federation-nadi-source-binding
     related_run_ids: []
@@ -147,4 +147,64 @@ items:
       missions/mission-20260813-steward-federation-nadi-source-binding/;
       target execution has not started.
     updated_at: "2026-08-13T17:00:18Z"
-updated_at: "2026-08-13T17:00:18Z"
+  - signal_id: sig-20260816-agent-city-nadi-source-binding
+    source_kind: github_issue
+    repository: kimeisele/federation-hq
+    source_native_ref: kimeisele/federation-hq#60
+    disposition: completed
+    candidate_id: cand-20260816-agent-city-nadi-source-binding
+    mission_id: mission-20260816-agent-city-nadi-source-binding
+    related_run_ids:
+      - run-20260816-agent-city-nadi-source-binding
+    last_observed_evidence: >
+      Federation Bootstrap PROGRAM 0b: agent-city heartbeat pinned
+      nadi_kit.py by blob SHA with digest verification. PR
+      kimeisele/agent-city#2720 merged 5b377d75 (S1 source binding).
+      Canonical evidence: runs/run-20260816-agent-city-nadi-source-binding/.
+    updated_at: "2026-08-16T05:30:00Z"
+  - signal_id: sig-20260816-agent-internet-nadi-source-binding
+    source_kind: github_issue
+    repository: kimeisele/federation-hq
+    source_native_ref: kimeisele/federation-hq#61
+    disposition: completed
+    candidate_id: cand-20260816-agent-internet-nadi-source-binding
+    mission_id: mission-20260816-agent-internet-nadi-source-binding
+    related_run_ids:
+      - run-20260816-agent-internet-nadi-source-binding
+    last_observed_evidence: >
+      Federation Bootstrap PROGRAM 0c: agent-internet heartbeat pinned
+      nadi_kit.py by blob SHA with digest verification. PR
+      kimeisele/agent-internet#1212 merged ee0ca6e0 (S1 source binding).
+      Canonical evidence: runs/run-20260816-agent-internet-nadi-source-binding/.
+    updated_at: "2026-08-16T05:30:00Z"
+  - signal_id: sig-20260816-agent-world-nadi-source-binding
+    source_kind: github_issue
+    repository: kimeisele/federation-hq
+    source_native_ref: kimeisele/federation-hq#62
+    disposition: completed
+    candidate_id: cand-20260816-agent-world-nadi-source-binding
+    mission_id: mission-20260816-agent-world-nadi-source-binding
+    related_run_ids:
+      - run-20260816-agent-world-nadi-source-binding
+    last_observed_evidence: >
+      Federation Bootstrap PROGRAM 0d: agent-world heartbeat pinned
+      nadi_kit.py by blob SHA with digest verification. PR
+      kimeisele/agent-world#1209 merged 3f9a4398 (S1 source binding).
+      Canonical evidence: runs/run-20260816-agent-world-nadi-source-binding/.
+    updated_at: "2026-08-16T05:30:00Z"
+  - signal_id: sig-20260816-agent-city-nadi-tag-pin
+    source_kind: github_issue
+    repository: kimeisele/federation-hq
+    source_native_ref: kimeisele/federation-hq#66
+    disposition: completed
+    candidate_id: cand-20260816-agent-city-nadi-tag-pin
+    mission_id: mission-20260816-agent-city-nadi-tag-pin
+    related_run_ids:
+      - run-20260816-agent-city-nadi-tag-pin
+    last_observed_evidence: >
+      Federation-wide pin move: agent-city nadi_kit.py pin moved from the
+      blob-API form to the immutable tag v0.1.2 (commit 03008a5a, blob
+      47d8e3bb...). PR kimeisele/agent-city#2721 merged 2120e2a6.
+      Canonical evidence: runs/run-20260816-agent-city-nadi-tag-pin/.
+    updated_at: "2026-08-16T08:20:00Z"
+updated_at: "2026-08-16T08:20:00Z"
