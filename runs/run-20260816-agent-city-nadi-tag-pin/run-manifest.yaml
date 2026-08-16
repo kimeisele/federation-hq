@@ -1,0 +1,40 @@
+kind: federation_hq_run_manifest
+run_id: run-20260816-agent-city-nadi-tag-pin
+target_repository: kimeisele/agent-city
+baseline_sha: 5b377d75d6257805d88caed937adacc13c58c180
+maintenance_request:
+  text: >
+    Federation-wide nadi-kit pinning (Block A). The agent-city heartbeat
+    workflow fetched nadi_kit.py via the Git blobs API at blob
+    47d8e3bb...; the pin moves to the immutable annotated tag v0.1.2
+    (raw.githubusercontent.com/kimeisele/steward-federation/v0.1.2/nadi_kit.py).
+    Content-identical; the digest check (git hash-object == 47d8e3bb...)
+    is unchanged.
+  source: human_operator
+  created_at: "2026-08-16T08:14:54Z"
+  source_reference: https://github.com/kimeisele/federation-hq/issues/66
+coordination:
+  protocol_version: 0.1.0
+  issue_number: 66
+  issue_url: https://github.com/kimeisele/federation-hq/issues/66
+pipeline_state: approved
+prompt_pins:
+  operator:
+    id: operator
+    version: 0.3.1
+    sha256: 20aa6bacd660da8438a7098f70032560f36688ea125cfb8da9ad18fcbdaa01cc
+  scout:
+    id: scout
+    version: 0.2.0
+    sha256: eb93cbb94d489df94cd64cde59316fcb650f344244c097c11e024b0093011837
+  repair:
+    id: repair
+    version: 0.2.1
+    sha256: 2830ae50c209ae116671f1f840352b416ce26f8304cb78ee277fd9721a9b1d0f
+  review:
+    id: review
+    version: 0.2.1
+    sha256: d3e59db52d144a4aeebbb149a09f1266c4948cb4d37007327966f42eee875247
+created_at: "2026-08-16T08:14:54Z"
+notes: >
+  Block A nadi-kit v0.1.2 tag pin. Coordination issue kimeisele/federation-hq#66.

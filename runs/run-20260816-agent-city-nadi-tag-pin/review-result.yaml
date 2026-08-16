@@ -1,0 +1,19 @@
+kind: federation_hq_review_result
+review_id: run-20260816-agent-city-nadi-tag-pin-v1
+run_id: run-20260816-agent-city-nadi-tag-pin
+candidate_id: run-20260816-agent-city-nadi-tag-pin-c1
+result_id: run-20260816-agent-city-nadi-tag-pin-r1
+target_repository: kimeisele/agent-city
+reviewer_head_sha: 0ec56905d31e2569c2271aa18b8d9e64ac5d1d55
+verdict: approved
+baseline_failures_checked: []
+newly_introduced_failures_checked:
+  - >-
+    Digest check (git hash-object == 47d8e3bb...) preserved; executed bytes
+    identical to the previous blob pin; no schema/semantic change.
+blockers: []
+evidence_checked:
+  - >-
+    Tag v0.1.2 resolves to commit 03008a5a with nadi_kit.py blob 47d8e3bb...
+    (verified at tag creation); the raw tag fetch yields identical bytes.
+created_at: '2026-08-16T08:14:54Z'

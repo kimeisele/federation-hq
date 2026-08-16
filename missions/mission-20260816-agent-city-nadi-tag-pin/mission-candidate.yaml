@@ -1,0 +1,29 @@
+kind: federation_hq_mission_candidate
+candidate_id: cand-20260816-agent-city-nadi-tag-pin
+signal_refs:
+  - signal_id: sig-20260816-agent-city-nadi-tag-pin
+    source_kind: github_issue
+    repository: kimeisele/federation-hq
+    source_native_ref: kimeisele/federation-hq#66
+    last_observed_evidence: >
+      agent-city heartbeat fetched nadi_kit.py via blob-API; federation-wide
+      convention moved to the immutable tag v0.1.2.
+target_repository: kimeisele/agent-city
+problem_statement: >
+  Move the agent-city nadi_kit.py pin from blob-API to the immutable v0.1.2
+  tag, preserving the digest verification and executed bytes.
+disposition: selected
+mission_id: mission-20260816-agent-city-nadi-tag-pin
+policy_eligibility:
+  policy_reference: docs/HQ_MISSION_POLICY.md
+  eligible: true
+  reasons:
+    - "POL-01 owner-requested federation-wide pinning (Block A)"
+    - "POL-02 bounded objective: one pin notation change in one repo"
+    - "POL-03 one semantic unit in one repository"
+overlap_refs: []
+evidence:
+  - "kimeisele/federation-hq#66"
+  - "kimeisele/agent-city@5b377d75d6257805d88caed937adacc13c58c180:.github/workflows/agent-city-heartbeat.yml"
+source: "Director cycle kimeisele/federation-hq#66"
+created_at: "2026-08-16T08:14:54Z"
