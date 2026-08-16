@@ -1,0 +1,31 @@
+kind: federation_hq_repair_result
+result_id: run-20260816-agent-world-nadi-source-binding-r1
+run_id: run-20260816-agent-world-nadi-source-binding
+candidate_id: run-20260816-agent-world-nadi-source-binding-c1
+target_repository: kimeisele/agent-world
+baseline_sha: 6771524abef20ef4f9b98ad366ba4bfa0968111a
+repair_head_sha: 6e001a836f0f815feed02886fe2fb43ed93c6696
+branch: fix/s1-pin-nadi-kit-blob
+pull_request:
+  number: 1209
+  url: https://github.com/kimeisele/agent-world/pull/1209
+commands:
+  - command: python -m pytest tests/test_workflow_source.py
+    exit_code: 0
+    outcome: 1 passed; the regression test asserts the mutable main fetch is absent and the pinned blob SHA + digest check are present.
+  - command: python -c "import yaml; yaml.safe_load(open('.github/workflows/world-heartbeat.yml'))"
+    exit_code: 0
+    outcome: workflow YAML parses clean
+  - command: grep -r "steward-federation/main/nadi_kit.py" .github/ || true
+    exit_code: 1
+    outcome: zero unpinned fetches remain in workflows (grep found none, exit 1)
+baseline_failures:
+  - >-
+    The mutable raw.githubusercontent.com fetch of nadi_kit.py from
+    steward-federation main at .github/workflows/world-heartbeat.yml was present at the baseline and executed
+    unverified bytes with secrets in the environment.
+newly_introduced_failures: []
+evidence_locations:
+  - .github/workflows/world-heartbeat.yml
+  - tests/test_workflow_source.py
+created_at: '2026-08-16T05:14:13Z'

@@ -1,0 +1,43 @@
+kind: federation_hq_run_manifest
+run_id: run-20260816-agent-internet-nadi-source-binding
+target_repository: kimeisele/agent-internet
+baseline_sha: dcd0206434b21d8c0ec2fac81e2aafc856401831
+maintenance_request:
+  text: >
+    Federation Bootstrap PROGRAM 0c
+    (S1). The agent-internet heartbeat workflow executes nadi_kit.py downloaded from
+    mutable steward-federation/main. Smallest bounded correction: fetch the
+    nadi_kit.py blob at a pinned content-addressed SHA (47d8e3bbd9cb4256612df1e21ded38b3beb48aa3) and verify the
+    digest before execution. No change to Nadi semantics or heartbeat behaviour.
+  source: human_operator
+  created_at: "2026-08-16T05:14:13Z"
+  source_reference: https://github.com/kimeisele/federation-hq/issues/61
+coordination:
+  protocol_version: 0.1.0
+  issue_number: 61
+  issue_url: https://github.com/kimeisele/federation-hq/issues/61
+pipeline_state: approved
+prompt_pins:
+  operator:
+    id: operator
+    version: 0.3.1
+    sha256: 20aa6bacd660da8438a7098f70032560f36688ea125cfb8da9ad18fcbdaa01cc
+  scout:
+    id: scout
+    version: 0.2.0
+    sha256: eb93cbb94d489df94cd64cde59316fcb650f344244c097c11e024b0093011837
+  repair:
+    id: repair
+    version: 0.2.1
+    sha256: 2830ae50c209ae116671f1f840352b416ce26f8304cb78ee277fd9721a9b1d0f
+  review:
+    id: review
+    version: 0.2.1
+    sha256: d3e59db52d144a4aeebbb149a09f1266c4948cb4d37007327966f42eee875247
+created_at: "2026-08-16T05:14:13Z"
+notes: >
+  Federation Bootstrap PROGRAM 0c.
+  S1 source binding for agent-internet: heartbeat previously executed nadi_kit.py from
+  mutable steward-federation main. Repair pins the nadi_kit.py blob at
+  content-addressed SHA 47d8e3bbd9cb4256612df1e21ded38b3beb48aa3 and verifies the digest (git hash-object)
+  before execution. Coordination issue kimeisele/federation-hq#61.

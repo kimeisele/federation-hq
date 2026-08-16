@@ -1,0 +1,50 @@
+kind: federation_hq_mission_contract
+mission_version: "0.1.0"
+mission_id: mission-20260816-agent-city-nadi-source-binding
+source_candidate_id: cand-20260816-agent-city-nadi-source-binding
+signal_refs:
+  - signal_id: sig-20260816-agent-city-nadi-source-binding
+    source_kind: github_issue
+    repository: kimeisele/federation-hq
+    source_native_ref: kimeisele/federation-hq#60
+target_repository: kimeisele/agent-city
+objective: >
+  Remove mutable remote nadi_kit.py execution from the agent-city heartbeat and
+  execute only digest-verified pinned nadi_kit bytes, without changing Nadi or
+  heartbeat behavior.
+decision_question: >
+  At the exact agent-city main head pinned when the run opens, what is the
+  smallest repository-scoped correction that removes mutable remote
+  nadi_kit.py execution and verifies the executed file's digest while
+  preserving sync-heartbeat-sync order?
+bounded_scope: >
+  Repository kimeisele/agent-city only. Change only .github/workflows/agent-city-heartbeat.yml and one focused
+  workflow-source guard under tests/.
+scope_enforcement: declared
+prescribes_repair: false
+hard_constraints:
+  - "The Operator must live-verify and pin the exact agent-city main head when opening the run; all roles use that baseline and Review checks the exact remote repair head."
+  - "Do not modify nadi_kit.py production bytes."
+  - "Do not change Nadi message, signature, key, relay, mailbox, buffer, routing, retry, or sync semantics."
+  - "Preserve exactly the local execution order: sync, heartbeat, sync."
+  - "No cross-repository, Federation HQ, FAW, OMP, runtime, credential, or sandbox changes."
+  - "The guard must reject reintroduction of mutable remote application-code fetch."
+stop_conditions:
+  - "The correction requires changing nadi_kit.py production semantics."
+  - "The correction requires a cross-repository change."
+  - "An active overlapping pull request takes ownership of the same workflow-source defect."
+  - "Required evidence cannot be reproduced against the exact remote head."
+expected_allowed_outcomes:
+  - approved
+  - changes_requested
+  - blocked
+  - invalid_candidate
+  - mission_rejected
+policy_reference: docs/HQ_MISSION_POLICY.md
+policy_version: "0.1.0"
+policy_sha256: "7d3c4eb4b6528e4aef515b429aafcdb6d9dc228d6feea098582b10a2a4f2241d"
+status: proposed
+creation_provenance:
+  author_role: director
+  source_reference: "kimeisele/federation-hq#60"
+created_at: "2026-08-16T05:14:13Z"
