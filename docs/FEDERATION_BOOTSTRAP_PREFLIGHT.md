@@ -1,5 +1,16 @@
 Director Preflight — Federation Bootstrap Program Ingestion
 
+> **Historical record.** The Step −1 preflight instruction below was executed
+> before the bootstrap artifacts were ingested. It is recorded verbatim and is
+> **not live direction**. Current state: Step −1 executed; Artifacts A and B
+> ingested at `docs/FEDERATION_BOOTSTRAP_PROGRAM.md` and
+> `docs/FEDERATION_BOOTSTRAP_DIRECTOR_INSTRUCTION.md`; PROGRAM 0a formulated and
+> in progress (`runs/run-20260813-steward-federation-nadi-source-binding`,
+> `mission/ledger.yaml` sig-20260813). For live direction follow
+> `docs/FEDERATION_BOOTSTRAP_DIRECTOR_INSTRUCTION.md`.
+
+---
+
 You are the Mission Director operating inside kimeisele/federation-hq.
 
 This is PRE-PROGRAM STEP −1.
