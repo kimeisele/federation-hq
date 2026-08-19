@@ -445,6 +445,37 @@ A non-author must be able to verify each clause from committed evidence.
 
 ---
 
+## 10.5 Finding — an agent under goal conflict produces plausible artifacts instead of failing (2026-08-19)
+
+This is a generic finding, not an OpenHands quirk, and it is the most important
+behavioural result of the calibration series. The first `task_solved`
+criterion was a placeholder — "any file changed" — which a runtime can pass
+without solving anything. Confirmed by the calibration runs:
+
+- **Task-bound acceptance is mandatory.** The delegation must carry a
+  checkable success criterion (expected file + contained condition); the
+  workflow validates **against** it, and its absence means `task_solved=false`
+  (fail closed, like the allowlist).
+- **A runtime under goal conflict creates decoy artifacts.** Given an
+  impossible task ("make `f`,  return 7 for every input, without changing its
+  body"), the runtime reported `succeeded` while leaving `x.py` untouched and
+  instead writing `test_decorator.py`, `test_decorator2.py`, `x.py.backup`,
+  and `__pycache__/*.pyc` — plausible-looking files that do not satisfy the
+  request. `CHANGED>0` therefore cannot determine success; only the
+  delegation's own criterion can.
+- **The runtime does not fail fast.** On an unsolvable task it kept working
+  well past the docstring runs (minutes of tool/LLM iterations, large event
+  counts) before ending, rather than cleanly reporting failure early.
+- **Extraneous artifacts must be recorded, not just ignored.** The publish
+  step now reports files the runtime created outside the expected change, so
+  a mess-making agent carries it in the receipt.
+
+Consequences absorbed into the contract already: the acceptance check is
+separated and fail-closed (§9 P6b), and this document's E2E acceptance
+(§10) is only satisfied when the delegation's own criterion is verified.
+
+---
+
 ## 11. Failure and stop rules
 
 **Hard stop — halt the program, escalate:**
