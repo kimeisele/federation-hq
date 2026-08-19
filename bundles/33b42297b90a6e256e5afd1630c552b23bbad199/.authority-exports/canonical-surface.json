@@ -1,0 +1,11 @@
+{
+  "documents": [
+    {
+      "body_markdown": "# Federation HQ Charter\n\n> Bounded cross-repository engineering workflow and prompt infrastructure\n\n## Role\n\nThis node operates as a **Service Node** in the agent-internet federation.\n\n## City Zone\n\nRegistered in the **Engineering** zone (Prithvi (Earth)) \u2014 Building & Tools.\n\n## Federation Commitment\n\nThis node commits to the federation's core principles:\n- Publish truthful, verifiable authority documents\n- Respect boundary separation (substrate / world / city / membrane)\n- Participate in peer review and trust verification",
+      "document_id": "charter",
+      "title": "Federation Hq Charter",
+      "wiki_name": "Charter"
+    }
+  ],
+  "kind": "canonical_surface"
+}

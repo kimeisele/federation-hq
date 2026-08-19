@@ -1,0 +1,10 @@
+{
+  "kind": "surface_metadata",
+  "public_surface": {
+    "repo_label": "Federation Hq"
+  },
+  "surface_registry": {
+    "kind": "wiki_surface_registry",
+    "page_count": 1
+  }
+}
