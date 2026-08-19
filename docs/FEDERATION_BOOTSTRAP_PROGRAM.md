@@ -612,3 +612,42 @@ that do exist: the runtime App scoped to exactly two repositories
 (D3/S2/S3), the default-deny target allowlist (S8, agent-template#26),
 deadline and output bounds (S9/S10), and the rule that delegation input is
 never shell-interpolated (S6).
+
+## 16. P6 completion and the honest open items (2026-08-19)
+
+**Signed terminal receipt — integrated and verified** (agent-template PR
+series, run `32275964730`): the workflow now installs `federated-agent-web`,
+creates ephemeral issuer + executor nodes, signs a delegation, runs
+`receipt_from_result` (bound to the delegation digest), and verifies via
+`accept_terminal` + `verify` against a pending store. Exactly one terminal
+receipt per attempt — a second `accept_terminal` for the same
+(task, attempt) is a hard error. `delegation_digest` and `receipt_digest`
+are printed; `RECEIPT_OK` confirms signature + binding + one-only invariant.
+
+**Token/cost measurement — NOT satisfied; an open item, not hidden as done.**
+`provider_usage` remains `null` with `source: "unknown"`. The root cause is
+structural: openhands' `ConversationStats.usage_to_metrics` exists but is
+only exported through the server telemetry channel, never the CLI
+`--headless --json` event stream the adapter consumes; OpenCode Go (Zen) has
+no documented public usage endpoint (the `/usage` probe returns 401, an
+auth boundary, not a usable API). **PROGRAM 6b therefore did not measure the
+D5 cost divergence.** D5 says cost/token claims are never asserted
+unverified — so they are omitted, which is correct, but the calibration
+purpose (measure the divergence) is **unmet**. This is recorded as an open
+item requiring either a server-side telemetry consumer or a provider usage
+endpoint before `can_enforce_cost` can ever be considered.
+
+**Honest status for autonomous operation (S1–S12 / P0–P6):**
+- S1–S4, S6–S11: implemented (S1 org-wide pins; S2/S3 runtime App scoped to
+  two repos; S4 branch namespace + protected main; S6 file-only input; S7
+  ephemeral runner; S8 default-deny allowlist; S9 deadline; S10 output
+  bounds; S11 cost omitted-not-asserted).
+- S5: LLM secrets injected only into the runtime step — met; the runtime App
+  secret is scoped. S12: documented as not enforceable (GitHub-hosted) — an
+  accepted gap, not a claim.
+- P0–P6: the vertical path works (recon → pins → seam → adapter → node →
+  relay → calibrated E2E with signed receipts), but **the goal-conflict
+  finding** (§10.5) and the **unmeasurable cost** (§16) are the two real
+  residuals for autonomous operation: a runtime can make plausible decoy
+  artifacts when it cannot solve a task (now caught by task-bound
+  acceptance), and cost cannot be budgeted or attributed per attempt.
